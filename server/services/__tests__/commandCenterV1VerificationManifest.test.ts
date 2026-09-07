@@ -14,25 +14,45 @@ describe('Command Center v1 Gate 2 verification manifest', () => {
     );
   });
 
-  test('certifies weekly receipt persistence and frozen replay only after append-only DB evidence exists', () => {
+  test('records the capabilities already proven with executable evidence', () => {
     const receipts = COMMAND_CENTER_V1_VERIFICATION.immutable_decision_receipts;
     expect(receipts.status).toBe('certified');
     expect(receipts.scope).toContain('application/runtime boundary');
     expect(receipts.reason).toContain('UPDATE, DELETE, and TRUNCATE');
     expect(receipts.evidence).toContain('migrations/0016_weekly_decision_ledger_append_only.sql');
-    expect(receipts.evidence).toContain(
-      'server/services/__tests__/weeklyDecisionLedgerPersistence.integration.test.ts',
-    );
-    expect(COMMAND_CENTER_V1_VERIFICATION.frozen_as_of_replay.status).toBe('certified');
 
-    expect(COMMAND_CENTER_V1_VERIFICATION.independent_challenger.status).toBe('not_started');
-    expect(COMMAND_CENTER_V1_VERIFICATION.postgame_process_evaluation.status).toBe('not_started');
-    expect(COMMAND_CENTER_V1_VERIFICATION.deterministic_invariants.status).toBe('partial');
-    expect(COMMAND_CENTER_V1_VERIFICATION.golden_traces.status).toBe('partial');
-    expect(COMMAND_CENTER_V1_VERIFICATION.adversarial_red_team.status).toBe('partial');
+    expect(COMMAND_CENTER_V1_VERIFICATION.frozen_as_of_replay.status).toBe('certified');
+    expect(COMMAND_CENTER_V1_VERIFICATION.independent_challenger.status).toBe('certified');
+    expect(COMMAND_CENTER_V1_VERIFICATION.golden_traces.status).toBe('certified');
+    expect(COMMAND_CENTER_V1_VERIFICATION.adversarial_red_team.status).toBe('certified');
   });
 
-  test('does not falsely certify Gate 2 while required capabilities remain partial or unstarted', () => {
+  test('keeps the challenger methodologically different and confidence-neutral in the release ledger', () => {
+    const challenger = COMMAND_CENTER_V1_VERIFICATION.independent_challenger;
+    expect(challenger.reason).toContain('no Forecast quantiles');
+    expect(challenger.reason).toContain('forbidden from increasing confidence');
+    expect(challenger.evidence).toContain('shared/weeklyDecisionChallenger.ts');
+    expect(challenger.evidence).toContain('server/services/__tests__/weeklyDecisionChallenger.test.ts');
+  });
+
+  test('requires explicit frozen golden traces rather than treating ordinary unit fixtures as replay proof', () => {
+    const traces = COMMAND_CENTER_V1_VERIFICATION.golden_traces;
+    expect(traces.status).toBe('certified');
+    expect(traces.evidence).toContain('server/services/__tests__/golden/weeklyDecisionGate2GoldenTraces.ts');
+    expect(traces.evidence).toContain('server/services/__tests__/weeklyDecisionGoldenTraces.test.ts');
+  });
+
+  test('records source laundering and correlated-agreement attacks in the certified red-team boundary', () => {
+    const redTeam = COMMAND_CENTER_V1_VERIFICATION.adversarial_red_team;
+    expect(redTeam.status).toBe('certified');
+    expect(redTeam.reason).toContain('source laundering');
+    expect(redTeam.reason).toContain('correlated-agreement risk');
+    expect(redTeam.evidence).toContain('server/services/__tests__/weeklyDecisionSourceLineage.test.ts');
+  });
+
+  test('does not falsely certify Gate 2 while deterministic invariant unification and postgame evaluation remain open', () => {
+    expect(COMMAND_CENTER_V1_VERIFICATION.deterministic_invariants.status).toBe('partial');
+    expect(COMMAND_CENTER_V1_VERIFICATION.postgame_process_evaluation.status).toBe('not_started');
     expect(isCommandCenterV1Gate2Complete()).toBe(false);
   });
 });
