@@ -1,7 +1,6 @@
 import crypto from 'node:crypto';
-import { storage, type IStorage } from '../storage';
-import { sleeperClient, type SleeperRoster } from '../integrations/sleeperClient';
-import { computeLeagueDashboard, type LeagueDashboardPayload } from './leagueDashboardService';
+import type { SleeperRoster } from '../integrations/sleeperClient';
+import type { LeagueDashboardPayload } from './leagueDashboardService';
 import {
   buildTeamDirectionForgeFreshnessReceipt,
   isAcceptedTeamDirectionForgeFreshnessReceipt,
@@ -12,18 +11,30 @@ const MIN_OVERALL_EVIDENCE_RATE = 0.9;
 export const LEAGUE_DASHBOARD_TRUTH_BOUNDARY_VERSION = 'league_dashboard_truth_boundary_v1';
 
 type TruthBoundaryDeps = {
-  storage: Pick<IStorage, 'getLeagueWithTeams'>;
-  sleeperClient: Pick<typeof sleeperClient, 'getLeagueRosters'>;
-  computeLeagueDashboard: typeof computeLeagueDashboard;
+  storage: {
+    getLeagueWithTeams: (leagueId: string) => Promise<any>;
+  };
+  sleeperClient: {
+    getLeagueRosters: (externalLeagueId: string) => Promise<SleeperRoster[]>;
+  };
+  computeLeagueDashboard: (params: any) => Promise<LeagueDashboardPayload>;
   now?: () => Date;
 };
 
-const defaultDeps: TruthBoundaryDeps = {
-  storage,
-  sleeperClient,
-  computeLeagueDashboard,
-  now: () => new Date(),
-};
+async function loadDefaultDeps(): Promise<TruthBoundaryDeps> {
+  const [{ storage }, { sleeperClient }, { computeLeagueDashboard }] = await Promise.all([
+    import('../storage'),
+    import('../integrations/sleeperClient'),
+    import('./leagueDashboardService'),
+  ]);
+
+  return {
+    storage,
+    sleeperClient,
+    computeLeagueDashboard,
+    now: () => new Date(),
+  };
+}
 
 type TruthBoundaryParams = {
   userId: string;
@@ -203,13 +214,18 @@ function recomputeObservedTeam(
  */
 export async function computeTruthBoundLeagueDashboard(
   params: TruthBoundaryParams,
-  deps: TruthBoundaryDeps = defaultDeps,
+  deps?: TruthBoundaryDeps,
 ): Promise<LeagueDashboardPayload & Record<string, unknown>> {
   if (!params.userId || params.userId === 'default_user') {
     throw new LeagueDashboardTruthError('unscoped_user_id', 'A scoped user id is required', 400);
   }
 
-  const league = await deps.storage.getLeagueWithTeams(params.leagueId);
+  // Keep unit verification independent from infrastructure initialization. The
+  // production database/Sleeper/dashboard modules are loaded only when callers
+  // do not inject a controlled dependency set.
+  const resolvedDeps = deps ?? await loadDefaultDeps();
+
+  const league = await resolvedDeps.storage.getLeagueWithTeams(params.leagueId);
   if (!league || ((league as any).userId !== params.userId && (league as any).user_id !== params.userId)) {
     throw new LeagueDashboardTruthError('league_context_not_found', 'League not found for scoped user', 404);
   }
@@ -220,11 +236,11 @@ export async function computeTruthBoundLeagueDashboard(
   }
 
   const [basePayload, rosters] = await Promise.all([
-    deps.computeLeagueDashboard(params as any),
-    deps.sleeperClient.getLeagueRosters(externalLeagueId),
+    resolvedDeps.computeLeagueDashboard(params as any),
+    resolvedDeps.sleeperClient.getLeagueRosters(externalLeagueId),
   ]);
 
-  const now = deps.now?.() ?? new Date();
+  const now = resolvedDeps.now?.() ?? new Date();
   const rostersById = observedRosterMap(rosters);
   const playersBySleeperId = playerIndex(basePayload);
   const baseTeamsById = new Map((basePayload.teams ?? []).map((team: any) => [String(team.team_id), team]));
