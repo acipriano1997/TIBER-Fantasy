@@ -88,17 +88,21 @@ export const COMMAND_CENTER_V1_VERIFICATION: Readonly<
   postgame_process_evaluation: {
     id: 'postgame_process_evaluation',
     label: 'Postgame process evaluation',
-    status: 'not_started',
-    scope: 'Weekly Decisions v1',
-    reason: 'No release-certified evaluator yet grades calibration/process quality against realized outcomes while preserving the original as-of evidence packet.',
-    evidence: [],
+    status: 'certified',
+    scope: 'Weekly Decisions v1 realized-outcome audit boundary',
+    reason: 'Postgame evaluation first verifies and deterministically replays the immutable pregame receipt, then binds finalized realized points to the exact season/week/league/team/scoring identity. Outcome luck is descriptive only: realized wins/losses cannot rewrite the pregame receipt or retroactively validate or invalidate the governed pregame process. Single decisions expose interval diagnostics only; calibration is reportable only for at least 20 player outcomes from one homogeneous scoring/model/calibration/population cohort. Duplicate copies cannot inflate sample size, conflicting final outcomes fail closed, and mixed cohorts are never blended into one calibration claim.',
+    evidence: [
+      'server/services/weeklyDecisionPostgameEvaluation.ts',
+      'server/services/__tests__/weeklyDecisionPostgameEvaluation.test.ts',
+      'server/services/weeklyDecisionLedger.ts',
+    ],
   },
   adversarial_red_team: {
     id: 'adversarial_red_team',
     label: 'Adversarial red team',
     status: 'certified',
     scope: 'Gate 0 + Gate 1 + Weekly Decisions v1 verification boundary',
-    reason: 'Executable attacks cover context bleed, stale/sparse evidence, unsupported legacy authority, receipt mutation, malformed persisted receipts, as-of drift, invalid hashes, direct ledger mutation, source laundering, model/version clock mismatch, invalid publication/freshness/coverage, malformed Sleeper owner/roster/starter geometry, and correlated-agreement risk. The challenger is structurally no-model and agreement can never promote confidence.',
+    reason: 'Executable attacks cover context bleed, stale/sparse evidence, unsupported legacy authority, receipt mutation, malformed persisted receipts, as-of drift, invalid hashes, direct ledger mutation, source laundering, model/version clock mismatch, invalid publication/freshness/coverage, malformed Sleeper owner/roster/starter geometry, correlated-agreement risk, tampered pregame postgame inputs, realized scoring identity mismatch, noncanonical/nonfinal outcome authority, duplicate/conflicting final outcomes, tiny calibration samples, and mixed calibration cohorts.',
     evidence: [
       'server/services/__tests__/leagueDashboardTruthBoundary.test.ts',
       'server/services/__tests__/commandCenterV1InvariantReplay.test.ts',
@@ -108,6 +112,7 @@ export const COMMAND_CENTER_V1_VERIFICATION: Readonly<
       'server/services/__tests__/weeklyDecisionSourceLineage.test.ts',
       'server/services/__tests__/weeklyDecisionChallenger.test.ts',
       'server/services/__tests__/weeklyDecisionGoldenTraces.test.ts',
+      'server/services/__tests__/weeklyDecisionPostgameEvaluation.test.ts',
     ],
   },
 } as const;
