@@ -7,6 +7,7 @@ import { baselineSecurityHeaders } from "./middleware/security";
 import { createPersonalUserScopeMiddleware } from "./middleware/personalUserScope";
 import { draftReviewRouter } from "./routes/draftReviewRoutes";
 import { createHealthRouter } from "./routes/healthRoutes";
+import { sleeperUsageTruthBoundaryRouter } from "./routes/sleeperUsageTruthBoundary";
 import {
   createRuntimeProfileRouter,
   installPublicApiBoundary,
@@ -88,6 +89,13 @@ app.use(createRuntimeProfileRouter(runtimeProfile));
 // database-backed background router so the pilot remains available when
 // dynasty Management dependencies are unavailable.
 app.use(draftReviewRouter);
+
+// The legacy Sleeper stats route fabricates usage data. Personal v1 quarantines
+// it before the private route graph is imported; public containment does not
+// expose the private endpoint at all.
+if (runtimeProfile !== PUBLIC_DRAFT_REVIEW_PROFILE) {
+  app.use(sleeperUsageTruthBoundaryRouter);
+}
 
 // Tiny API request logger
 app.use((req, res, next) => {
