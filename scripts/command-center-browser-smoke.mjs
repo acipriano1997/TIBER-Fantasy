@@ -320,7 +320,7 @@ async function main() {
     await navigateAndAssert(cdp, '/command-center/weekly', 'INSUFFICIENT EVIDENCE', report);
     await navigateAndAssert(cdp, '/command-center/waivers', 'UNSUPPORTED DOMAIN', report);
     await navigateAndAssert(cdp, '/command-center/trades', 'UNSUPPORTED DOMAIN', report);
-    await navigateAndAssert(cdp, '/draft-review', 'TIBER · Draft Review pilot', report);
+    await navigateAndAssert(cdp, '/draft-review', 'TIBER · DRAFT REVIEW PILOT', report);
     await navigateAndAssert(cdp, '/records', 'Fantasy History & Legacy', report);
 
     // Resilience: deliberately leave Management data reads pending, then prove SPA navigation is still responsive.
