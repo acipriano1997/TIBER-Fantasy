@@ -1,6 +1,7 @@
 import express from 'express';
 import { and, desc, eq, inArray } from 'drizzle-orm';
 import { computeTruthBoundLeagueDashboard, LeagueDashboardTruthError } from '../services/leagueDashboardTruthBoundary';
+import { buildLeagueRecordsPayload } from '../services/recordsHistoryService';
 import { createPlaybookForgeLogger } from '../utils/playbookForgeLogger';
 import { db } from '../infra/db';
 import { forgePlayerState, playerIdentityMap } from '@shared/schema';
@@ -9,6 +10,28 @@ import { storage } from '../storage';
 
 export function createLeagueDashboardRouter() {
   const router = express.Router();
+
+  router.get('/api/league-records', async (req, res) => {
+    try {
+      const leagueId = typeof req.query.league_id === 'string' ? req.query.league_id.trim() : '';
+      if (!leagueId) {
+        return res.status(400).json({ success: false, error: 'league_id is required' });
+      }
+
+      const requestedMax = Number(req.query.max_seasons ?? 12);
+      const maxSeasons = Number.isFinite(requestedMax) ? Math.min(25, Math.max(1, Math.trunc(requestedMax))) : 12;
+      const bypassCache = req.query.refresh === '1' || req.query.refresh === 'true';
+      const payload = await buildLeagueRecordsPayload(leagueId, { maxSeasons, bypassCache });
+      return res.json(payload);
+    } catch (error) {
+      console.error('[League Records] failed to reconstruct history', error);
+      return res.status(502).json({
+        success: false,
+        error: (error as Error).message || 'Failed to reconstruct Sleeper league history',
+        code: 'SLEEPER_HISTORY_UNAVAILABLE',
+      });
+    }
+  });
 
   router.get('/api/league-dashboard', async (req, res) => {
     try {
