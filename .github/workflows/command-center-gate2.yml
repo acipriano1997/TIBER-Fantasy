@@ -1,0 +1,75 @@
+name: Command Center Gate 2
+
+on:
+  pull_request:
+    paths:
+      - 'shared/weeklyDecisionContract.ts'
+      - 'shared/commandCenterV1VerificationManifest.ts'
+      - 'server/services/weeklyDecisionLedger.ts'
+      - 'server/services/__tests__/weeklyDecisionContract.test.ts'
+      - 'server/services/__tests__/weeklyDecisionLedger.test.ts'
+      - 'server/services/__tests__/commandCenterV1VerificationManifest.test.ts'
+      - '.github/workflows/command-center-gate2.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'shared/weeklyDecisionContract.ts'
+      - 'shared/commandCenterV1VerificationManifest.ts'
+      - 'server/services/weeklyDecisionLedger.ts'
+      - 'server/services/__tests__/weeklyDecisionContract.test.ts'
+      - 'server/services/__tests__/weeklyDecisionLedger.test.ts'
+      - 'server/services/__tests__/commandCenterV1VerificationManifest.test.ts'
+      - '.github/workflows/command-center-gate2.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: command-center-gate2-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate2-receipt-replay:
+    name: Gate 2 receipt + replay boundary
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Typecheck Gate 2 delta against baseline debt
+        shell: bash
+        run: |
+          set +e
+          npm run typecheck > /tmp/tiber-typecheck.log 2>&1
+          typecheck_status=$?
+          set -e
+
+          gate2_pattern='^(shared/commandCenterV1VerificationManifest\.ts|server/services/weeklyDecisionLedger\.ts|server/services/__tests__/(weeklyDecisionLedger|commandCenterV1VerificationManifest)\.test\.ts)\('
+          if grep -E "$gate2_pattern" /tmp/tiber-typecheck.log; then
+            echo "::error::Gate 2 receipt/replay delta contains TypeScript errors."
+            exit 1
+          fi
+
+          if [ "$typecheck_status" -ne 0 ]; then
+            error_count=$(grep -c 'error TS' /tmp/tiber-typecheck.log || true)
+            echo "::warning::Repository-wide typecheck has ${error_count} baseline errors outside this Gate 2 delta."
+          else
+            echo "Repository-wide typecheck is clean."
+          fi
+      - name: Run Gate 2 receipt and replay regressions
+        run: >-
+          npm test --
+          server/services/__tests__/weeklyDecisionContract.test.ts
+          server/services/__tests__/weeklyDecisionLedger.test.ts
+          server/services/__tests__/commandCenterV1VerificationManifest.test.ts
+      - name: Build application
+        run: sh build.sh
