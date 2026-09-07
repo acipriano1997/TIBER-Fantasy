@@ -105,6 +105,35 @@ function observedRosterMap(rosters: SleeperRoster[]) {
   return map;
 }
 
+function permittedSleeperOwnerIds(roster: SleeperRoster): string[] {
+  return [roster.owner_id, ...(roster.co_owners ?? [])]
+    .map(normalizeExternalId)
+    .filter((value): value is string => value !== null);
+}
+
+function verifyOwnerBinding(leagueTeam: any, observedRoster: SleeperRoster, externalRosterId: string) {
+  const expectedOwnerId = normalizeExternalId(
+    leagueTeam.externalUserId ?? leagueTeam.external_user_id,
+  );
+  const permittedOwnerIds = permittedSleeperOwnerIds(observedRoster);
+
+  if (expectedOwnerId && !permittedOwnerIds.includes(expectedOwnerId)) {
+    throw new LeagueDashboardTruthError(
+      'external_roster_owner_mismatch',
+      `Sleeper roster ${externalRosterId} does not include the persisted external owner`,
+      409,
+      {
+        team_id: String(leagueTeam.id),
+        external_roster_id: externalRosterId,
+        expected_external_owner_id: expectedOwnerId,
+        sleeper_owner_ids: permittedOwnerIds,
+      },
+    );
+  }
+
+  return { expectedOwnerId, permittedOwnerIds };
+}
+
 function playerIndex(payload: LeagueDashboardPayload) {
   const bySleeperId = new Map<string, any>();
   for (const team of payload.teams ?? []) {
@@ -220,9 +249,6 @@ export async function computeTruthBoundLeagueDashboard(
     throw new LeagueDashboardTruthError('unscoped_user_id', 'A scoped user id is required', 400);
   }
 
-  // Keep unit verification independent from infrastructure initialization. The
-  // production database/Sleeper/dashboard modules are loaded only when callers
-  // do not inject a controlled dependency set.
   const resolvedDeps = deps ?? await loadDefaultDeps();
 
   const league = await resolvedDeps.storage.getLeagueWithTeams(params.leagueId);
@@ -268,6 +294,7 @@ export async function computeTruthBoundLeagueDashboard(
       );
     }
 
+    const ownerBinding = verifyOwnerBinding(leagueTeam, observedRoster, externalRosterId);
     const baseTeam = baseTeamsById.get(teamId) ?? {
       team_id: teamId,
       display_name: leagueTeam.displayName ?? leagueTeam.display_name ?? 'Team',
@@ -284,7 +311,9 @@ export async function computeTruthBoundLeagueDashboard(
     teamReceipts.push({
       team_id: teamId,
       external_roster_id: externalRosterId,
+      expected_external_owner_id: ownerBinding.expectedOwnerId,
       sleeper_owner_id: normalizeExternalId(observedRoster.owner_id),
+      sleeper_permitted_owner_ids: ownerBinding.permittedOwnerIds,
       observed_player_count: (observedRoster.players ?? []).length,
       observed_starter_count: (observedRoster.starters ?? []).length,
       overall_available: verifiedTeam.overall_available,
