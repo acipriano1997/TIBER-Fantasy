@@ -1,0 +1,63 @@
+name: Command Center Gate 1
+
+on:
+  pull_request:
+    paths:
+      - 'shared/weeklyDecisionContract.ts'
+      - 'server/services/__tests__/weeklyDecisionContract.test.ts'
+      - '.github/workflows/command-center-gate1.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'shared/weeklyDecisionContract.ts'
+      - 'server/services/__tests__/weeklyDecisionContract.test.ts'
+      - '.github/workflows/command-center-gate1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: command-center-gate1-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  weekly-decision-contract:
+    name: Weekly decision truth contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Typecheck Gate 1 delta against baseline debt
+        shell: bash
+        run: |
+          set +e
+          npm run typecheck > /tmp/tiber-typecheck.log 2>&1
+          typecheck_status=$?
+          set -e
+
+          gate1_pattern='^(shared/weeklyDecisionContract\.ts|server/services/__tests__/weeklyDecisionContract\.test\.ts)\('
+          if grep -E "$gate1_pattern" /tmp/tiber-typecheck.log; then
+            echo "::error::Gate 1 weekly-decision delta contains TypeScript errors."
+            exit 1
+          fi
+
+          if [ "$typecheck_status" -ne 0 ]; then
+            error_count=$(grep -c 'error TS' /tmp/tiber-typecheck.log || true)
+            echo "::warning::Repository-wide typecheck has ${error_count} baseline errors outside this Gate 1 delta."
+          else
+            echo "Repository-wide typecheck is clean."
+          fi
+      - name: Run Weekly Decision contract regressions
+        run: npm test -- server/services/__tests__/weeklyDecisionContract.test.ts
+      - name: Build application
+        run: sh build.sh
