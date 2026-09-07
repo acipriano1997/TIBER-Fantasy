@@ -6,6 +6,8 @@ import { attachSignatureHeader } from "./middleware/signature";
 import { baselineSecurityHeaders } from "./middleware/security";
 import { createPersonalUserScopeMiddleware } from "./middleware/personalUserScope";
 import { draftReviewRouter } from "./routes/draftReviewRoutes";
+import { createHealthRouter } from "./routes/healthRoutes";
+import { sleeperUsageTruthBoundaryRouter } from "./routes/sleeperUsageTruthBoundary";
 import {
   createRuntimeProfileRouter,
   installPublicApiBoundary,
@@ -69,6 +71,9 @@ export function mountProductionFrontend(appToMount: express.Express, publicDir: 
 // 413) still carry the headers. No CSP here; the API keeps its own restrictive
 // CSP via securityHeaders() on /api.
 app.use(baselineSecurityHeaders());
+// Health must remain reachable even if private runtime/database initialization
+// is unavailable. Database readiness is lazy and separate from liveness.
+app.use(createHealthRouter());
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 // Personal release isolation boundary: legacy clients may still send
@@ -84,6 +89,13 @@ app.use(createRuntimeProfileRouter(runtimeProfile));
 // database-backed background router so the pilot remains available when
 // dynasty Management dependencies are unavailable.
 app.use(draftReviewRouter);
+
+// The legacy Sleeper stats route fabricates usage data. Personal v1 quarantines
+// it before the private route graph is imported; public containment does not
+// expose the private endpoint at all.
+if (runtimeProfile !== PUBLIC_DRAFT_REVIEW_PROFILE) {
+  app.use(sleeperUsageTruthBoundaryRouter);
+}
 
 // Tiny API request logger
 app.use((req, res, next) => {
@@ -111,8 +123,6 @@ app.use((req, res, next) => {
   next();
 });
 
-// ── Instant health routes — no dependencies, never hang ──────────────────────
-app.get("/health", (_req, res) => res.json({ ok: true, service: "TiberClaw" }));
 // In production / serves SPA shell when available; otherwise returns JSON fallback.
 // In dev the next() falls through to Vite which serves index.html.
 app.get("/", (req, res, next) => {
