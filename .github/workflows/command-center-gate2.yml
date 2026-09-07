@@ -10,6 +10,7 @@ on:
       - 'server/services/leagueDashboardTruthBoundary.ts'
       - 'server/services/weeklyDecisionLedger.ts'
       - 'server/services/weeklyDecisionLedgerRepository.ts'
+      - 'server/services/weeklyDecisionPostgameEvaluation.ts'
       - 'server/services/__tests__/leagueDashboardTruthBoundary.test.ts'
       - 'server/services/__tests__/commandCenterV1InvariantReplay.test.ts'
       - 'server/services/__tests__/weeklyDecisionContract.test.ts'
@@ -19,6 +20,7 @@ on:
       - 'server/services/__tests__/golden/weeklyDecisionGate2GoldenTraces.ts'
       - 'server/services/__tests__/weeklyDecisionLedger.test.ts'
       - 'server/services/__tests__/weeklyDecisionLedgerPersistence.integration.test.ts'
+      - 'server/services/__tests__/weeklyDecisionPostgameEvaluation.test.ts'
       - 'server/services/__tests__/commandCenterV1SurfaceManifest.test.ts'
       - 'server/services/__tests__/commandCenterV1VerificationManifest.test.ts'
       - 'migrations/0016_weekly_decision_ledger_append_only.sql'
@@ -34,6 +36,7 @@ on:
       - 'server/services/leagueDashboardTruthBoundary.ts'
       - 'server/services/weeklyDecisionLedger.ts'
       - 'server/services/weeklyDecisionLedgerRepository.ts'
+      - 'server/services/weeklyDecisionPostgameEvaluation.ts'
       - 'server/services/__tests__/leagueDashboardTruthBoundary.test.ts'
       - 'server/services/__tests__/commandCenterV1InvariantReplay.test.ts'
       - 'server/services/__tests__/weeklyDecisionContract.test.ts'
@@ -43,6 +46,7 @@ on:
       - 'server/services/__tests__/golden/weeklyDecisionGate2GoldenTraces.ts'
       - 'server/services/__tests__/weeklyDecisionLedger.test.ts'
       - 'server/services/__tests__/weeklyDecisionLedgerPersistence.integration.test.ts'
+      - 'server/services/__tests__/weeklyDecisionPostgameEvaluation.test.ts'
       - 'server/services/__tests__/commandCenterV1SurfaceManifest.test.ts'
       - 'server/services/__tests__/commandCenterV1VerificationManifest.test.ts'
       - 'migrations/0016_weekly_decision_ledger_append_only.sql'
@@ -95,7 +99,7 @@ jobs:
           typecheck_status=$?
           set -e
 
-          gate2_pattern='^(shared/(weeklyDecisionContract|weeklyDecisionChallenger|commandCenterV1InvariantManifest|commandCenterV1VerificationManifest)\.ts|server/services/(leagueDashboardTruthBoundary|weeklyDecisionLedger|weeklyDecisionLedgerRepository)\.ts|server/services/__tests__/(leagueDashboardTruthBoundary|commandCenterV1InvariantReplay|weeklyDecisionContract|weeklyDecisionChallenger|weeklyDecisionSourceLineage|weeklyDecisionGoldenTraces|weeklyDecisionLedger|weeklyDecisionLedgerPersistence\.integration|commandCenterV1SurfaceManifest|commandCenterV1VerificationManifest)\.test\.ts|server/services/__tests__/golden/weeklyDecisionGate2GoldenTraces\.ts)\('
+          gate2_pattern='^(shared/(weeklyDecisionContract|weeklyDecisionChallenger|commandCenterV1InvariantManifest|commandCenterV1VerificationManifest)\.ts|server/services/(leagueDashboardTruthBoundary|weeklyDecisionLedger|weeklyDecisionLedgerRepository|weeklyDecisionPostgameEvaluation)\.ts|server/services/__tests__/(leagueDashboardTruthBoundary|commandCenterV1InvariantReplay|weeklyDecisionContract|weeklyDecisionChallenger|weeklyDecisionSourceLineage|weeklyDecisionGoldenTraces|weeklyDecisionLedger|weeklyDecisionLedgerPersistence\.integration|weeklyDecisionPostgameEvaluation|commandCenterV1SurfaceManifest|commandCenterV1VerificationManifest)\.test\.ts|server/services/__tests__/golden/weeklyDecisionGate2GoldenTraces\.ts)\('
           if grep -E "$gate2_pattern" /tmp/tiber-typecheck.log; then
             echo "::error::Gate 2 verification delta contains TypeScript errors."
             exit 1
@@ -119,6 +123,7 @@ jobs:
           server/services/__tests__/weeklyDecisionGoldenTraces.test.ts
           server/services/__tests__/weeklyDecisionLedger.test.ts
           server/services/__tests__/weeklyDecisionLedgerPersistence.integration.test.ts
+          server/services/__tests__/weeklyDecisionPostgameEvaluation.test.ts
           server/services/__tests__/commandCenterV1VerificationManifest.test.ts
       - name: Build application
         run: sh build.sh
