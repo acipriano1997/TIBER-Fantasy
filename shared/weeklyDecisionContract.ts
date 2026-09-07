@@ -143,6 +143,7 @@ export type WeeklyDecisionResult = {
 
 const SUPPORTED_POSITIONS = new Set(['QB', 'RB', 'WR', 'TE']);
 const REQUIRED_QUANTILES = ['p10', 'p25', 'p50', 'p75', 'p90', 'p95'] as const;
+const AUTHORITATIVE_WEEKLY_TAIL_OWNER = 'TIBER-Forecast';
 
 function finite(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value);
@@ -159,20 +160,53 @@ function validIsoTimestamp(value: string | null | undefined): boolean {
   }
 }
 
-function inspectTail(candidate: WeeklyDecisionCandidate, scoringProfileRef: string): string[] {
+function inspectTail(candidate: WeeklyDecisionCandidate, context: WeeklyDecisionContext): string[] {
   const gaps: string[] = [];
   const tail = candidate.tailOutlook;
   if (!tail) return [`${candidate.playerId}:tail_outlook_missing`];
   if (tail.status !== 'ready') gaps.push(`${candidate.playerId}:tail_status_${tail.status}`);
-  if (!tail.scoringProfileRef || tail.scoringProfileRef !== scoringProfileRef) {
+  if (!tail.scoringProfileRef || tail.scoringProfileRef !== context.scoringProfileRef) {
     gaps.push(`${candidate.playerId}:scoring_profile_mismatch`);
   }
   if (!validIsoTimestamp(tail.evidenceCutoffAt)) gaps.push(`${candidate.playerId}:evidence_cutoff_missing_or_invalid`);
+  if (tail.evidenceCutoffAt !== context.evidenceCutoffAt) gaps.push(`${candidate.playerId}:evidence_cutoff_mismatch`);
   if (!validIsoTimestamp(tail.generatedAt)) gaps.push(`${candidate.playerId}:generated_at_missing_or_invalid`);
   if (!tail.modelVersion) gaps.push(`${candidate.playerId}:model_version_missing`);
   if (!tail.calibrationVersion) gaps.push(`${candidate.playerId}:calibration_version_missing`);
   if (!tail.supportedPopulation) gaps.push(`${candidate.playerId}:supported_population_missing`);
-  if (!tail.sourceReceipts.length) gaps.push(`${candidate.playerId}:source_receipts_missing`);
+
+  if (!tail.sourceReceipts.length) {
+    gaps.push(`${candidate.playerId}:source_receipts_missing`);
+  } else {
+    const authoritativeReceipts = tail.sourceReceipts.filter(
+      (receipt) => receipt.owner === AUTHORITATIVE_WEEKLY_TAIL_OWNER,
+    );
+    if (!authoritativeReceipts.length) {
+      gaps.push(`${candidate.playerId}:authoritative_forecast_receipt_missing`);
+    } else {
+      const validAuthoritativeReceipt = authoritativeReceipts.some((receipt) => {
+        if (!receipt.artifactOrEndpoint || !receipt.runOrContentHash) return false;
+        if (!tail.modelVersion || receipt.schemaOrModelVersion !== tail.modelVersion) return false;
+        if (receipt.inputCutoffAt !== tail.evidenceCutoffAt) return false;
+        if (receipt.generatedAt !== tail.generatedAt) return false;
+        if (!validIsoTimestamp(receipt.observedAt)) return false;
+        if (!validIsoTimestamp(receipt.retrievedAt)) return false;
+        if (!validIsoTimestamp(receipt.validUntil)) return false;
+        if (receipt.publicationState !== 'promoted') return false;
+        if (receipt.freshness !== 'fresh') return false;
+        if (receipt.coverage !== 'supported') return false;
+        if (
+          context.validUntil
+          && new Date(receipt.validUntil!).getTime() < new Date(context.validUntil).getTime()
+        ) return false;
+        return true;
+      });
+      if (!validAuthoritativeReceipt) {
+        gaps.push(`${candidate.playerId}:authoritative_forecast_receipt_invalid`);
+      }
+    }
+  }
+
   for (const quantile of REQUIRED_QUANTILES) {
     if (!finite(tail.quantiles[quantile])) gaps.push(`${candidate.playerId}:${quantile}_missing`);
   }
@@ -217,9 +251,6 @@ function result(
     blockers: options.blockers ?? [],
     missingInputs: options.missingInputs ?? [],
     tailEvidenceUsed: options.tailEvidenceUsed ?? false,
-    // A governed joint/correlated lineup outcome model does not exist in this
-    // contract. Never infer or fabricate matchup-win probability from two
-    // independent player distributions.
     correlationSensitiveWinProbability: null,
     receipt: buildReceipt(context),
   };
@@ -266,13 +297,13 @@ function dominates(left: WeeklyTailOutlook, right: WeeklyTailOutlook): boolean {
  * hand-weighted start/sit heuristic.
  */
 export function evaluateWeeklyDecision(context: WeeklyDecisionContext): WeeklyDecisionResult {
-  const blockers: string[] = [];
   const missingInputs: string[] = [];
 
   if (!context.decisionId) missingInputs.push('decision_id');
   if (!Number.isInteger(context.season) || context.season < 2000) missingInputs.push('season');
   if (!Number.isInteger(context.week) || context.week < 1 || context.week > 25) missingInputs.push('week');
   if (!validIsoTimestamp(context.evidenceCutoffAt)) missingInputs.push('evidence_cutoff_at');
+  if (context.validUntil !== null && !validIsoTimestamp(context.validUntil)) missingInputs.push('valid_until');
   if (!context.leagueRef) missingInputs.push('league_ref');
   if (!context.teamRef) missingInputs.push('team_ref');
   if (!context.scoringProfileRef) missingInputs.push('scoring_profile_ref');
@@ -326,12 +357,12 @@ export function evaluateWeeklyDecision(context: WeeklyDecisionContext): WeeklyDe
     });
   }
 
-  const tailGaps = [...inspectTail(a, context.scoringProfileRef), ...inspectTail(b, context.scoringProfileRef)];
+  const tailGaps = [...inspectTail(a, context), ...inspectTail(b, context)];
   if (tailGaps.length) {
     return result(context, 'insufficient_evidence', {
       blockers: [
         'Calibrated weekly tail evidence is not complete and compatible for both lineup variants.',
-        'Rankings, FORGE, ADP, generic defaults, and stale artifacts are not permitted substitutes.',
+        'Rankings, FORGE, ADP, generic defaults, stale artifacts, and unverified source lineage are not permitted substitutes.',
       ],
       missingInputs: tailGaps,
     });
