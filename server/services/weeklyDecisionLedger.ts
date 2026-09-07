@@ -95,6 +95,34 @@ function validIsoTimestamp(value: string): boolean {
   }
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function hasReplayShape(value: unknown): value is WeeklyDecisionLedgerEntryV1 {
+  if (!isRecord(value)) return false;
+  if (typeof value.ledgerVersion !== 'string' || typeof value.evaluatorSchemaVersion !== 'string') return false;
+  if (typeof value.recordedAt !== 'string') return false;
+  if (!isRecord(value.asOf) || typeof value.asOf.evidenceCutoffAt !== 'string') return false;
+  if (value.asOf.validUntil !== null && typeof value.asOf.validUntil !== 'string') return false;
+  if (!isRecord(value.contextSnapshot) || !isRecord(value.resultSnapshot)) return false;
+  if (!isRecord(value.resultSnapshot.receipt)) return false;
+  if (!Array.isArray(value.lineage) || !isRecord(value.immutability) || !isRecord(value.hashes)) return false;
+  return typeof value.hashes.contextSha256 === 'string'
+    && typeof value.hashes.resultSha256 === 'string'
+    && typeof value.hashes.lineageSha256 === 'string'
+    && typeof value.hashes.entrySha256 === 'string';
+}
+
+function malformedReplay(reason = 'malformed_entry'): WeeklyDecisionReplayResult {
+  return {
+    integrity: 'tampered',
+    determinism: 'not_run',
+    reasons: [reason],
+    replayedResult: null,
+  };
+}
+
 function collectLineage(context: WeeklyDecisionContext): WeeklyDecisionLineageReceipt[] {
   return [context.candidateA, context.candidateB].flatMap((candidate) =>
     (candidate.tailOutlook?.sourceReceipts ?? []).map((receipt) => ({
@@ -112,6 +140,11 @@ function entryHashPayload(entry: Omit<WeeklyDecisionLedgerEntryV1, 'hashes'> & {
 
 /**
  * Freeze a weekly decision into a tamper-evident ledger entry.
+ *
+ * This function creates the immutable *content identity* used by Gate 2, but it
+ * does not itself provide append-only durable storage. Gate 2 must not call the
+ * broader immutable-ledger capability certified until persistence prevents
+ * historical replacement/deletion.
  *
  * recordedAt is supplied by the caller and is audit metadata only. The decision
  * itself is evaluated entirely from the provided context. Frozen replay never
@@ -170,13 +203,16 @@ export function createWeeklyDecisionLedgerEntry(
 
 /**
  * Verify all frozen hashes before replaying the decision from its snapshot.
- * Any mutation fails closed and prevents replay. A verified entry is then
- * re-evaluated from contextSnapshot only and compared byte-for-byte through
- * canonical SHA-256 hashing to detect evaluator drift or nondeterminism.
+ * Any mutation or malformed persisted payload fails closed and prevents replay.
+ * A verified entry is then re-evaluated from contextSnapshot only and compared
+ * through canonical SHA-256 hashing to detect evaluator drift/nondeterminism.
  */
 export function replayWeeklyDecisionLedgerEntry(
-  entry: WeeklyDecisionLedgerEntryV1,
+  rawEntry: unknown,
 ): WeeklyDecisionReplayResult {
+  if (!hasReplayShape(rawEntry)) return malformedReplay();
+  const entry = rawEntry;
+
   if (
     entry.ledgerVersion !== WEEKLY_DECISION_LEDGER_VERSION
     || entry.evaluatorSchemaVersion !== WEEKLY_DECISION_SCHEMA_VERSION
@@ -189,66 +225,70 @@ export function replayWeeklyDecisionLedgerEntry(
     };
   }
 
-  const reasons: string[] = [];
-  if (!validIsoTimestamp(entry.recordedAt)) reasons.push('recorded_at_invalid');
-  if (entry.asOf.evidenceCutoffAt !== entry.contextSnapshot.evidenceCutoffAt) {
-    reasons.push('as_of_evidence_cutoff_mismatch');
-  }
-  if (entry.asOf.validUntil !== entry.contextSnapshot.validUntil) {
-    reasons.push('as_of_valid_until_mismatch');
-  }
-  if (entry.resultSnapshot.receipt.evidenceCutoffAt !== entry.contextSnapshot.evidenceCutoffAt) {
-    reasons.push('result_receipt_evidence_cutoff_mismatch');
-  }
-  if (entry.resultSnapshot.receipt.validUntil !== entry.contextSnapshot.validUntil) {
-    reasons.push('result_receipt_valid_until_mismatch');
-  }
-  if (sha256(entry.contextSnapshot) !== entry.hashes.contextSha256) reasons.push('context_hash_mismatch');
-  if (sha256(entry.resultSnapshot) !== entry.hashes.resultSha256) reasons.push('result_hash_mismatch');
-  if (sha256(entry.lineage) !== entry.hashes.lineageSha256) reasons.push('lineage_hash_mismatch');
+  try {
+    const reasons: string[] = [];
+    if (!validIsoTimestamp(entry.recordedAt)) reasons.push('recorded_at_invalid');
+    if (entry.asOf.evidenceCutoffAt !== entry.contextSnapshot.evidenceCutoffAt) {
+      reasons.push('as_of_evidence_cutoff_mismatch');
+    }
+    if (entry.asOf.validUntil !== entry.contextSnapshot.validUntil) {
+      reasons.push('as_of_valid_until_mismatch');
+    }
+    if (entry.resultSnapshot.receipt.evidenceCutoffAt !== entry.contextSnapshot.evidenceCutoffAt) {
+      reasons.push('result_receipt_evidence_cutoff_mismatch');
+    }
+    if (entry.resultSnapshot.receipt.validUntil !== entry.contextSnapshot.validUntil) {
+      reasons.push('result_receipt_valid_until_mismatch');
+    }
+    if (sha256(entry.contextSnapshot) !== entry.hashes.contextSha256) reasons.push('context_hash_mismatch');
+    if (sha256(entry.resultSnapshot) !== entry.hashes.resultSha256) reasons.push('result_hash_mismatch');
+    if (sha256(entry.lineage) !== entry.hashes.lineageSha256) reasons.push('lineage_hash_mismatch');
 
-  const baseForEntryHash = {
-    ledgerVersion: entry.ledgerVersion,
-    evaluatorSchemaVersion: entry.evaluatorSchemaVersion,
-    recordedAt: entry.recordedAt,
-    asOf: entry.asOf,
-    contextSnapshot: entry.contextSnapshot,
-    resultSnapshot: entry.resultSnapshot,
-    lineage: entry.lineage,
-    immutability: entry.immutability,
-    hashes: {
-      contextSha256: entry.hashes.contextSha256,
-      resultSha256: entry.hashes.resultSha256,
-      lineageSha256: entry.hashes.lineageSha256,
-    },
-  };
-  if (sha256(entryHashPayload(baseForEntryHash)) !== entry.hashes.entrySha256) {
-    reasons.push('entry_hash_mismatch');
-  }
-
-  if (reasons.length > 0) {
-    return {
-      integrity: 'tampered',
-      determinism: 'not_run',
-      reasons,
-      replayedResult: null,
+    const baseForEntryHash = {
+      ledgerVersion: entry.ledgerVersion,
+      evaluatorSchemaVersion: entry.evaluatorSchemaVersion,
+      recordedAt: entry.recordedAt,
+      asOf: entry.asOf,
+      contextSnapshot: entry.contextSnapshot,
+      resultSnapshot: entry.resultSnapshot,
+      lineage: entry.lineage,
+      immutability: entry.immutability,
+      hashes: {
+        contextSha256: entry.hashes.contextSha256,
+        resultSha256: entry.hashes.resultSha256,
+        lineageSha256: entry.hashes.lineageSha256,
+      },
     };
-  }
+    if (sha256(entryHashPayload(baseForEntryHash)) !== entry.hashes.entrySha256) {
+      reasons.push('entry_hash_mismatch');
+    }
 
-  const replayedResult = evaluateWeeklyDecision(jsonClone(entry.contextSnapshot));
-  if (sha256(replayedResult) !== entry.hashes.resultSha256) {
+    if (reasons.length > 0) {
+      return {
+        integrity: 'tampered',
+        determinism: 'not_run',
+        reasons,
+        replayedResult: null,
+      };
+    }
+
+    const replayedResult = evaluateWeeklyDecision(jsonClone(entry.contextSnapshot));
+    if (sha256(replayedResult) !== entry.hashes.resultSha256) {
+      return {
+        integrity: 'verified',
+        determinism: 'mismatch',
+        reasons: ['Frozen replay did not reproduce the recorded result.'],
+        replayedResult,
+      };
+    }
+
     return {
       integrity: 'verified',
-      determinism: 'mismatch',
-      reasons: ['Frozen replay did not reproduce the recorded result.'],
+      determinism: 'matched',
+      reasons: [],
       replayedResult,
     };
+  } catch {
+    return malformedReplay('malformed_entry_or_snapshot');
   }
-
-  return {
-    integrity: 'verified',
-    determinism: 'matched',
-    reasons: [],
-    replayedResult,
-  };
 }
