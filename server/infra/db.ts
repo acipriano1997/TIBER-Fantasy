@@ -1,7 +1,8 @@
-// server/infra/db.ts - Render PostgreSQL connection with SSL support
+// server/infra/db.ts - PostgreSQL connection with an explicit TLS policy
 import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 import * as schema from "@shared/schema";
+import { resolveDatabaseSslConfig } from "./databaseSsl";
 
 const connStr = process.env.DATABASE_URL;
 if (!connStr) {
@@ -9,13 +10,17 @@ if (!connStr) {
 }
 
 const isProd = process.env.NODE_ENV === "production";
+const ssl = resolveDatabaseSslConfig({
+  nodeEnv: process.env.NODE_ENV,
+  databaseSsl: process.env.DATABASE_SSL,
+});
 
-// Create connection pool with SSL
-// rejectUnauthorized: false — encrypts the connection but skips CA chain verification,
-// which is required for managed cloud databases (Neon/Replit) from Cloud Run containers.
+// Production keeps the historical managed-database TLS default. Environments
+// that intentionally use a non-TLS PostgreSQL endpoint must declare
+// DATABASE_SSL=disable explicitly; invalid values fail during boot.
 const pool = new Pool({
   connectionString: connStr,
-  ssl: isProd ? { rejectUnauthorized: false } : false,
+  ssl,
   max: 10,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 15000, // 15s — Neon can take time to wake from suspend
@@ -24,7 +29,7 @@ const pool = new Pool({
 });
 
 // Set statement_timeout on every new connection so no query can hang indefinitely.
-// Critical for cold Neon DB wakeup: if the DB accepts the TCP connection but never
+// Critical for cold managed DB wakeup: if the DB accepts the TCP connection but never
 // responds to a query, this ensures the query errors out after 15s rather than
 // blocking the entire startup sequence.
 pool.on('connect', (client) => {
