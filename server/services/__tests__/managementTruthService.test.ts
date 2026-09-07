@@ -139,6 +139,65 @@ describe('computeTruthBoundLeagueDashboard', () => {
     expect(result.teams[0].binding.sleeper_owner_id).toBe('new-owner');
   });
 
+  it('ignores Sleeper empty-slot placeholder 0 without inventing a player', async () => {
+    const deps = buildDeps({
+      sleeperRosters: [
+        {
+          roster_id: 7,
+          owner_id: 'owner',
+          players: ['s1', 's2'],
+          starters: ['s2', '0'],
+        },
+      ],
+    });
+
+    const result: any = await computeTruthBoundLeagueDashboard(
+      { userId: 'user-1', leagueId: 'league-1' },
+      deps,
+    );
+
+    expect(result.teams[0].binding.observed_starter_count).toBe(1);
+    expect(result.teams[0].starters_used.map((player: any) => player.sleeperId)).toEqual(['s2']);
+  });
+
+  it('fails closed when Sleeper starter state is unavailable instead of treating everyone as bench', async () => {
+    const deps = buildDeps({
+      sleeperRosters: [
+        {
+          roster_id: 7,
+          owner_id: 'owner',
+          players: ['s1', 's2'],
+          starters: null,
+        },
+      ],
+    });
+
+    await expect(
+      computeTruthBoundLeagueDashboard({ userId: 'user-1', leagueId: 'league-1' }, deps),
+    ).rejects.toMatchObject({
+      code: 'sleeper_starters_unavailable',
+    });
+  });
+
+  it('fails closed when a Sleeper starter is not on the bound roster', async () => {
+    const deps = buildDeps({
+      sleeperRosters: [
+        {
+          roster_id: 7,
+          owner_id: 'owner',
+          players: ['s1', 's2'],
+          starters: ['not-on-roster'],
+        },
+      ],
+    });
+
+    await expect(
+      computeTruthBoundLeagueDashboard({ userId: 'user-1', leagueId: 'league-1' }, deps),
+    ).rejects.toMatchObject({
+      code: 'sleeper_starter_not_on_roster',
+    });
+  });
+
   it('fails closed when the legacy roster membership does not match the external roster', async () => {
     const deps = buildDeps({
       legacyRoster: [legacyPlayer('wrong-player', 50, 'player_specific', true)],
@@ -148,6 +207,22 @@ describe('computeTruthBoundLeagueDashboard', () => {
       computeTruthBoundLeagueDashboard({ userId: 'user-1', leagueId: 'league-1' }, deps),
     ).rejects.toMatchObject({
       code: 'dashboard_roster_mismatch',
+    });
+  });
+
+  it('fails closed when the dashboard repeats a player row instead of deduplicating it', async () => {
+    const deps = buildDeps({
+      legacyRoster: [
+        legacyPlayer('s1', 10, 'player_specific', true),
+        legacyPlayer('s1', 10, 'player_specific', false),
+        legacyPlayer('s2', 20, 'player_specific', false),
+      ],
+    });
+
+    await expect(
+      computeTruthBoundLeagueDashboard({ userId: 'user-1', leagueId: 'league-1' }, deps),
+    ).rejects.toMatchObject({
+      code: 'dashboard_roster_duplicate_player_id',
     });
   });
 
@@ -194,6 +269,30 @@ describe('computeTruthBoundLeagueDashboard', () => {
     expect(result.teams[0].evaluation).toMatchObject({
       status: 'insufficient_evidence',
       overall_available: false,
+    });
+  });
+
+  it('suppresses Overall when Sleeper truth reports no observed starters', async () => {
+    const deps = buildDeps({
+      sleeperRosters: [
+        {
+          roster_id: 7,
+          owner_id: 'owner',
+          players: ['s1', 's2'],
+          starters: [],
+        },
+      ],
+    });
+
+    const result: any = await computeTruthBoundLeagueDashboard(
+      { userId: 'user-1', leagueId: 'league-1' },
+      deps,
+    );
+
+    expect(result.teams[0].overall_total).toBeNull();
+    expect(result.teams[0].evaluation).toMatchObject({
+      status: 'insufficient_evidence',
+      reason: 'overall_unavailable_no_observed_starters',
     });
   });
 
