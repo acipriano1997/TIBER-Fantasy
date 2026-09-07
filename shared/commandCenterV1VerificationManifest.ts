@@ -29,12 +29,15 @@ export const COMMAND_CENTER_V1_VERIFICATION: Readonly<
   immutable_decision_receipts: {
     id: 'immutable_decision_receipts',
     label: 'Immutable decision receipts',
-    status: 'partial',
-    scope: 'Weekly Decisions v1',
-    reason: 'Weekly Decisions now produce complete tamper-evident content-addressed receipts, but durable append-only persistence is still required before historical decision records can be called immutable.',
+    status: 'certified',
+    scope: 'Weekly Decisions v1 application/runtime boundary',
+    reason: 'Weekly Decisions produce tamper-evident content-addressed receipts and persist them through an insert/read-only repository into a Postgres append-only table. Database ALWAYS triggers reject UPDATE, DELETE, and TRUNCATE, and Gate 2 CI proves those mutation paths fail against real Postgres. Schema-administrator DDL remains an explicitly out-of-band operational authority, not an application mutation path.',
     evidence: [
       'server/services/weeklyDecisionLedger.ts',
+      'server/services/weeklyDecisionLedgerRepository.ts',
+      'migrations/0016_weekly_decision_ledger_append_only.sql',
       'server/services/__tests__/weeklyDecisionLedger.test.ts',
+      'server/services/__tests__/weeklyDecisionLedgerPersistence.integration.test.ts',
     ],
   },
   frozen_as_of_replay: {
@@ -91,11 +94,12 @@ export const COMMAND_CENTER_V1_VERIFICATION: Readonly<
     label: 'Adversarial red team',
     status: 'partial',
     scope: 'Gate 0 + Gate 1 + weekly ledger integrity',
-    reason: 'Current tests attack context bleed, stale/sparse evidence, unsupported authority, receipt mutation, malformed persisted receipts, and as-of drift; correlated-model agreement and source-laundering cases still need explicit Gate 2 coverage.',
+    reason: 'Current tests attack context bleed, stale/sparse evidence, unsupported authority, receipt mutation, malformed persisted receipts, as-of drift, invalid hashes, and direct ledger mutation; correlated-model agreement and source-laundering cases still need explicit Gate 2 coverage.',
     evidence: [
       'server/services/__tests__/leagueDashboardTruthBoundary.test.ts',
       'server/services/__tests__/commandCenterV1SurfaceManifest.test.ts',
       'server/services/__tests__/weeklyDecisionLedger.test.ts',
+      'server/services/__tests__/weeklyDecisionLedgerPersistence.integration.test.ts',
     ],
   },
 } as const;
