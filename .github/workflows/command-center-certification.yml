@@ -18,7 +18,7 @@ jobs:
   gate0:
     name: Gate 0 truth boundary
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -49,11 +49,11 @@ jobs:
           else
             echo "Repository-wide typecheck is clean."
           fi
-      - name: Run Gate 0 regression tests
+      - name: Run Gate 0 truth and freshness regressions
         run: >-
           npm test --
           server/middleware/__tests__/personalUserScope.test.ts
           server/services/__tests__/leagueDashboardTruthBoundary.test.ts
-          server/services/__tests__/leagueDashboardService.test.ts
+          server/modules/management/__tests__/forgeTeamDirectionFreshnessPolicy.test.ts
       - name: Build application
         run: sh build.sh
