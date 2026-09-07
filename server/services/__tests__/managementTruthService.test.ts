@@ -3,7 +3,6 @@ jest.mock('../../integrations/sleeperClient', () => ({ sleeperClient: {} }));
 
 import {
   MANAGEMENT_TRUTH_VERSION,
-  ManagementTruthBindingError,
   computeTruthBoundLeagueDashboard,
 } from '../managementTruthService';
 
@@ -95,7 +94,7 @@ describe('computeTruthBoundLeagueDashboard', () => {
   it('binds by external_roster_id and overwrites synthetic starter state from Sleeper starters', async () => {
     const deps = buildDeps();
 
-    const result = await computeTruthBoundLeagueDashboard(
+    const result: any = await computeTruthBoundLeagueDashboard(
       { userId: 'user-1', leagueId: 'league-1', season: 2026, week: 1 },
       deps,
     );
@@ -131,7 +130,7 @@ describe('computeTruthBoundLeagueDashboard', () => {
       ],
     });
 
-    const result = await computeTruthBoundLeagueDashboard(
+    const result: any = await computeTruthBoundLeagueDashboard(
       { userId: 'user-1', leagueId: 'league-1' },
       deps,
     );
@@ -147,7 +146,7 @@ describe('computeTruthBoundLeagueDashboard', () => {
 
     await expect(
       computeTruthBoundLeagueDashboard({ userId: 'user-1', leagueId: 'league-1' }, deps),
-    ).rejects.toMatchObject<Partial<ManagementTruthBindingError>>({
+    ).rejects.toMatchObject({
       code: 'dashboard_roster_mismatch',
     });
   });
@@ -164,7 +163,7 @@ describe('computeTruthBoundLeagueDashboard', () => {
 
     await expect(
       computeTruthBoundLeagueDashboard({ userId: 'user-1', leagueId: 'league-1' }, deps),
-    ).rejects.toMatchObject<Partial<ManagementTruthBindingError>>({
+    ).rejects.toMatchObject({
       code: 'team_missing_external_roster_id',
     });
   });
@@ -185,7 +184,7 @@ describe('computeTruthBoundLeagueDashboard', () => {
       ],
     });
 
-    const result = await computeTruthBoundLeagueDashboard(
+    const result: any = await computeTruthBoundLeagueDashboard(
       { userId: 'user-1', leagueId: 'league-1' },
       deps,
     );
@@ -210,7 +209,7 @@ describe('computeTruthBoundLeagueDashboard', () => {
       ],
     });
 
-    const result = await computeTruthBoundLeagueDashboard(
+    const result: any = await computeTruthBoundLeagueDashboard(
       { userId: 'user-1', leagueId: 'league-1' },
       deps,
     );
