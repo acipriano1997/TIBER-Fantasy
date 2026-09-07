@@ -89,6 +89,8 @@ function normalizedSettings(league: any) {
 
 function observedRosterMap(rosters: SleeperRoster[]) {
   const map = new Map<string, SleeperRoster>();
+  const rosterByPlayer = new Map<string, string>();
+
   for (const roster of rosters) {
     const rosterId = normalizeExternalId(roster.roster_id);
     if (!rosterId) continue;
@@ -100,9 +102,83 @@ function observedRosterMap(rosters: SleeperRoster[]) {
         { external_roster_id: rosterId },
       );
     }
+
+    const playerIds = (roster.players ?? []).map(String);
+    const starterIds = (roster.starters ?? []).map(String);
+    const playerSet = new Set(playerIds);
+    const starterSet = new Set(starterIds);
+
+    if (playerSet.size !== playerIds.length) {
+      throw new LeagueDashboardTruthError(
+        'duplicate_observed_roster_player',
+        `Sleeper roster ${rosterId} contains duplicate player ids`,
+        409,
+        { external_roster_id: rosterId },
+      );
+    }
+    if (starterSet.size !== starterIds.length) {
+      throw new LeagueDashboardTruthError(
+        'duplicate_observed_starter',
+        `Sleeper roster ${rosterId} contains duplicate starter ids`,
+        409,
+        { external_roster_id: rosterId },
+      );
+    }
+    for (const starterId of starterIds) {
+      if (!playerSet.has(starterId)) {
+        throw new LeagueDashboardTruthError(
+          'observed_starter_not_on_roster',
+          `Sleeper starter ${starterId} is not present on roster ${rosterId}`,
+          409,
+          { external_roster_id: rosterId, sleeper_id: starterId },
+        );
+      }
+    }
+    for (const playerId of playerIds) {
+      const existingRosterId = rosterByPlayer.get(playerId);
+      if (existingRosterId && existingRosterId !== rosterId) {
+        throw new LeagueDashboardTruthError(
+          'duplicate_observed_player_membership',
+          `Sleeper player ${playerId} appears on multiple rosters`,
+          409,
+          { sleeper_id: playerId, external_roster_ids: [existingRosterId, rosterId] },
+        );
+      }
+      rosterByPlayer.set(playerId, rosterId);
+    }
+
     map.set(rosterId, roster);
   }
   return map;
+}
+
+function permittedSleeperOwnerIds(roster: SleeperRoster): string[] {
+  return [roster.owner_id, ...(roster.co_owners ?? [])]
+    .map(normalizeExternalId)
+    .filter((value): value is string => value !== null);
+}
+
+function verifyOwnerBinding(leagueTeam: any, observedRoster: SleeperRoster, externalRosterId: string) {
+  const expectedOwnerId = normalizeExternalId(
+    leagueTeam.externalUserId ?? leagueTeam.external_user_id,
+  );
+  const permittedOwnerIds = permittedSleeperOwnerIds(observedRoster);
+
+  if (expectedOwnerId && !permittedOwnerIds.includes(expectedOwnerId)) {
+    throw new LeagueDashboardTruthError(
+      'external_roster_owner_mismatch',
+      `Sleeper roster ${externalRosterId} does not include the persisted external owner`,
+      409,
+      {
+        team_id: String(leagueTeam.id),
+        external_roster_id: externalRosterId,
+        expected_external_owner_id: expectedOwnerId,
+        sleeper_owner_ids: permittedOwnerIds,
+      },
+    );
+  }
+
+  return { expectedOwnerId, permittedOwnerIds };
 }
 
 function playerIndex(payload: LeagueDashboardPayload) {
@@ -204,14 +280,6 @@ function recomputeObservedTeam(
   };
 }
 
-/**
- * Enforces the Management truth boundary without reinterpreting FORGE evidence.
- *
- * The legacy dashboard service may synthesize a lineup for roster-strength
- * scoring. This wrapper makes the user-facing Management response authoritative
- * for roster membership and starter state by rebinding every team through the
- * persisted externalRosterId -> Sleeper roster_id contract.
- */
 export async function computeTruthBoundLeagueDashboard(
   params: TruthBoundaryParams,
   deps?: TruthBoundaryDeps,
@@ -220,9 +288,6 @@ export async function computeTruthBoundLeagueDashboard(
     throw new LeagueDashboardTruthError('unscoped_user_id', 'A scoped user id is required', 400);
   }
 
-  // Keep unit verification independent from infrastructure initialization. The
-  // production database/Sleeper/dashboard modules are loaded only when callers
-  // do not inject a controlled dependency set.
   const resolvedDeps = deps ?? await loadDefaultDeps();
 
   const league = await resolvedDeps.storage.getLeagueWithTeams(params.leagueId);
@@ -268,6 +333,7 @@ export async function computeTruthBoundLeagueDashboard(
       );
     }
 
+    const ownerBinding = verifyOwnerBinding(leagueTeam, observedRoster, externalRosterId);
     const baseTeam = baseTeamsById.get(teamId) ?? {
       team_id: teamId,
       display_name: leagueTeam.displayName ?? leagueTeam.display_name ?? 'Team',
@@ -284,7 +350,9 @@ export async function computeTruthBoundLeagueDashboard(
     teamReceipts.push({
       team_id: teamId,
       external_roster_id: externalRosterId,
+      expected_external_owner_id: ownerBinding.expectedOwnerId,
       sleeper_owner_id: normalizeExternalId(observedRoster.owner_id),
+      sleeper_permitted_owner_ids: ownerBinding.permittedOwnerIds,
       observed_player_count: (observedRoster.players ?? []).length,
       observed_starter_count: (observedRoster.starters ?? []).length,
       overall_available: verifiedTeam.overall_available,
