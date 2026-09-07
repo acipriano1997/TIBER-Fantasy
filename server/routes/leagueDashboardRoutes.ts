@@ -1,6 +1,9 @@
 import express from 'express';
 import { and, desc, eq, inArray } from 'drizzle-orm';
-import { computeLeagueDashboard } from '../services/leagueDashboardService';
+import {
+  computeTruthBoundLeagueDashboard,
+  ManagementTruthBindingError,
+} from '../services/managementTruthService';
 import { createPlaybookForgeLogger } from '../utils/playbookForgeLogger';
 import { db } from '../infra/db';
 import { forgePlayerState, playerIdentityMap } from '@shared/schema';
@@ -12,7 +15,10 @@ export function createLeagueDashboardRouter() {
 
   router.get('/api/league-dashboard', async (req, res) => {
     try {
-      const { user_id = 'default_user', league_id, week, season, refresh } = req.query;
+      const { user_id, league_id, week, season, refresh } = req.query;
+      if (!user_id) {
+        return res.status(400).json({ success: false, error: 'user_id is required' });
+      }
       if (!league_id) {
         return res.status(400).json({ success: false, error: 'league_id is required' });
       }
@@ -23,7 +29,7 @@ export function createLeagueDashboardRouter() {
         scope: 'LeagueDashboardRoute',
       });
 
-      const payload = await computeLeagueDashboard({
+      const payload = await computeTruthBoundLeagueDashboard({
         userId: user_id as string,
         leagueId: league_id as string,
         week: week ? Number(week) : null,
@@ -35,6 +41,13 @@ export function createLeagueDashboardRouter() {
       res.json({ ...payload, requestId: logger.requestId });
     } catch (error) {
       console.error('[League Dashboard] failed to compute', error);
+      if (error instanceof ManagementTruthBindingError) {
+        return res.status(error.statusCode).json({
+          success: false,
+          error: error.message,
+          code: error.code,
+        });
+      }
       res.status(500).json({ success: false, error: (error as Error).message || 'Failed to load league dashboard' });
     }
   });
