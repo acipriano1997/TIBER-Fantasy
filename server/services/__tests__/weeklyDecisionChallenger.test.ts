@@ -107,6 +107,16 @@ describe('Weekly Decision independent challenger', () => {
     expect(challenger.tailEvidenceUsed).toBe(false);
   });
 
+  test('fails closed on malformed as-of context even though it does not use model evidence', () => {
+    const challenger = evaluateWeeklyDecisionChallenger(context({
+      evidenceCutoffAt: '2026-09-07 16:00:00',
+    }));
+
+    expect(challenger.state).toBe('insufficient_context');
+    expect(challenger.preferredPlayerId).toBeNull();
+    expect(challenger.baselineAction).toBeNull();
+  });
+
   test('disagrees when the champion recommends changing the observed starter', () => {
     const comparison = compareWeeklyDecisionChampionAndChallenger(context({
       candidateA: candidate('starter', true, tail({
