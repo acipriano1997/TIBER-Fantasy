@@ -4,14 +4,18 @@ on:
   pull_request:
     paths:
       - 'shared/weeklyDecisionContract.ts'
+      - 'shared/commandCenterV1SurfaceManifest.ts'
       - 'server/services/__tests__/weeklyDecisionContract.test.ts'
+      - 'server/services/__tests__/commandCenterV1SurfaceManifest.test.ts'
       - '.github/workflows/command-center-gate1.yml'
   push:
     branches:
       - main
     paths:
       - 'shared/weeklyDecisionContract.ts'
+      - 'shared/commandCenterV1SurfaceManifest.ts'
       - 'server/services/__tests__/weeklyDecisionContract.test.ts'
+      - 'server/services/__tests__/commandCenterV1SurfaceManifest.test.ts'
       - '.github/workflows/command-center-gate1.yml'
   workflow_dispatch:
 
@@ -23,8 +27,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  weekly-decision-contract:
-    name: Weekly decision truth contract
+  gate1-truth-boundary:
+    name: Gate 1 workflow truth boundary
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -45,9 +49,9 @@ jobs:
           typecheck_status=$?
           set -e
 
-          gate1_pattern='^(shared/weeklyDecisionContract\.ts|server/services/__tests__/weeklyDecisionContract\.test\.ts)\('
+          gate1_pattern='^(shared/(weeklyDecisionContract|commandCenterV1SurfaceManifest)\.ts|server/services/__tests__/(weeklyDecisionContract|commandCenterV1SurfaceManifest)\.test\.ts)\('
           if grep -E "$gate1_pattern" /tmp/tiber-typecheck.log; then
-            echo "::error::Gate 1 weekly-decision delta contains TypeScript errors."
+            echo "::error::Gate 1 truth-boundary delta contains TypeScript errors."
             exit 1
           fi
 
@@ -57,7 +61,10 @@ jobs:
           else
             echo "Repository-wide typecheck is clean."
           fi
-      - name: Run Weekly Decision contract regressions
-        run: npm test -- server/services/__tests__/weeklyDecisionContract.test.ts
+      - name: Run Gate 1 truth regressions
+        run: >-
+          npm test --
+          server/services/__tests__/weeklyDecisionContract.test.ts
+          server/services/__tests__/commandCenterV1SurfaceManifest.test.ts
       - name: Build application
         run: sh build.sh
