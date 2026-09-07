@@ -1,7 +1,6 @@
 import {
   createWeeklyDecisionLedgerEntry,
   replayWeeklyDecisionLedgerEntry,
-  type WeeklyDecisionLedgerEntryV1,
 } from '../weeklyDecisionLedger';
 import type {
   WeeklyDecisionCandidate,
@@ -181,9 +180,25 @@ describe('Weekly Decision Gate 2 ledger + frozen replay', () => {
     const unsupported = clone(entry) as unknown as Record<string, unknown>;
     unsupported.ledgerVersion = 'weekly_decision_ledger_entry_v999';
 
-    const replay = replayWeeklyDecisionLedgerEntry(unsupported as unknown as WeeklyDecisionLedgerEntryV1);
+    const replay = replayWeeklyDecisionLedgerEntry(unsupported);
     expect(replay.integrity).toBe('unsupported_version');
     expect(replay.determinism).toBe('not_run');
+    expect(replay.replayedResult).toBeNull();
+  });
+
+  test('fails closed on malformed persisted JSON instead of throwing during replay', () => {
+    const malformed = {
+      ledgerVersion: 'weekly_decision_ledger_entry_v1',
+      evaluatorSchemaVersion: 'weekly_lineup_decision_packet_v1',
+      recordedAt: '2026-09-07T16:10:00.000Z',
+      asOf: null,
+    };
+
+    expect(() => replayWeeklyDecisionLedgerEntry(malformed)).not.toThrow();
+    const replay = replayWeeklyDecisionLedgerEntry(malformed);
+    expect(replay.integrity).toBe('tampered');
+    expect(replay.determinism).toBe('not_run');
+    expect(replay.reasons).toContain('malformed_entry');
     expect(replay.replayedResult).toBeNull();
   });
 
