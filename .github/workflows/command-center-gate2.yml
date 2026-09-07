@@ -15,6 +15,7 @@ on:
       - 'server/services/__tests__/golden/weeklyDecisionGate2GoldenTraces.ts'
       - 'server/services/__tests__/weeklyDecisionLedger.test.ts'
       - 'server/services/__tests__/weeklyDecisionLedgerPersistence.integration.test.ts'
+      - 'server/services/__tests__/commandCenterV1SurfaceManifest.test.ts'
       - 'server/services/__tests__/commandCenterV1VerificationManifest.test.ts'
       - 'migrations/0016_weekly_decision_ledger_append_only.sql'
       - '.github/workflows/command-center-gate2.yml'
@@ -34,6 +35,7 @@ on:
       - 'server/services/__tests__/golden/weeklyDecisionGate2GoldenTraces.ts'
       - 'server/services/__tests__/weeklyDecisionLedger.test.ts'
       - 'server/services/__tests__/weeklyDecisionLedgerPersistence.integration.test.ts'
+      - 'server/services/__tests__/commandCenterV1SurfaceManifest.test.ts'
       - 'server/services/__tests__/commandCenterV1VerificationManifest.test.ts'
       - 'migrations/0016_weekly_decision_ledger_append_only.sql'
       - '.github/workflows/command-center-gate2.yml'
@@ -85,7 +87,7 @@ jobs:
           typecheck_status=$?
           set -e
 
-          gate2_pattern='^(shared/(weeklyDecisionContract|weeklyDecisionChallenger|commandCenterV1VerificationManifest)\.ts|server/services/(weeklyDecisionLedger|weeklyDecisionLedgerRepository)\.ts|server/services/__tests__/(weeklyDecisionContract|weeklyDecisionChallenger|weeklyDecisionSourceLineage|weeklyDecisionGoldenTraces|weeklyDecisionLedger|weeklyDecisionLedgerPersistence\.integration|commandCenterV1VerificationManifest)\.test\.ts|server/services/__tests__/golden/weeklyDecisionGate2GoldenTraces\.ts)\('
+          gate2_pattern='^(shared/(weeklyDecisionContract|weeklyDecisionChallenger|commandCenterV1VerificationManifest)\.ts|server/services/(weeklyDecisionLedger|weeklyDecisionLedgerRepository)\.ts|server/services/__tests__/(weeklyDecisionContract|weeklyDecisionChallenger|weeklyDecisionSourceLineage|weeklyDecisionGoldenTraces|weeklyDecisionLedger|weeklyDecisionLedgerPersistence\.integration|commandCenterV1SurfaceManifest|commandCenterV1VerificationManifest)\.test\.ts|server/services/__tests__/golden/weeklyDecisionGate2GoldenTraces\.ts)\('
           if grep -E "$gate2_pattern" /tmp/tiber-typecheck.log; then
             echo "::error::Gate 2 verification delta contains TypeScript errors."
             exit 1
@@ -97,10 +99,11 @@ jobs:
           else
             echo "Repository-wide typecheck is clean."
           fi
-      - name: Run Gate 2 verification regressions
+      - name: Run Gate 1 + Gate 2 verification regressions
         run: >-
           npm test --
           server/services/__tests__/weeklyDecisionContract.test.ts
+          server/services/__tests__/commandCenterV1SurfaceManifest.test.ts
           server/services/__tests__/weeklyDecisionChallenger.test.ts
           server/services/__tests__/weeklyDecisionSourceLineage.test.ts
           server/services/__tests__/weeklyDecisionGoldenTraces.test.ts
