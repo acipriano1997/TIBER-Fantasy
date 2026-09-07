@@ -1,0 +1,41 @@
+name: Command Center Certification
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: command-center-certification-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate0:
+    name: Gate 0 truth boundary
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Run Gate 0 regression tests
+        run: >-
+          npm test --
+          server/middleware/__tests__/personalUserScope.test.ts
+          server/services/__tests__/leagueDashboardTruthBoundary.test.ts
+          server/services/__tests__/leagueDashboardService.test.ts
+      - name: Build application
+        run: sh build.sh
