@@ -1,5 +1,8 @@
 jest.mock('../../storage', () => ({ storage: {} }));
 jest.mock('../../integrations/sleeperClient', () => ({ sleeperClient: {} }));
+jest.mock('../leagueDashboardService', () => ({
+  computeLeagueDashboard: jest.fn(),
+}));
 
 import {
   MANAGEMENT_TRUTH_VERSION,
