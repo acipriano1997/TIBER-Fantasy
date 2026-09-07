@@ -6,9 +6,12 @@ on:
       - 'shared/weeklyDecisionContract.ts'
       - 'shared/commandCenterV1VerificationManifest.ts'
       - 'server/services/weeklyDecisionLedger.ts'
+      - 'server/services/weeklyDecisionLedgerRepository.ts'
       - 'server/services/__tests__/weeklyDecisionContract.test.ts'
       - 'server/services/__tests__/weeklyDecisionLedger.test.ts'
+      - 'server/services/__tests__/weeklyDecisionLedgerPersistence.integration.test.ts'
       - 'server/services/__tests__/commandCenterV1VerificationManifest.test.ts'
+      - 'migrations/0016_weekly_decision_ledger_append_only.sql'
       - '.github/workflows/command-center-gate2.yml'
   push:
     branches:
@@ -17,9 +20,12 @@ on:
       - 'shared/weeklyDecisionContract.ts'
       - 'shared/commandCenterV1VerificationManifest.ts'
       - 'server/services/weeklyDecisionLedger.ts'
+      - 'server/services/weeklyDecisionLedgerRepository.ts'
       - 'server/services/__tests__/weeklyDecisionContract.test.ts'
       - 'server/services/__tests__/weeklyDecisionLedger.test.ts'
+      - 'server/services/__tests__/weeklyDecisionLedgerPersistence.integration.test.ts'
       - 'server/services/__tests__/commandCenterV1VerificationManifest.test.ts'
+      - 'migrations/0016_weekly_decision_ledger_append_only.sql'
       - '.github/workflows/command-center-gate2.yml'
   workflow_dispatch:
 
@@ -35,6 +41,22 @@ jobs:
     name: Gate 2 receipt + replay boundary
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: tiber
+          POSTGRES_PASSWORD: tiber
+          POSTGRES_DB: tiber_gate2
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U tiber -d tiber_gate2"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql://tiber:tiber@localhost:5432/tiber_gate2
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -53,7 +75,7 @@ jobs:
           typecheck_status=$?
           set -e
 
-          gate2_pattern='^(shared/commandCenterV1VerificationManifest\.ts|server/services/weeklyDecisionLedger\.ts|server/services/__tests__/(weeklyDecisionLedger|commandCenterV1VerificationManifest)\.test\.ts)\('
+          gate2_pattern='^(shared/commandCenterV1VerificationManifest\.ts|server/services/(weeklyDecisionLedger|weeklyDecisionLedgerRepository)\.ts|server/services/__tests__/(weeklyDecisionLedger|weeklyDecisionLedgerPersistence\.integration|commandCenterV1VerificationManifest)\.test\.ts)\('
           if grep -E "$gate2_pattern" /tmp/tiber-typecheck.log; then
             echo "::error::Gate 2 receipt/replay delta contains TypeScript errors."
             exit 1
@@ -65,11 +87,12 @@ jobs:
           else
             echo "Repository-wide typecheck is clean."
           fi
-      - name: Run Gate 2 receipt and replay regressions
+      - name: Run Gate 2 receipt, replay, and append-only persistence regressions
         run: >-
           npm test --
           server/services/__tests__/weeklyDecisionContract.test.ts
           server/services/__tests__/weeklyDecisionLedger.test.ts
+          server/services/__tests__/weeklyDecisionLedgerPersistence.integration.test.ts
           server/services/__tests__/commandCenterV1VerificationManifest.test.ts
       - name: Build application
         run: sh build.sh
