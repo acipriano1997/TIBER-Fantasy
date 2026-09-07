@@ -4,6 +4,8 @@ import {
   LEAGUE_DASHBOARD_TRUTH_BOUNDARY_VERSION,
 } from '../leagueDashboardTruthBoundary';
 
+const FIXED_NOW = new Date('2026-09-07T12:00:00.000Z');
+
 function basePayload(teams: any[]) {
   return {
     success: true as const,
@@ -11,8 +13,21 @@ function basePayload(teams: any[]) {
       league_id: 'league-1',
       week: 1,
       season: 2026,
-      computed_at: '2026-09-07T12:00:00.000Z',
+      computed_at: FIXED_NOW.toISOString(),
       cached: false,
+    },
+    diagnostics: {
+      forgeArtifact: {
+        state: 'available',
+        available: true,
+        code: null,
+        sourcePath: '/tmp/forge_player_static_v1.json',
+        contractVersion: 'v1',
+        generatedAt: '2026-09-01T12:00:00.000Z',
+        generatedAtSource: 'root_generated_at',
+        promotedAt: null,
+        freshness: { status: 'fresh' },
+      },
     },
     unresolvedPlayers: [],
     teams,
@@ -37,6 +52,9 @@ function deps(overrides: any = {}) {
     id: 'league-1',
     userId: 'personal-user',
     leagueIdExternal: 'sleeper-league',
+    scoringFormat: 'ppr',
+    season: 2026,
+    settings: { roster_positions: ['QB', 'RB', 'WR', 'TE', 'FLEX'] },
     teams: [
       { id: 'team-a', externalRosterId: '2', externalUserId: 'owner-a', displayName: 'A' },
       { id: 'team-b', externalRosterId: '1', externalUserId: 'owner-b', displayName: 'B' },
@@ -75,6 +93,7 @@ function deps(overrides: any = {}) {
       ]),
     },
     computeLeagueDashboard: jest.fn().mockResolvedValue(legacyPayload),
+    now: () => FIXED_NOW,
     ...overrides,
   } as any;
 }
@@ -107,7 +126,7 @@ describe('league dashboard truth boundary', () => {
     expect(teamA.totals.WR).toBe(10);
   });
 
-  it('attaches an inspectable context receipt with exact roster bindings', async () => {
+  it('attaches an inspectable context receipt with exact roster and settings bindings', async () => {
     const result = await computeTruthBoundLeagueDashboard(
       { userId: 'personal-user', leagueId: 'league-1', week: 1, season: 2026 },
       deps(),
@@ -118,13 +137,15 @@ describe('league dashboard truth boundary', () => {
       user_id: 'personal-user',
       league_id: 'league-1',
       external_league_id: 'sleeper-league',
+      settings_fingerprint: expect.any(String),
       roster_binding: 'external_roster_id_to_sleeper_roster_id',
       starter_source: 'sleeper_observed',
       fingerprint: expect.any(String),
+      observed_at: FIXED_NOW.toISOString(),
     }));
     expect(result.context_receipt.team_receipts).toEqual(expect.arrayContaining([
-      expect.objectContaining({ team_id: 'team-a', external_roster_id: '2' }),
-      expect.objectContaining({ team_id: 'team-b', external_roster_id: '1' }),
+      expect.objectContaining({ team_id: 'team-a', external_roster_id: '2', forge_freshness_decision: 'accepted' }),
+      expect.objectContaining({ team_id: 'team-b', external_roster_id: '1', forge_freshness_decision: 'accepted' }),
     ]));
   });
 
@@ -143,6 +164,24 @@ describe('league dashboard truth boundary', () => {
     expect(teamA.overall_available).toBe(false);
     expect(teamA.overall_total).toBeNull();
     expect(teamA.overall_unavailable_reason).toBe('insufficient_player_specific_forge_coverage');
+  });
+
+  it('suppresses Overall when FORGE player-specific evidence is stale', async () => {
+    const custom = deps();
+    const payload = await custom.computeLeagueDashboard();
+    payload.diagnostics.forgeArtifact.generatedAt = '2026-01-01T00:00:00.000Z';
+    custom.computeLeagueDashboard.mockResolvedValue(payload);
+
+    const result = await computeTruthBoundLeagueDashboard(
+      { userId: 'personal-user', leagueId: 'league-1' },
+      custom,
+    );
+
+    const teamA = result.teams.find((team: any) => team.team_id === 'team-a') as any;
+    expect(teamA.overall_available).toBe(false);
+    expect(teamA.overall_total).toBeNull();
+    expect(teamA.overall_unavailable_reason).toBe('forge_freshness_root_generated_at_stale');
+    expect(teamA.forge_freshness_receipt.decision).toBe('rejected');
   });
 
   it('fails closed when persisted externalRosterId cannot be matched', async () => {
