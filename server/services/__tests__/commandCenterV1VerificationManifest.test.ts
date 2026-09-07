@@ -22,9 +22,18 @@ describe('Command Center v1 Gate 2 verification manifest', () => {
     expect(receipts.evidence).toContain('migrations/0016_weekly_decision_ledger_append_only.sql');
 
     expect(COMMAND_CENTER_V1_VERIFICATION.frozen_as_of_replay.status).toBe('certified');
+    expect(COMMAND_CENTER_V1_VERIFICATION.deterministic_invariants.status).toBe('certified');
     expect(COMMAND_CENTER_V1_VERIFICATION.independent_challenger.status).toBe('certified');
     expect(COMMAND_CENTER_V1_VERIFICATION.golden_traces.status).toBe('certified');
     expect(COMMAND_CENTER_V1_VERIFICATION.adversarial_red_team.status).toBe('certified');
+  });
+
+  test('binds deterministic invariant certification to the canonical catalog and executable replay suite', () => {
+    const invariants = COMMAND_CENTER_V1_VERIFICATION.deterministic_invariants;
+    expect(invariants.status).toBe('certified');
+    expect(invariants.evidence).toContain('shared/commandCenterV1InvariantManifest.ts');
+    expect(invariants.evidence).toContain('server/services/__tests__/commandCenterV1InvariantReplay.test.ts');
+    expect(invariants.reason).toContain('Malformed Sleeper owner/starter/membership state fails closed');
   });
 
   test('keeps the challenger methodologically different and confidence-neutral in the release ledger', () => {
@@ -42,16 +51,16 @@ describe('Command Center v1 Gate 2 verification manifest', () => {
     expect(traces.evidence).toContain('server/services/__tests__/weeklyDecisionGoldenTraces.test.ts');
   });
 
-  test('records source laundering and correlated-agreement attacks in the certified red-team boundary', () => {
+  test('records source laundering, malformed Sleeper identity, and correlated-agreement attacks in the red-team boundary', () => {
     const redTeam = COMMAND_CENTER_V1_VERIFICATION.adversarial_red_team;
     expect(redTeam.status).toBe('certified');
     expect(redTeam.reason).toContain('source laundering');
+    expect(redTeam.reason).toContain('malformed Sleeper owner/roster/starter geometry');
     expect(redTeam.reason).toContain('correlated-agreement risk');
-    expect(redTeam.evidence).toContain('server/services/__tests__/weeklyDecisionSourceLineage.test.ts');
+    expect(redTeam.evidence).toContain('server/services/__tests__/commandCenterV1InvariantReplay.test.ts');
   });
 
-  test('does not falsely certify Gate 2 while deterministic invariant unification and postgame evaluation remain open', () => {
-    expect(COMMAND_CENTER_V1_VERIFICATION.deterministic_invariants.status).toBe('partial');
+  test('does not falsely certify Gate 2 while postgame process evaluation remains open', () => {
     expect(COMMAND_CENTER_V1_VERIFICATION.postgame_process_evaluation.status).toBe('not_started');
     expect(isCommandCenterV1Gate2Complete()).toBe(false);
   });
