@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   build:
-    name: Install and build
+    name: Install, verify and build
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -29,5 +29,14 @@ jobs:
           cache: npm
       - name: Install locked dependencies
         run: npm ci
+      - name: Run Management truth regressions
+        env:
+          DATABASE_URL: postgres://test:test@127.0.0.1:5432/tiber_test
+        run: >-
+          npm test --
+          --coverage=false
+          server/services/__tests__/managementTruthService.test.ts
+          server/routes/__tests__/leagueDashboardRoutes.test.ts
+          server/routes/__tests__/managementRoutes.test.ts
       - name: Build application
         run: sh build.sh
