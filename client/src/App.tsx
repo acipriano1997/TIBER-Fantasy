@@ -44,6 +44,7 @@ import DataLabCommandCenterLab from "@/pages/DataLabCommandCenterLab";
 import TiberManagementDashboard from "@/pages/TiberManagementDashboard";
 import TiberDraftReview from "@/pages/TiberDraftReview";
 import CommandCenterV1 from "@/pages/CommandCenterV1";
+import RecordsPage from "@/pages/RecordsPage";
 import StressLab from "@/pages/StressLab";
 import PostCutoffLedger from "@/pages/PostCutoffLedger";
 import FantasyLab from "@/pages/FantasyLab";
@@ -83,6 +84,7 @@ function Router({ runtimeProfile }: { runtimeProfile: RuntimeProfile }) {
               <Route path="/management" component={TiberManagementDashboard} />
               <Route path="/team-management" component={TiberManagementDashboard} />
               <Route path="/draft-review" component={TiberDraftReview} />
+              <Route path="/records" component={RecordsPage} />
               <Route path="/command-center/weekly">
                 {() => <CommandCenterV1 surfaceId="weekly_decisions" />}
               </Route>
