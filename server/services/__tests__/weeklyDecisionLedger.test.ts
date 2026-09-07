@@ -178,10 +178,10 @@ describe('Weekly Decision Gate 2 ledger + frozen replay', () => {
 
   test('does not replay unsupported ledger versions', () => {
     const entry = createWeeklyDecisionLedgerEntry(context(), '2026-09-07T16:10:00.000Z');
-    const unsupported = clone(entry) as WeeklyDecisionLedgerEntryV1 & { ledgerVersion: string };
+    const unsupported = clone(entry) as unknown as Record<string, unknown>;
     unsupported.ledgerVersion = 'weekly_decision_ledger_entry_v999';
 
-    const replay = replayWeeklyDecisionLedgerEntry(unsupported as WeeklyDecisionLedgerEntryV1);
+    const replay = replayWeeklyDecisionLedgerEntry(unsupported as unknown as WeeklyDecisionLedgerEntryV1);
     expect(replay.integrity).toBe('unsupported_version');
     expect(replay.determinism).toBe('not_run');
     expect(replay.replayedResult).toBeNull();
