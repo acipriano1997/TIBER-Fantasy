@@ -43,6 +43,7 @@ import TeamResearchLab from "@/pages/TeamResearchLab";
 import DataLabCommandCenterLab from "@/pages/DataLabCommandCenterLab";
 import TiberManagementDashboard from "@/pages/TiberManagementDashboard";
 import TiberDraftReview from "@/pages/TiberDraftReview";
+import CommandCenterV1 from "@/pages/CommandCenterV1";
 import StressLab from "@/pages/StressLab";
 import PostCutoffLedger from "@/pages/PostCutoffLedger";
 import FantasyLab from "@/pages/FantasyLab";
@@ -82,6 +83,18 @@ function Router({ runtimeProfile }: { runtimeProfile: RuntimeProfile }) {
               <Route path="/management" component={TiberManagementDashboard} />
               <Route path="/team-management" component={TiberManagementDashboard} />
               <Route path="/draft-review" component={TiberDraftReview} />
+              <Route path="/command-center/weekly">
+                {() => <CommandCenterV1 surfaceId="weekly_decisions" />}
+              </Route>
+              <Route path="/command-center/waivers">
+                {() => <CommandCenterV1 surfaceId="waivers" />}
+              </Route>
+              <Route path="/command-center/trades">
+                {() => <CommandCenterV1 surfaceId="trades" />}
+              </Route>
+              <Route path="/command-center">
+                {() => <CommandCenterV1 surfaceId="home_what_changed" />}
+              </Route>
               {/*
                 Observatory surface (user-facing name). The implementation component is
                 still named `StressLab` (legacy/internal name retained — see the naming
