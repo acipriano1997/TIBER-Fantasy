@@ -18,11 +18,6 @@ export type CommandCenterV1VerificationCapability = {
   evidence: string[];
 };
 
-/**
- * Gate 2 is intentionally stricter than feature availability. A capability is
- * only `certified` when the active v1 path has executable evidence for it.
- * Partial coverage never promotes the overall gate.
- */
 export const COMMAND_CENTER_V1_VERIFICATION: Readonly<
   Record<CommandCenterV1VerificationCapabilityId, CommandCenterV1VerificationCapability>
 > = {
@@ -54,13 +49,15 @@ export const COMMAND_CENTER_V1_VERIFICATION: Readonly<
   deterministic_invariants: {
     id: 'deterministic_invariants',
     label: 'Deterministic invariants',
-    status: 'partial',
-    scope: 'Gate 0 league truth + Weekly Decisions contract',
-    reason: 'Roster identity, observed starters, context receipts, legality, lock state, scoring identity, canonical identity, decision validity, source-lineage identity, and evidence compatibility are guarded, but Gate 2 has not yet unified every active release invariant under one replay suite.',
+    status: 'certified',
+    scope: 'Gate 0 Management truth + Weekly Decisions + frozen replay',
+    reason: 'A single canonical invariant catalog now binds every active personal-v1 truth boundary to an executable proof. The suite covers scoped user/league identity, external league/roster/owner identity, observed roster and starter geometry, FORGE freshness/coverage degradation, weekly context/scoring/roster/lineup identity, legality/locks, canonical player identity, as-of validity, tail completeness, authoritative lineage, and ledger tamper/deterministic replay. Malformed Sleeper owner/starter/membership state fails closed rather than being normalized.',
     evidence: [
+      'shared/commandCenterV1InvariantManifest.ts',
+      'server/services/__tests__/commandCenterV1InvariantReplay.test.ts',
       'server/services/leagueDashboardTruthBoundary.ts',
       'shared/weeklyDecisionContract.ts',
-      'server/services/__tests__/weeklyDecisionSourceLineage.test.ts',
+      'server/services/weeklyDecisionLedger.ts',
     ],
   },
   independent_challenger: {
@@ -101,9 +98,10 @@ export const COMMAND_CENTER_V1_VERIFICATION: Readonly<
     label: 'Adversarial red team',
     status: 'certified',
     scope: 'Gate 0 + Gate 1 + Weekly Decisions v1 verification boundary',
-    reason: 'Executable attacks now cover context bleed, stale/sparse evidence, unsupported legacy authority, receipt mutation, malformed persisted receipts, as-of drift, invalid hashes, direct ledger mutation, source laundering, model/version clock mismatch, invalid publication/freshness/coverage, and correlated-agreement risk. The challenger is structurally no-model and agreement can never promote confidence.',
+    reason: 'Executable attacks cover context bleed, stale/sparse evidence, unsupported legacy authority, receipt mutation, malformed persisted receipts, as-of drift, invalid hashes, direct ledger mutation, source laundering, model/version clock mismatch, invalid publication/freshness/coverage, malformed Sleeper owner/roster/starter geometry, and correlated-agreement risk. The challenger is structurally no-model and agreement can never promote confidence.',
     evidence: [
       'server/services/__tests__/leagueDashboardTruthBoundary.test.ts',
+      'server/services/__tests__/commandCenterV1InvariantReplay.test.ts',
       'server/services/__tests__/commandCenterV1SurfaceManifest.test.ts',
       'server/services/__tests__/weeklyDecisionLedger.test.ts',
       'server/services/__tests__/weeklyDecisionLedgerPersistence.integration.test.ts',
