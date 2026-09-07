@@ -37,5 +37,6 @@ jobs:
           --coverage=false
           server/services/__tests__/managementTruthService.test.ts
           server/routes/__tests__/leagueDashboardRoutes.test.ts
+          server/routes/__tests__/managementRoutes.test.ts
       - name: Build application
         run: sh build.sh
