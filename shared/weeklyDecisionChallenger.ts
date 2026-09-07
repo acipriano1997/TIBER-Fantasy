@@ -43,12 +43,27 @@ export type WeeklyDecisionChallengeComparison = {
 
 const SUPPORTED_POSITIONS = new Set(['QB', 'RB', 'WR', 'TE']);
 
+function validIsoTimestamp(value: string | null | undefined): boolean {
+  if (!value) return false;
+  const parsed = Date.parse(value);
+  if (!Number.isFinite(parsed)) return false;
+  try {
+    return new Date(parsed).toISOString() === value;
+  } catch {
+    return false;
+  }
+}
+
 function completeContext(context: WeeklyDecisionContext): boolean {
   return Boolean(
     context.decisionId
     && Number.isInteger(context.season)
+    && context.season >= 2000
     && Number.isInteger(context.week)
-    && context.evidenceCutoffAt
+    && context.week >= 1
+    && context.week <= 25
+    && validIsoTimestamp(context.evidenceCutoffAt)
+    && (context.validUntil === null || validIsoTimestamp(context.validUntil))
     && context.leagueRef
     && context.teamRef
     && context.scoringProfileRef
@@ -89,7 +104,7 @@ export function evaluateWeeklyDecisionChallenger(
       preferredPlayerId: null,
       baselineAction: null,
       reasons: [],
-      blockers: ['The challenger requires the same exact league/team/roster/lineup identity envelope as the champion.'],
+      blockers: ['The challenger requires the same exact, valid league/team/roster/lineup/as-of identity envelope as the champion.'],
     };
   }
 
