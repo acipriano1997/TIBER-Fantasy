@@ -431,7 +431,7 @@ export function summarizeWeeklyDecisionPostgameCalibration(
     }
   }
 
-  const uniqueEvaluations = [...uniqueByLedger.values()];
+  const uniqueEvaluations = Array.from(uniqueByLedger.values());
   const evaluationHashes = uniqueEvaluations
     .map((evaluation) => evaluation.receipt.evaluationSha256)
     .sort();
@@ -475,7 +475,7 @@ export function summarizeWeeklyDecisionPostgameCalibration(
   }
 
   const playerOutcomeCount = eligible.length;
-  const cohort = cohorts.size === 1 ? [...cohorts.values()][0] : null;
+  const cohort = cohorts.size === 1 ? Array.from(cohorts.values())[0] : null;
   const empirical50 = playerOutcomeCount
     ? eligible.filter(({ row }) => row.central50Hit === true).length / playerOutcomeCount
     : null;
