@@ -1,0 +1,120 @@
+name: Command Center Browser & Resilience
+
+on:
+  pull_request:
+    paths:
+      - 'client/**'
+      - 'server/**'
+      - 'shared/**'
+      - 'scripts/command-center-browser-smoke.mjs'
+      - 'build.sh'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/command-center-browser-smoke.yml'
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: command-center-browser-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  browser-resilience:
+    name: Built app browser smoke and resilience
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: tiber
+          POSTGRES_PASSWORD: tiber
+          POSTGRES_DB: tiber
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U tiber -d tiber"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    env:
+      NODE_ENV: production
+      PORT: '5000'
+      DATABASE_URL: postgresql://tiber:tiber@127.0.0.1:5432/tiber
+      TIBER_RUNTIME_PROFILE: full
+      USE_SLEEPER_SYNC: 'false'
+      TIBER_BROWSER_BASE_URL: http://127.0.0.1:5000
+      TIBER_BROWSER_ROUTE_TIMEOUT_MS: '10000'
+      TIBER_BROWSER_SPA_NAV_BUDGET_MS: '1500'
+      TIBER_BROWSER_LARGE_LIST_RENDER_BUDGET_MS: '2500'
+      TIBER_BROWSER_LARGE_LIST_INTERACTION_BUDGET_MS: '1000'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Locate Chrome
+        shell: bash
+        run: |
+          set -euo pipefail
+          CHROME_BIN="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || command -v chromium-browser || true)"
+          if [ -z "$CHROME_BIN" ]; then
+            echo "::error::GitHub runner does not expose Chrome/Chromium; browser certification cannot run."
+            exit 1
+          fi
+          echo "CHROME_BIN=$CHROME_BIN" >> "$GITHUB_ENV"
+          "$CHROME_BIN" --version
+
+      - name: Build release artifact
+        run: sh build.sh
+
+      - name: Start built release
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup node dist/index.mjs > browser-server.log 2>&1 &
+          echo $! > browser-server.pid
+
+          for i in {1..90}; do
+            if curl -fsS http://127.0.0.1:5000/api/health >/dev/null 2>&1 \
+              && curl -fsS http://127.0.0.1:5000/api/health/db >/dev/null 2>&1 \
+              && curl -fsS http://127.0.0.1:5000/command-center 2>/dev/null | grep -q '<div id="root"></div>'; then
+              echo "Built release is live, DB-ready, and serving the SPA shell."
+              exit 0
+            fi
+            sleep 1
+          done
+
+          echo "::error::Built release did not become browser-ready."
+          cat browser-server.log || true
+          exit 1
+
+      - name: Run Command Center browser certification
+        run: node scripts/command-center-browser-smoke.mjs
+
+      - name: Display server logs on failure
+        if: failure()
+        run: |
+          echo '=== browser-server.log ==='
+          cat browser-server.log || true
+
+      - name: Stop built release
+        if: always()
+        run: |
+          if [ -f browser-server.pid ]; then
+            kill "$(cat browser-server.pid)" 2>/dev/null || true
+          fi
