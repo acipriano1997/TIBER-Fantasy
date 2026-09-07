@@ -1,0 +1,51 @@
+name: Command Center Gate 0
+
+on:
+  pull_request:
+    paths:
+      - 'server/services/managementTruthService.ts'
+      - 'server/services/__tests__/managementTruthService.test.ts'
+      - 'server/routes/leagueDashboardRoutes.ts'
+      - 'server/routes/__tests__/leagueDashboardRoutes.test.ts'
+      - '.github/workflows/command-center-gate0.yml'
+  push:
+    branches:
+      - command-center-v1-gate0-management-truth
+    paths:
+      - 'server/services/managementTruthService.ts'
+      - 'server/services/__tests__/managementTruthService.test.ts'
+      - 'server/routes/leagueDashboardRoutes.ts'
+      - 'server/routes/__tests__/leagueDashboardRoutes.test.ts'
+      - '.github/workflows/command-center-gate0.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: command-center-gate0-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  management-truth-regression:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Run focused Gate 0 tests
+        run: >-
+          npm test --
+          server/services/__tests__/managementTruthService.test.ts
+          server/routes/__tests__/leagueDashboardRoutes.test.ts
+
+      - name: Build application
+        run: npm run build
