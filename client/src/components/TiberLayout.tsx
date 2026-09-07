@@ -23,6 +23,7 @@ const navSections: NavSectionConfig[] = [
       { label: "Command Center", path: "/command-center", badge: "V1" },
       { label: "Post-Cutoff Ledger", path: "/observatory/post-cutoff-ledger", badge: "NEW" },
       { label: "Management", path: "/management", badge: "NEW" },
+      { label: "Records", path: "/records", badge: "NEW" },
       { label: "Rankings", path: "/tiers", badge: "LIVE" },
       { label: "Rookie Board", path: "/rookies", badge: "2026" },
     ],
@@ -42,6 +43,7 @@ function getSection(location: string): string {
   if (location === "/" || location.startsWith("/observatory") || location.startsWith("/stress-lab")) return "Observatory";
   if (location.startsWith("/draft-review")) return "Draft Review";
   if (location.startsWith("/management") || location.startsWith("/team-management")) return "Management";
+  if (location.startsWith("/records")) return "Records";
   if (location.startsWith("/tiers") || location.startsWith("/rankings")) return "Rankings";
   if (location.startsWith("/rookies")) return "Rookies";
   if (location.startsWith("/tiber-data-lab/command-center")) return "Command Center Lab";
@@ -226,6 +228,7 @@ export default function TiberLayout({
         </div>
         <nav className="tiber-topbar-quicknav">
           <Link href="/command-center" className="tmd-topbar-link">Command Center</Link>
+          <Link href="/records" className="tmd-topbar-link">Records</Link>
           <Link href="/tiers" className="tmd-topbar-link">Rankings</Link>
           <Link href="/rookies" className="tmd-topbar-link">Rookies</Link>
         </nav>
