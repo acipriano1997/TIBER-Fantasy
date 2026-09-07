@@ -14,8 +14,14 @@ export type ManagementTruthBindingErrorCode =
   | 'team_missing_external_roster_id'
   | 'duplicate_sleeper_roster_id'
   | 'sleeper_roster_not_found'
+  | 'sleeper_players_unavailable'
+  | 'sleeper_starters_unavailable'
+  | 'duplicate_sleeper_player_id'
+  | 'duplicate_sleeper_starter_id'
+  | 'sleeper_starter_not_on_roster'
   | 'dashboard_team_not_found'
   | 'dashboard_roster_identity_missing'
+  | 'dashboard_roster_duplicate_player_id'
   | 'dashboard_roster_mismatch';
 
 export class ManagementTruthBindingError extends Error {
@@ -54,16 +60,35 @@ const defaultDeps: ManagementTruthDeps = {
   computeLeagueDashboard: computeLegacyLeagueDashboard,
 };
 
+const SLEEPER_EMPTY_STARTER_IDS = new Set(['0']);
+
 function normalizeId(value: unknown): string | null {
   if (value === null || value === undefined) return null;
   const normalized = String(value).trim();
   return normalized || null;
 }
 
-function sortedUnique(values: unknown[]): string[] {
-  return Array.from(
-    new Set(values.map(normalizeId).filter((value): value is string => Boolean(value))),
-  ).sort();
+function strictNormalizedIds(
+  values: unknown[],
+  duplicateCode: ManagementTruthBindingErrorCode,
+  duplicateLabel: string,
+  ignore: ReadonlySet<string> = new Set<string>(),
+): string[] {
+  const result: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of values) {
+    const id = normalizeId(raw);
+    if (!id || ignore.has(id)) continue;
+    if (seen.has(id)) {
+      throw new ManagementTruthBindingError(
+        duplicateCode,
+        `${duplicateLabel} contains duplicate id ${id}; refusing to normalize malformed roster truth.`,
+      );
+    }
+    seen.add(id);
+    result.push(id);
+  }
+  return result.sort();
 }
 
 function sameMembers(left: string[], right: string[]): boolean {
@@ -120,10 +145,41 @@ function truthEnforceTeam(
   sleeperRoster: SleeperRoster,
   externalRosterId: string,
 ) {
-  const sleeperPlayerIds = sortedUnique(sleeperRoster.players ?? []);
-  const sleeperStarterIds = sortedUnique(sleeperRoster.starters ?? []);
-  const dashboardRoster = Array.isArray(dashboardTeam?.roster) ? dashboardTeam.roster : [];
+  if (!Array.isArray(sleeperRoster.players)) {
+    throw new ManagementTruthBindingError(
+      'sleeper_players_unavailable',
+      `Sleeper roster ${externalRosterId} has no authoritative players array; refusing to infer roster membership.`,
+    );
+  }
+  if (!Array.isArray(sleeperRoster.starters)) {
+    throw new ManagementTruthBindingError(
+      'sleeper_starters_unavailable',
+      `Sleeper roster ${externalRosterId} has no authoritative starters array; refusing to convert missing starter truth into bench state.`,
+    );
+  }
 
+  const sleeperPlayerIds = strictNormalizedIds(
+    sleeperRoster.players,
+    'duplicate_sleeper_player_id',
+    `Sleeper roster ${externalRosterId} players`,
+  );
+  const sleeperStarterIds = strictNormalizedIds(
+    sleeperRoster.starters,
+    'duplicate_sleeper_starter_id',
+    `Sleeper roster ${externalRosterId} starters`,
+    SLEEPER_EMPTY_STARTER_IDS,
+  );
+  const sleeperPlayerSet = new Set(sleeperPlayerIds);
+  for (const starterId of sleeperStarterIds) {
+    if (!sleeperPlayerSet.has(starterId)) {
+      throw new ManagementTruthBindingError(
+        'sleeper_starter_not_on_roster',
+        `Sleeper starter ${starterId} is not present in roster ${externalRosterId} players; refusing internally inconsistent starter truth.`,
+      );
+    }
+  }
+
+  const dashboardRoster = Array.isArray(dashboardTeam?.roster) ? dashboardTeam.roster : [];
   const dashboardSleeperIds: string[] = [];
   for (const player of dashboardRoster) {
     const sleeperId = normalizeId(player?.sleeperId ?? player?.providerPlayerId);
@@ -136,7 +192,11 @@ function truthEnforceTeam(
     dashboardSleeperIds.push(sleeperId);
   }
 
-  const normalizedDashboardSleeperIds = sortedUnique(dashboardSleeperIds);
+  const normalizedDashboardSleeperIds = strictNormalizedIds(
+    dashboardSleeperIds,
+    'dashboard_roster_duplicate_player_id',
+    `Dashboard team ${team.id} roster`,
+  );
   if (!sameMembers(sleeperPlayerIds, normalizedDashboardSleeperIds)) {
     throw new ManagementTruthBindingError(
       'dashboard_roster_mismatch',
@@ -159,17 +219,29 @@ function truthEnforceTeam(
   const rosterSpecificCount = roster.filter(isPlayerSpecificForgeRow).length;
   const benchFullyCovered = bench.every(isPlayerSpecificForgeRow);
   const startersFullyCovered = startersUsed.every(isPlayerSpecificForgeRow);
-  const overallAvailable = startersFullyCovered && benchFullyCovered;
+  const overallAvailable =
+    roster.length > 0
+    && startersUsed.length > 0
+    && startersFullyCovered
+    && benchFullyCovered;
 
-  const benchContribution = benchFullyCovered
+  const benchContribution = overallAvailable
     ? 0.15 * bench.reduce((sum: number, player: any) => sum + Number(player.alpha), 0)
     : null;
-  const starterTotal = startersFullyCovered
+  const starterTotal = overallAvailable
     ? startersUsed.reduce((sum: number, player: any) => sum + Number(player.alpha), 0)
     : null;
   const overallTotal = starterTotal !== null && benchContribution !== null
     ? starterTotal + benchContribution
     : null;
+
+  const evaluationReason = overallAvailable
+    ? null
+    : roster.length === 0
+      ? 'overall_unavailable_empty_roster'
+      : startersUsed.length === 0
+        ? 'overall_unavailable_no_observed_starters'
+        : 'overall_requires_player_specific_forge_coverage_for_starters_and_bench';
 
   return {
     ...dashboardTeam,
@@ -192,7 +264,7 @@ function truthEnforceTeam(
     evaluation: {
       status: overallAvailable ? 'available' : 'insufficient_evidence',
       overall_available: overallAvailable,
-      reason: overallAvailable ? null : 'overall_requires_player_specific_forge_coverage_for_starters_and_bench',
+      reason: evaluationReason,
       observed_starter_count: startersUsed.length,
       player_specific_starter_count: starterSpecificCount,
       roster_player_count: roster.length,
