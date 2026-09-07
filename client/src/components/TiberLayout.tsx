@@ -20,6 +20,7 @@ const navSections: NavSectionConfig[] = [
     label: "Primary",
     description: "Inspectable systems only.",
     items: [
+      { label: "Command Center", path: "/command-center", badge: "V1" },
       { label: "Post-Cutoff Ledger", path: "/observatory/post-cutoff-ledger", badge: "NEW" },
       { label: "Management", path: "/management", badge: "NEW" },
       { label: "Rankings", path: "/tiers", badge: "LIVE" },
@@ -37,12 +38,13 @@ const navSections: NavSectionConfig[] = [
 ];
 
 function getSection(location: string): string {
+  if (location.startsWith("/command-center")) return "Command Center";
   if (location === "/" || location.startsWith("/observatory") || location.startsWith("/stress-lab")) return "Observatory";
   if (location.startsWith("/draft-review")) return "Draft Review";
   if (location.startsWith("/management") || location.startsWith("/team-management")) return "Management";
   if (location.startsWith("/tiers") || location.startsWith("/rankings")) return "Rankings";
   if (location.startsWith("/rookies")) return "Rookies";
-  if (location.startsWith("/tiber-data-lab/command-center")) return "Command Center";
+  if (location.startsWith("/tiber-data-lab/command-center")) return "Command Center Lab";
   if (location.startsWith("/tiber-data-lab/player-research")) return "Player Research";
   if (location.startsWith("/tiber-data-lab/team-research")) return "Team Research";
   if (location.startsWith("/tiber-data-lab")) return "Data Lab";
@@ -223,7 +225,7 @@ export default function TiberLayout({
           <span className="tiber-topbar-section">{getSection(location)}</span>
         </div>
         <nav className="tiber-topbar-quicknav">
-          <Link href="/tiber-data-lab/command-center" className="tmd-topbar-link">Command Center</Link>
+          <Link href="/command-center" className="tmd-topbar-link">Command Center</Link>
           <Link href="/tiers" className="tmd-topbar-link">Rankings</Link>
           <Link href="/rookies" className="tmd-topbar-link">Rookies</Link>
         </nav>
