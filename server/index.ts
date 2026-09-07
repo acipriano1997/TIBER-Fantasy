@@ -206,7 +206,6 @@ export async function initBackground(): Promise<void> {
 
   // DB ping — fire-and-forget
   import("./infra/db").then(async ({ pingDb }) => {
-    const { db } = await import("./infra/db");
     const ok = await pingDb();
     log(ok ? "✅ DB ping ok" : "⚠️  DB ping failed");
   }).catch(() => {});
