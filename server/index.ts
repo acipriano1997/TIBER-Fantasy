@@ -4,6 +4,7 @@ import path from "node:path";
 import fs from "node:fs";
 import { attachSignatureHeader } from "./middleware/signature";
 import { baselineSecurityHeaders } from "./middleware/security";
+import { createPersonalUserScopeMiddleware } from "./middleware/personalUserScope";
 import { draftReviewRouter } from "./routes/draftReviewRoutes";
 import {
   createRuntimeProfileRouter,
@@ -70,6 +71,9 @@ export function mountProductionFrontend(appToMount: express.Express, publicDir: 
 app.use(baselineSecurityHeaders());
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+// Personal release isolation boundary: legacy clients may still send
+// `default_user`, but shared state must never be keyed by that value.
+app.use(createPersonalUserScopeMiddleware());
 app.use(attachSignatureHeader);
 
 // A tiny non-stateful capability response lets the SPA render the same runtime
@@ -202,6 +206,7 @@ export async function initBackground(): Promise<void> {
 
   // DB ping — fire-and-forget
   import("./infra/db").then(async ({ pingDb }) => {
+    const { db } = await import("./infra/db");
     const ok = await pingDb();
     log(ok ? "✅ DB ping ok" : "⚠️  DB ping failed");
   }).catch(() => {});
