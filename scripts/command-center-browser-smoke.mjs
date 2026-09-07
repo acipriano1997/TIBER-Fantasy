@@ -160,7 +160,8 @@ async function waitForExpression(cdp, expression, label, timeoutMs = ROUTE_TIMEO
 }
 
 function bodyIncludes(text) {
-  return `document.body?.innerText?.includes(${JSON.stringify(text)})`;
+  const normalized = String(text).toLocaleLowerCase();
+  return `document.body?.innerText?.toLocaleLowerCase().includes(${JSON.stringify(normalized)})`;
 }
 
 async function navigateAndAssert(cdp, pathName, expectedText, report) {
@@ -315,13 +316,14 @@ async function main() {
       report.browserErrors.push({ type: 'Runtime.exceptionThrown', description });
     });
 
-    // Core release routes: assert the built SPA renders the certified surface copy.
+    // Core release routes: assert the built SPA renders unique semantic page copy,
+    // not CSS-transformed presentation labels.
     await navigateAndAssert(cdp, '/command-center', 'Home / What Changed', report);
     await navigateAndAssert(cdp, '/command-center/weekly', 'INSUFFICIENT EVIDENCE', report);
     await navigateAndAssert(cdp, '/command-center/waivers', 'UNSUPPORTED DOMAIN', report);
     await navigateAndAssert(cdp, '/command-center/trades', 'UNSUPPORTED DOMAIN', report);
-    await navigateAndAssert(cdp, '/draft-review', 'TIBER · DRAFT REVIEW PILOT', report);
-    await navigateAndAssert(cdp, '/records', 'Fantasy History & Legacy', report);
+    await navigateAndAssert(cdp, '/draft-review', 'Let TIBER read the team you actually drafted.', report);
+    await navigateAndAssert(cdp, '/records', 'A reconstructable record book built from Sleeper league history.', report);
 
     // Resilience: deliberately leave Management data reads pending, then prove SPA navigation is still responsive.
     const hungRequestIds = new Set();
@@ -340,7 +342,7 @@ async function main() {
       // Intentionally do not continue the request until after the navigation proof.
     });
 
-    await navigateAndAssert(cdp, '/management', 'TIBER Management Dashboard', report);
+    await navigateAndAssert(cdp, '/management', 'Connect your team, inspect signals, then research your next move.', report);
     await waitForExpression(cdp, 'true', 'Management paint', 500);
     const requestDeadline = Date.now() + 3_000;
     while (hungRequestIds.size === 0 && Date.now() < requestDeadline) await sleep(50);
