@@ -2,6 +2,10 @@ import crypto from 'node:crypto';
 import { storage, type IStorage } from '../storage';
 import { sleeperClient, type SleeperRoster } from '../integrations/sleeperClient';
 import { computeLeagueDashboard, type LeagueDashboardPayload } from './leagueDashboardService';
+import {
+  buildTeamDirectionForgeFreshnessReceipt,
+  isAcceptedTeamDirectionForgeFreshnessReceipt,
+} from '../modules/management/forgeTeamDirectionFreshnessPolicy';
 
 const BENCH_WEIGHT = 0.15;
 const MIN_OVERALL_EVIDENCE_RATE = 0.9;
@@ -11,12 +15,14 @@ type TruthBoundaryDeps = {
   storage: Pick<IStorage, 'getLeagueWithTeams'>;
   sleeperClient: Pick<typeof sleeperClient, 'getLeagueRosters'>;
   computeLeagueDashboard: typeof computeLeagueDashboard;
+  now?: () => Date;
 };
 
 const defaultDeps: TruthBoundaryDeps = {
   storage,
   sleeperClient,
   computeLeagueDashboard,
+  now: () => new Date(),
 };
 
 type TruthBoundaryParams = {
@@ -52,6 +58,22 @@ function playerSpecificAlpha(player: any): number {
 
 function stableFingerprint(input: unknown): string {
   return crypto.createHash('sha256').update(JSON.stringify(input)).digest('hex');
+}
+
+function normalizedSettings(league: any) {
+  let settings = league?.settings ?? null;
+  if (typeof settings === 'string') {
+    try {
+      settings = JSON.parse(settings);
+    } catch {
+      settings = { raw: settings };
+    }
+  }
+  return {
+    settings,
+    scoring_format: league?.scoringFormat ?? league?.scoring_format ?? null,
+    season: league?.season ?? null,
+  };
 }
 
 function observedRosterMap(rosters: SleeperRoster[]) {
@@ -93,7 +115,13 @@ function playerIndex(payload: LeagueDashboardPayload) {
   return bySleeperId;
 }
 
-function recomputeObservedTeam(baseTeam: any, observedRoster: SleeperRoster, playersBySleeperId: Map<string, any>) {
+function recomputeObservedTeam(
+  baseTeam: any,
+  observedRoster: SleeperRoster,
+  playersBySleeperId: Map<string, any>,
+  forgeArtifact: any,
+  now: Date,
+) {
   const observedPlayerIds = (observedRoster.players ?? []).map(String);
   const observedStarterIds = new Set((observedRoster.starters ?? []).map(String));
   const missingPlayerIds: string[] = [];
@@ -134,8 +162,21 @@ function recomputeObservedTeam(baseTeam: any, observedRoster: SleeperRoster, pla
   const benchContribution = BENCH_WEIGHT * benchSum;
   const evidenceCount = roster.filter((player) => player?.forgeScoreSource === 'player_specific' && Number.isFinite(Number(player?.alpha))).length;
   const evidenceRate = roster.length === 0 ? 0 : evidenceCount / roster.length;
-  const overallAvailable = roster.length > 0 && evidenceRate >= MIN_OVERALL_EVIDENCE_RATE;
+  const freshnessReceipt = buildTeamDirectionForgeFreshnessReceipt({
+    artifact: forgeArtifact ?? null,
+    rosterPlayers: roster,
+    now,
+  });
+  const freshnessAccepted = isAcceptedTeamDirectionForgeFreshnessReceipt(freshnessReceipt);
+  const overallAvailable = roster.length > 0
+    && evidenceRate >= MIN_OVERALL_EVIDENCE_RATE
+    && freshnessAccepted;
   const observedStarterTotal = Object.values(totals).reduce((sum, value) => sum + value, 0);
+  const overallUnavailableReason = overallAvailable
+    ? null
+    : evidenceRate < MIN_OVERALL_EVIDENCE_RATE
+      ? 'insufficient_player_specific_forge_coverage'
+      : `forge_freshness_${freshnessReceipt.reasonCode}`;
 
   return {
     ...baseTeam,
@@ -146,8 +187,9 @@ function recomputeObservedTeam(baseTeam: any, observedRoster: SleeperRoster, pla
     overall_total: overallAvailable ? observedStarterTotal + benchContribution : null,
     overall_available: overallAvailable,
     overall_evidence_rate: evidenceRate,
-    overall_unavailable_reason: overallAvailable ? null : 'insufficient_player_specific_forge_coverage',
+    overall_unavailable_reason: overallUnavailableReason,
     starter_source: 'sleeper_observed',
+    forge_freshness_receipt: freshnessReceipt,
   };
 }
 
@@ -182,6 +224,7 @@ export async function computeTruthBoundLeagueDashboard(
     deps.sleeperClient.getLeagueRosters(externalLeagueId),
   ]);
 
+  const now = deps.now?.() ?? new Date();
   const rostersById = observedRosterMap(rosters);
   const playersBySleeperId = playerIndex(basePayload);
   const baseTeamsById = new Map((basePayload.teams ?? []).map((team: any) => [String(team.team_id), team]));
@@ -214,7 +257,13 @@ export async function computeTruthBoundLeagueDashboard(
       display_name: leagueTeam.displayName ?? leagueTeam.display_name ?? 'Team',
       roster: [],
     };
-    const verifiedTeam = recomputeObservedTeam(baseTeam, observedRoster, playersBySleeperId);
+    const verifiedTeam = recomputeObservedTeam(
+      baseTeam,
+      observedRoster,
+      playersBySleeperId,
+      basePayload.diagnostics?.forgeArtifact ?? null,
+      now,
+    );
 
     teamReceipts.push({
       team_id: teamId,
@@ -222,11 +271,16 @@ export async function computeTruthBoundLeagueDashboard(
       sleeper_owner_id: normalizeExternalId(observedRoster.owner_id),
       observed_player_count: (observedRoster.players ?? []).length,
       observed_starter_count: (observedRoster.starters ?? []).length,
+      overall_available: verifiedTeam.overall_available,
+      overall_evidence_rate: verifiedTeam.overall_evidence_rate,
+      forge_freshness_decision: verifiedTeam.forge_freshness_receipt.decision,
+      forge_freshness_reason: verifiedTeam.forge_freshness_receipt.reasonCode,
     });
 
     return verifiedTeam;
   });
 
+  const settingsSnapshot = normalizedSettings(league);
   const receiptCore = {
     version: LEAGUE_DASHBOARD_TRUTH_BOUNDARY_VERSION,
     user_id: params.userId,
@@ -234,6 +288,7 @@ export async function computeTruthBoundLeagueDashboard(
     external_league_id: externalLeagueId,
     season: basePayload.meta?.season ?? params.season ?? null,
     week: basePayload.meta?.week ?? params.week ?? null,
+    settings_fingerprint: stableFingerprint(settingsSnapshot),
     roster_binding: 'external_roster_id_to_sleeper_roster_id',
     starter_source: 'sleeper_observed',
     team_receipts: teamReceipts,
@@ -245,7 +300,7 @@ export async function computeTruthBoundLeagueDashboard(
     context_receipt: {
       ...receiptCore,
       fingerprint: stableFingerprint(receiptCore),
-      observed_at: new Date().toISOString(),
+      observed_at: now.toISOString(),
     },
   } as LeagueDashboardPayload & Record<string, unknown>;
 }
