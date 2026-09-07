@@ -12,10 +12,19 @@ jest.mock('../../storage', () => ({
 import express from 'express';
 import { AddressInfo } from 'net';
 import { createLeagueDashboardRouter } from '../leagueDashboardRoutes';
-import { computeLeagueDashboard } from '../../services/leagueDashboardService';
+import { computeTruthBoundLeagueDashboard } from '../../services/managementTruthService';
 
-jest.mock('../../services/leagueDashboardService', () => ({
-  computeLeagueDashboard: jest.fn(),
+jest.mock('../../services/managementTruthService', () => ({
+  computeTruthBoundLeagueDashboard: jest.fn(),
+  ManagementTruthBindingError: class ManagementTruthBindingError extends Error {
+    code: string;
+    statusCode = 409;
+    constructor(code: string, message: string) {
+      super(message);
+      this.name = 'ManagementTruthBindingError';
+      this.code = code;
+    }
+  },
 }));
 
 describe('league dashboard routes', () => {
@@ -37,9 +46,17 @@ describe('league dashboard routes', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    (computeLeagueDashboard as jest.Mock).mockResolvedValue({
+    (computeTruthBoundLeagueDashboard as jest.Mock).mockResolvedValue({
       success: true,
-      meta: { league_id: 'l1', week: null, season: 2024, computed_at: new Date().toISOString(), cached: false },
+      meta: {
+        league_id: 'l1',
+        week: null,
+        season: 2024,
+        computed_at: new Date().toISOString(),
+        cached: false,
+        management_truth_version: 'management_truth_v1',
+        roster_binding: 'external_roster_id',
+      },
       unresolvedPlayers: [],
       teams: [
         {
@@ -54,13 +71,23 @@ describe('league dashboard routes', () => {
     });
   });
 
-  it('returns dashboard payload', async () => {
+  it('requires an explicit user id instead of silently using default_user', async () => {
+    const app = buildApp();
+    const res = await call(app, '/api/league-dashboard?league_id=l1');
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('user_id is required');
+    expect(computeTruthBoundLeagueDashboard).not.toHaveBeenCalled();
+  });
+
+  it('returns truth-bound dashboard payload', async () => {
     const app = buildApp();
     const res = await call(app, '/api/league-dashboard?user_id=default_user&league_id=l1');
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
     expect(res.body.teams[0].overall_total).toBe(65);
+    expect(res.body.meta.management_truth_version).toBe('management_truth_v1');
     expect(res.body.requestId).toBeDefined();
   });
 
@@ -68,10 +95,10 @@ describe('league dashboard routes', () => {
     const app = buildApp();
     await call(app, '/api/league-dashboard?user_id=default_user&league_id=l1&refresh=1');
 
-    expect(computeLeagueDashboard).toHaveBeenCalledWith(
+    expect(computeTruthBoundLeagueDashboard).toHaveBeenCalledWith(
       expect.objectContaining({ refresh: true, leagueId: 'l1', userId: 'default_user', week: null, season: null }),
       undefined,
-      expect.anything()
+      expect.anything(),
     );
   });
 });
