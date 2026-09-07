@@ -14,9 +14,15 @@ describe('Command Center v1 Gate 2 verification manifest', () => {
     );
   });
 
-  test('certifies frozen replay while keeping content-addressed receipts partial until append-only persistence exists', () => {
-    expect(COMMAND_CENTER_V1_VERIFICATION.immutable_decision_receipts.status).toBe('partial');
-    expect(COMMAND_CENTER_V1_VERIFICATION.immutable_decision_receipts.reason).toContain('append-only');
+  test('certifies weekly receipt persistence and frozen replay only after append-only DB evidence exists', () => {
+    const receipts = COMMAND_CENTER_V1_VERIFICATION.immutable_decision_receipts;
+    expect(receipts.status).toBe('certified');
+    expect(receipts.scope).toContain('application/runtime boundary');
+    expect(receipts.reason).toContain('UPDATE, DELETE, and TRUNCATE');
+    expect(receipts.evidence).toContain('migrations/0016_weekly_decision_ledger_append_only.sql');
+    expect(receipts.evidence).toContain(
+      'server/services/__tests__/weeklyDecisionLedgerPersistence.integration.test.ts',
+    );
     expect(COMMAND_CENTER_V1_VERIFICATION.frozen_as_of_replay.status).toBe('certified');
 
     expect(COMMAND_CENTER_V1_VERIFICATION.independent_challenger.status).toBe('not_started');
