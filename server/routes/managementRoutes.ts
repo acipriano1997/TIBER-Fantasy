@@ -1,6 +1,6 @@
 import express from 'express';
 import { storage } from '../storage';
-import { computeLeagueDashboard } from '../services/leagueDashboardService';
+import { computeTruthBoundLeagueDashboard } from '../services/managementTruthService';
 import { classifyTeamDirection } from '../services/teamDirectionClassifier';
 import { buildStrategyTemplateDiagnostics } from '@shared/strategyTemplateDiagnostics';
 import { buildManagementStrategyContext } from '@shared/managementStrategyContext';
@@ -10,14 +10,14 @@ import { buildTeamDirectionForgeFreshnessReceipt } from '../modules/management/f
 
 type ManagementDeps = {
   storage: typeof storage;
-  computeLeagueDashboard: typeof computeLeagueDashboard;
+  computeLeagueDashboard: typeof computeTruthBoundLeagueDashboard;
   classifyTeamDirection: typeof classifyTeamDirection;
   now?: () => Date;
 };
 
 const defaultDeps: ManagementDeps = {
   storage,
-  computeLeagueDashboard,
+  computeLeagueDashboard: computeTruthBoundLeagueDashboard,
   classifyTeamDirection,
 };
 
@@ -144,6 +144,10 @@ export function createManagementRouter(deps: ManagementDeps = defaultDeps) {
           strategyContextActivation,
           forgeEvidenceActivation,
           forgeFreshnessReceipt,
+          managementTruth: {
+            version: (dashboardPayload.meta as any)?.management_truth_version ?? null,
+            rosterBinding: (dashboardPayload.meta as any)?.roster_binding ?? null,
+          },
         },
         strategy_template_diagnostics: strategyTemplateDiagnostics,
         management_strategy_context: managementStrategyContext,
