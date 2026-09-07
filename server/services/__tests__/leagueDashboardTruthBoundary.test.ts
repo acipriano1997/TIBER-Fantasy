@@ -56,8 +56,8 @@ function deps(overrides: any = {}) {
     season: 2026,
     settings: { roster_positions: ['QB', 'RB', 'WR', 'TE', 'FLEX'] },
     teams: [
-      { id: 'team-a', externalRosterId: '2', externalUserId: 'owner-a', displayName: 'A' },
-      { id: 'team-b', externalRosterId: '1', externalUserId: 'owner-b', displayName: 'B' },
+      { id: 'team-a', externalRosterId: '2', externalUserId: 'owner-b', displayName: 'A' },
+      { id: 'team-b', externalRosterId: '1', externalUserId: 'owner-a', displayName: 'B' },
     ],
   };
 
@@ -99,7 +99,7 @@ function deps(overrides: any = {}) {
 }
 
 describe('league dashboard truth boundary', () => {
-  it('binds teams by externalRosterId instead of owner_id', async () => {
+  it('binds teams by externalRosterId instead of payload ordering or synthetic lineup state', async () => {
     const result = await computeTruthBoundLeagueDashboard(
       { userId: 'personal-user', leagueId: 'league-1', week: 1, season: 2026 },
       deps(),
@@ -126,7 +126,7 @@ describe('league dashboard truth boundary', () => {
     expect(teamA.totals.WR).toBe(10);
   });
 
-  it('attaches an inspectable context receipt with exact roster and settings bindings', async () => {
+  it('attaches an inspectable context receipt with exact roster, owner, and settings bindings', async () => {
     const result = await computeTruthBoundLeagueDashboard(
       { userId: 'personal-user', leagueId: 'league-1', week: 1, season: 2026 },
       deps(),
@@ -144,8 +144,20 @@ describe('league dashboard truth boundary', () => {
       observed_at: FIXED_NOW.toISOString(),
     }));
     expect(result.context_receipt.team_receipts).toEqual(expect.arrayContaining([
-      expect.objectContaining({ team_id: 'team-a', external_roster_id: '2', forge_freshness_decision: 'accepted' }),
-      expect.objectContaining({ team_id: 'team-b', external_roster_id: '1', forge_freshness_decision: 'accepted' }),
+      expect.objectContaining({
+        team_id: 'team-a',
+        external_roster_id: '2',
+        expected_external_owner_id: 'owner-b',
+        sleeper_permitted_owner_ids: ['owner-b'],
+        forge_freshness_decision: 'accepted',
+      }),
+      expect.objectContaining({
+        team_id: 'team-b',
+        external_roster_id: '1',
+        expected_external_owner_id: 'owner-a',
+        sleeper_permitted_owner_ids: ['owner-a'],
+        forge_freshness_decision: 'accepted',
+      }),
     ]));
   });
 
@@ -197,6 +209,40 @@ describe('league dashboard truth boundary', () => {
       code: 'external_roster_binding_mismatch',
       statusCode: 409,
     });
+  });
+
+  it('fails closed when roster id matches but persisted owner identity conflicts', async () => {
+    const custom = deps();
+    const league = await custom.storage.getLeagueWithTeams();
+    league.teams[0].externalUserId = 'wrong-owner';
+    custom.storage.getLeagueWithTeams.mockResolvedValue(league);
+
+    await expect(computeTruthBoundLeagueDashboard(
+      { userId: 'personal-user', leagueId: 'league-1' },
+      custom,
+    )).rejects.toMatchObject<Partial<LeagueDashboardTruthError>>({
+      code: 'external_roster_owner_mismatch',
+      statusCode: 409,
+    });
+  });
+
+  it('accepts a persisted owner that is an observed Sleeper co-owner', async () => {
+    const custom = deps();
+    const league = await custom.storage.getLeagueWithTeams();
+    league.teams[0].externalUserId = 'co-owner-b';
+    custom.storage.getLeagueWithTeams.mockResolvedValue(league);
+    custom.sleeperClient.getLeagueRosters.mockResolvedValue([
+      { roster_id: 1, owner_id: 'owner-a', players: ['s1'], starters: ['s1'] },
+      { roster_id: 2, owner_id: 'owner-b', co_owners: ['co-owner-b'], players: ['s2', 's3'], starters: ['s3'] },
+    ]);
+
+    const result = await computeTruthBoundLeagueDashboard(
+      { userId: 'personal-user', leagueId: 'league-1' },
+      custom,
+    ) as any;
+    const receipt = result.context_receipt.team_receipts.find((row: any) => row.team_id === 'team-a');
+    expect(receipt.expected_external_owner_id).toBe('co-owner-b');
+    expect(receipt.sleeper_permitted_owner_ids).toEqual(['owner-b', 'co-owner-b']);
   });
 
   it('rejects the legacy shared default_user at the service boundary', async () => {
