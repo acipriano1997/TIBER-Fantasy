@@ -1,0 +1,73 @@
+name: Records History Certification
+
+on:
+  pull_request:
+    paths:
+      - 'server/services/recordsHistoryService.ts'
+      - 'server/services/__tests__/recordsHistoryService.test.ts'
+      - 'server/integrations/sleeperClient.ts'
+      - 'server/routes/leagueDashboardRoutes.ts'
+      - 'client/src/pages/RecordsPage.tsx'
+      - 'client/src/App.tsx'
+      - 'client/src/components/TiberLayout.tsx'
+      - '.github/workflows/records-history-certification.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'server/services/recordsHistoryService.ts'
+      - 'server/services/__tests__/recordsHistoryService.test.ts'
+      - 'server/integrations/sleeperClient.ts'
+      - 'server/routes/leagueDashboardRoutes.ts'
+      - 'client/src/pages/RecordsPage.tsx'
+      - 'client/src/App.tsx'
+      - 'client/src/components/TiberLayout.tsx'
+      - '.github/workflows/records-history-certification.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: records-history-certification-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  records:
+    name: Records truth, types, and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Run Records derivation regressions
+        run: npm test -- --coverage=false server/services/__tests__/recordsHistoryService.test.ts
+      - name: Typecheck Records production delta
+        shell: bash
+        run: |
+          set +e
+          npm run typecheck > /tmp/tiber-records-typecheck.log 2>&1
+          typecheck_status=$?
+          set -e
+
+          records_pattern='^(server/services/recordsHistoryService\.ts|server/integrations/sleeperClient\.ts|server/routes/leagueDashboardRoutes\.ts|client/src/pages/RecordsPage\.tsx|client/src/App\.tsx|client/src/components/TiberLayout\.tsx)\('
+          if grep -E "$records_pattern" /tmp/tiber-records-typecheck.log; then
+            echo "::error::Records History introduced or exposes type errors in its production files."
+            exit 1
+          fi
+
+          if [ "$typecheck_status" -ne 0 ]; then
+            error_count=$(grep -c 'error TS' /tmp/tiber-records-typecheck.log || true)
+            echo "::warning::Repository-wide typecheck has ${error_count} baseline errors outside the Records production delta."
+          else
+            echo "Repository-wide typecheck is clean."
+          fi
+      - name: Build application
+        run: sh build.sh

@@ -14,7 +14,16 @@ export interface SleeperLeague {
 export interface SleeperLeagueDetail extends SleeperLeague {
   type?: string;
   draft_id?: string;
-  settings?: Record<string, any> & { type?: number };
+  previous_league_id?: string | null;
+  owner_id?: string | null;
+  settings?: Record<string, any> & {
+    type?: number;
+    leg?: number;
+    playoff_week_start?: number;
+    playoff_teams?: number;
+    league_average_match?: number;
+    median_match?: number;
+  };
 }
 
 export interface SleeperUser {
@@ -36,6 +45,41 @@ export interface SleeperRoster {
   starters?: string[] | null;
   reserve?: string[] | null;
   taxi?: string[] | null;
+  settings?: Record<string, any> & {
+    wins?: number;
+    losses?: number;
+    ties?: number;
+    fpts?: number;
+    fpts_decimal?: number;
+    fpts_against?: number;
+    fpts_against_decimal?: number;
+    rank?: number;
+    waiver_position?: number;
+    waiver_budget_used?: number;
+  };
+}
+
+export interface SleeperMatchup {
+  roster_id: number;
+  matchup_id?: number | null;
+  points?: number | null;
+  starters?: string[] | null;
+  starters_points?: number[] | null;
+  players?: string[] | null;
+  players_points?: Record<string, number> | null;
+  custom_points?: number | null;
+}
+
+export interface SleeperBracketMatch {
+  r: number;
+  m: number;
+  t1?: number | null;
+  t2?: number | null;
+  w?: number | null;
+  l?: number | null;
+  p?: number | null;
+  t1_from?: Record<string, unknown> | null;
+  t2_from?: Record<string, unknown> | null;
 }
 
 export interface SleeperDraftPick {
@@ -117,6 +161,18 @@ export const sleeperClient = {
 
   async getLeagueRosters(leagueId: string): Promise<SleeperRoster[]> {
     return fetchJson<SleeperRoster[]>(`/league/${leagueId}/rosters`);
+  },
+
+  async getLeagueMatchups(leagueId: string, week: number): Promise<SleeperMatchup[]> {
+    return fetchJson<SleeperMatchup[]>(`/league/${leagueId}/matchups/${week}`);
+  },
+
+  async getWinnersBracket(leagueId: string): Promise<SleeperBracketMatch[]> {
+    return fetchJson<SleeperBracketMatch[]>(`/league/${leagueId}/winners_bracket`);
+  },
+
+  async getLosersBracket(leagueId: string): Promise<SleeperBracketMatch[]> {
+    return fetchJson<SleeperBracketMatch[]>(`/league/${leagueId}/losers_bracket`);
   },
 
   async getTradedPicks(leagueId: string): Promise<SleeperTradedPick[]> {
