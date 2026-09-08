@@ -177,43 +177,6 @@ async function navigateAndAssert(cdp, pathName, expectedText, report) {
   return elapsedMs;
 }
 
-/**
- * Chrome's Fetch.urlPattern glob semantics have changed subtly across releases.
- * Intercept every request, then decide in JavaScript what to pause/fulfill. This
- * keeps the certification deterministic across runner Chrome versions while
- * continuing non-target traffic immediately.
- */
-async function enableRequestInterceptor(cdp, handler) {
-  const handlerErrors = [];
-  const stop = cdp.on('Fetch.requestPaused', async (event) => {
-    try {
-      const handled = await handler(event);
-      if (!handled) {
-        await cdp.send('Fetch.continueRequest', { requestId: event.requestId });
-      }
-    } catch (error) {
-      handlerErrors.push(error instanceof Error ? error.message : String(error));
-      try {
-        await cdp.send('Fetch.failRequest', { requestId: event.requestId, errorReason: 'Failed' });
-      } catch {
-        // Request may already have been canceled by navigation.
-      }
-    }
-  });
-
-  await cdp.send('Fetch.enable', {
-    patterns: [{ urlPattern: '*', requestStage: 'Request' }],
-  });
-
-  return {
-    errors: handlerErrors,
-    async disable() {
-      stop();
-      await cdp.send('Fetch.disable');
-    },
-  };
-}
-
 function buildRecordsPayload(count = 500) {
   const careers = Array.from({ length: count }, (_, index) => {
     const number = index + 1;
@@ -283,6 +246,66 @@ function buildRecordsPayload(count = 500) {
   };
 }
 
+function browserBootstrapSource(recordsPayload) {
+  return `
+    (() => {
+      const errors = [];
+      const state = { hungManagement: 0, mockedRecords: 0 };
+      Object.defineProperty(window, '__tiberBrowserSmokeErrors', { value: errors, configurable: false });
+      Object.defineProperty(window, '__tiberBrowserSmokeFetchState', { value: state, configurable: false });
+
+      window.addEventListener('error', (event) => {
+        errors.push({ type: 'error', message: String(event.message || 'window error') });
+      });
+      window.addEventListener('unhandledrejection', (event) => {
+        const reason = event.reason instanceof Error ? event.reason.message : String(event.reason);
+        errors.push({ type: 'unhandledrejection', message: reason });
+      });
+
+      const originalFetch = window.fetch.bind(window);
+      const managementNeedles = ${JSON.stringify([
+        '/api/league-context',
+        '/api/league-sync',
+        '/api/league-dashboard',
+        '/api/management',
+        '/api/data-lab/team-environment-movement',
+      ])};
+      const recordsPayload = ${JSON.stringify(recordsPayload)};
+
+      window.fetch = (input, init) => {
+        const rawUrl = typeof input === 'string' ? input : input instanceof URL ? input.href : input?.url;
+        const url = String(rawUrl || '');
+        let hangManagement = false;
+        let mockRecords = false;
+        try {
+          hangManagement = localStorage.getItem('tiber.browserSmoke.hangManagement') === '1';
+          mockRecords = localStorage.getItem('tiber.browserSmoke.mockRecords') === '1';
+        } catch {
+          // Storage is only advisory for the test shim; fall through to real fetch.
+        }
+
+        if (hangManagement && managementNeedles.some((needle) => url.includes(needle))) {
+          state.hungManagement += 1;
+          return new Promise(() => {});
+        }
+
+        if (mockRecords && url.includes('/api/league-records')) {
+          state.mockedRecords += 1;
+          return Promise.resolve(new Response(JSON.stringify(recordsPayload), {
+            status: 200,
+            headers: {
+              'Content-Type': 'application/json; charset=utf-8',
+              'Cache-Control': 'no-store',
+            },
+          }));
+        }
+
+        return originalFetch(input, init);
+      };
+    })();
+  `;
+}
+
 async function main() {
   const report = {
     baseUrl: BASE_URL,
@@ -330,20 +353,9 @@ async function main() {
       cdp.send('Network.enable'),
     ]);
 
+    const recordsPayload = buildRecordsPayload(500);
     await cdp.send('Page.addScriptToEvaluateOnNewDocument', {
-      source: `
-        (() => {
-          const errors = [];
-          Object.defineProperty(window, '__tiberBrowserSmokeErrors', { value: errors, configurable: false });
-          window.addEventListener('error', (event) => {
-            errors.push({ type: 'error', message: String(event.message || 'window error') });
-          });
-          window.addEventListener('unhandledrejection', (event) => {
-            const reason = event.reason instanceof Error ? event.reason.message : String(event.reason);
-            errors.push({ type: 'unhandledrejection', message: reason });
-          });
-        })();
-      `,
+      source: browserBootstrapSource(recordsPayload),
     });
 
     cdp.on('Runtime.exceptionThrown', (event) => {
@@ -353,8 +365,7 @@ async function main() {
       report.browserErrors.push({ type: 'Runtime.exceptionThrown', description });
     });
 
-    // Core release routes: assert the built SPA renders unique semantic page copy,
-    // not CSS-transformed presentation labels.
+    // Core release routes: assert the built SPA renders unique semantic page copy.
     await navigateAndAssert(cdp, '/command-center', 'Home / What Changed', report);
     await navigateAndAssert(cdp, '/command-center/weekly', 'INSUFFICIENT EVIDENCE', report);
     await navigateAndAssert(cdp, '/command-center/waivers', 'UNSUPPORTED DOMAIN', report);
@@ -362,27 +373,16 @@ async function main() {
     await navigateAndAssert(cdp, '/draft-review', 'Let TIBER read the team you actually drafted.', report);
     await navigateAndAssert(cdp, '/records', 'A reconstructable record book built from Sleeper league history.', report);
 
-    // Resilience: deliberately leave Management data reads pending, then prove SPA navigation is still responsive.
-    const hungRequestIds = new Set();
-    const managementNeedles = [
-      '/api/league-context',
-      '/api/league-sync',
-      '/api/league-dashboard',
-      '/api/management',
-      '/api/data-lab/team-environment-movement',
-    ];
-    const managementInterceptor = await enableRequestInterceptor(cdp, async (event) => {
-      const requestUrl = event.request?.url ?? '';
-      if (!managementNeedles.some((needle) => requestUrl.includes(needle))) return false;
-      hungRequestIds.add(event.requestId);
-      // Intentionally do not continue the request until after the navigation proof.
-      return true;
-    });
-
+    // Resilience: hang the actual fetch promises used by Management before the app issues them.
+    await evaluate(cdp, `localStorage.setItem('tiber.browserSmoke.hangManagement', '1')`);
     await navigateAndAssert(cdp, '/management', 'Connect your team, inspect signals, then research your next move.', report);
-    const requestDeadline = Date.now() + 3_000;
-    while (hungRequestIds.size === 0 && Date.now() < requestDeadline) await sleep(50);
-    invariant(hungRequestIds.size > 0, 'Management resilience probe did not capture any governed data request to hold pending.');
+    await waitForExpression(
+      cdp,
+      `(window.__tiberBrowserSmokeFetchState?.hungManagement ?? 0) > 0`,
+      'Management governed requests to enter pending state',
+      3_000,
+    );
+    const pendingManagementRequests = await evaluate(cdp, 'window.__tiberBrowserSmokeFetchState?.hungManagement ?? 0');
 
     const spaStartedAt = Date.now();
     const clickedCommandCenter = await evaluate(cdp, `(() => {
@@ -400,46 +400,23 @@ async function main() {
       'SPA navigation away from pending Management requests',
     );
     const spaNavigationMs = Date.now() - spaStartedAt;
-    report.resilience.pendingManagementRequests = hungRequestIds.size;
+    report.resilience.pendingManagementRequests = pendingManagementRequests;
     report.resilience.spaNavigationMs = spaNavigationMs;
     report.resilience.spaNavigationBudgetMs = SPA_NAV_BUDGET_MS;
     invariant(
       spaNavigationMs <= SPA_NAV_BUDGET_MS,
       `SPA navigation took ${spaNavigationMs}ms with pending Management requests; budget is ${SPA_NAV_BUDGET_MS}ms.`,
     );
+    await evaluate(cdp, `localStorage.removeItem('tiber.browserSmoke.hangManagement')`);
 
-    for (const requestId of [...hungRequestIds]) {
-      try {
-        await cdp.send('Fetch.failRequest', { requestId, errorReason: 'Aborted' });
-      } catch {
-        // Navigation may already have canceled a paused request.
-      }
-    }
-    await managementInterceptor.disable();
-    invariant(
-      managementInterceptor.errors.length === 0,
-      `Management request interception failed: ${managementInterceptor.errors.join('; ')}`,
-    );
-
-    // Performance: feed Records a deterministic 500-manager historical payload and exercise the all-manager table.
-    const recordsPayload = JSON.stringify(buildRecordsPayload(500));
-    const recordsInterceptor = await enableRequestInterceptor(cdp, async (event) => {
-      const requestUrl = event.request?.url ?? '';
-      if (!requestUrl.includes('/api/league-records')) return false;
-      await cdp.send('Fetch.fulfillRequest', {
-        requestId: event.requestId,
-        responseCode: 200,
-        responseHeaders: [
-          { name: 'Content-Type', value: 'application/json; charset=utf-8' },
-          { name: 'Cache-Control', value: 'no-store' },
-        ],
-        body: Buffer.from(recordsPayload, 'utf8').toString('base64'),
-      });
-      return true;
-    });
-
-    await evaluate(cdp, `localStorage.setItem('tiber.records.leagueId', 'browser-smoke')`);
+    // Performance: serve deterministic 500-manager history at the browser fetch boundary.
+    await evaluate(cdp, `
+      localStorage.setItem('tiber.records.leagueId', 'browser-smoke');
+      localStorage.setItem('tiber.browserSmoke.mockRecords', '1');
+    `);
     await navigateAndAssert(cdp, '/records', 'Browser Smoke League', report);
+    const mockedRecords = await evaluate(cdp, 'window.__tiberBrowserSmokeFetchState?.mockedRecords ?? 0');
+    invariant(mockedRecords > 0, 'Records performance probe did not serve the deterministic browser payload.');
 
     const renderStartedAt = Date.now();
     const clickedManagers = await evaluate(cdp, `(() => {
@@ -476,12 +453,7 @@ async function main() {
       rowInteractionMs <= LARGE_LIST_INTERACTION_BUDGET_MS,
       `500-row Records interaction took ${rowInteractionMs}ms; budget is ${LARGE_LIST_INTERACTION_BUDGET_MS}ms.`,
     );
-
-    await recordsInterceptor.disable();
-    invariant(
-      recordsInterceptor.errors.length === 0,
-      `Records request interception failed: ${recordsInterceptor.errors.join('; ')}`,
-    );
+    await evaluate(cdp, `localStorage.removeItem('tiber.browserSmoke.mockRecords')`);
 
     const pageErrors = await evaluate(cdp, 'window.__tiberBrowserSmokeErrors ?? []');
     report.browserErrors.push(...(Array.isArray(pageErrors) ? pageErrors : []));
