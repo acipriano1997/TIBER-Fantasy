@@ -2,12 +2,15 @@ import Papa from 'papaparse';
 import { ZodError } from 'zod';
 import { assessAndLogArtifactFreshness } from '../artifactFreshness';
 import {
+  CanonicalSignalValidationExportManifest,
   CanonicalSignalValidationExports,
   CanonicalWrBestRecipeSummary,
   SignalValidationIntegrationError,
+  TiberSignalPromotion,
   TiberWrBestRecipeSummary,
   TiberWrBreakoutLab,
   TiberWrBreakoutSignalRow,
+  signalValidationExportManifestSchema,
   wrBestRecipeSummarySchema,
 } from './types';
 
@@ -63,6 +66,19 @@ export function parseWrBestRecipeSummary(payload: unknown): CanonicalWrBestRecip
   }
 }
 
+export function parseSignalValidationExportManifest(payload: unknown): CanonicalSignalValidationExportManifest {
+  try {
+    return signalValidationExportManifestSchema.parse(payload);
+  } catch (error) {
+    throw new SignalValidationIntegrationError(
+      'invalid_payload',
+      'Signal Validation export manifest does not match the promoted-signal contract.',
+      502,
+      error instanceof ZodError ? error.flatten() : error,
+    );
+  }
+}
+
 export function parseWrPlayerSignalCardsCsv(csv: string): Record<string, string | undefined>[] {
   const result = Papa.parse<Record<string, string | undefined>>(csv, {
     header: true,
@@ -101,7 +117,7 @@ export function normalizeWrSignalCardRows(rows: Record<string, string | undefine
       playerName,
       playerId: pickString(record, PLAYER_ID_KEYS),
       team: pickString(record, TEAM_KEYS),
-      season: parseNumber(record.season) ?? season,
+      season: parseNumber(record.season) ?? parseNumber(record.feature_season) ?? season,
       bestRecipeName: pickString(record, BEST_RECIPE_KEYS),
       breakoutLabelDefault: pickString(record, ['breakout_label_default']),
       breakoutContext: pickString(record, BREAKOUT_CONTEXT_KEYS),
@@ -166,6 +182,42 @@ export function normalizeWrBestRecipeSummary(
   };
 }
 
+function normalizePromotion(
+  payload: unknown,
+  requestedTargetSeason?: number,
+): TiberSignalPromotion | undefined {
+  if (payload == null) {
+    return undefined;
+  }
+
+  const manifest = parseSignalValidationExportManifest(payload);
+  const promotion = manifest.promotion;
+  const status = promotion?.status ?? 'unverified';
+  const backtestPassed = promotion?.backtest_passed === true;
+  const prescriptiveValidationPassed = promotion?.prescriptive_validation_passed === true;
+  const targetMatches = requestedTargetSeason == null || manifest.outcome_season === requestedTargetSeason;
+
+  return {
+    featureSeason: manifest.feature_season,
+    targetSeason: manifest.outcome_season,
+    status,
+    backtestPassed,
+    prescriptiveValidationPassed,
+    promotedAt: promotion?.promoted_at ?? null,
+    draftTagEligible:
+      status === 'promoted' &&
+      backtestPassed &&
+      prescriptiveValidationPassed &&
+      targetMatches,
+  };
+}
+
+export function isAffirmativeBreakoutLabel(value: string | null): boolean {
+  if (!value) return false;
+  const normalized = value.trim().toLowerCase();
+  return !['false', 'no', 'none', '0', 'not_breakout', 'not breakout'].includes(normalized);
+}
+
 export function adaptSignalValidationExports(
   payload: CanonicalSignalValidationExports,
   options: { includeRawCanonical?: boolean; exportDirectory: string },
@@ -174,12 +226,14 @@ export function adaptSignalValidationExports(
   const bestRecipeSummary = normalizeWrBestRecipeSummary(payload.bestRecipeSummary, payload.season, {
     includeRawCanonical: options.includeRawCanonical,
   });
+  const promotion = normalizePromotion(payload.exportManifest, payload.requestedTargetSeason);
 
   return {
     season: payload.season,
     availableSeasons: payload.availableSeasons,
     rows,
     bestRecipeSummary,
+    ...(promotion ? { promotion } : {}),
     source: {
       provider: 'signal-validation-model',
       exportDirectory: options.exportDirectory,
