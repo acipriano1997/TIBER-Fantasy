@@ -10,9 +10,13 @@ import {
   COMMAND_CENTER_V1_RUNTIME_BINDING,
   commandCenterV1GateStatus,
   commandCenterV1TerminalStatus,
+  isCommandCenterV1Gate5Complete,
   isCommandCenterV1PersonalReleaseCertified,
 } from '../../../shared/commandCenterV1ReleaseCertification';
-import { COMMAND_CENTER_V1_SURFACES } from '../../../shared/commandCenterV1SurfaceManifest';
+import {
+  COMMAND_CENTER_V1_REQUIRED_SURFACE_IDS,
+  COMMAND_CENTER_V1_SURFACES,
+} from '../../../shared/commandCenterV1SurfaceManifest';
 import { COMMAND_CENTER_V1_GATE4_CAPABILITIES } from '../../../shared/commandCenterV1MobileCertification';
 
 function read(relativePath: string) {
@@ -23,6 +27,8 @@ describe('Command Center v1 Gate 5 final personal release certification', () => 
   test('all six release gates resolve certified and emit only the success terminal state', () => {
     const gates = commandCenterV1GateStatus();
     expect(Object.keys(gates).sort()).toEqual(['gate0', 'gate1', 'gate2', 'gate3', 'gate4', 'gate5']);
+    expect(gates.gate5).toBe(isCommandCenterV1Gate5Complete());
+    expect(isCommandCenterV1Gate5Complete()).toBe(true);
     expect(Object.values(gates).every(Boolean)).toBe(true);
     expect(isCommandCenterV1PersonalReleaseCertified()).toBe(true);
     expect(commandCenterV1TerminalStatus()).toBe('command_center_v1_certified_personal_release');
@@ -36,16 +42,20 @@ describe('Command Center v1 Gate 5 final personal release certification', () => 
     expect(COMMAND_CENTER_V1_ROLLBACK.rule).toContain('roll back');
   });
 
-  test('keeps every release surface human-authority and excludes blocked/not-activated authority', () => {
+  test('keeps every release surface human-authority and closes the route/surface inventory exactly', () => {
+    expect(new Set(COMMAND_CENTER_V1_RELEASE_SURFACE_IDS)).toEqual(new Set(COMMAND_CENTER_V1_REQUIRED_SURFACE_IDS));
     for (const id of COMMAND_CENTER_V1_RELEASE_SURFACE_IDS) {
       const surface = COMMAND_CENTER_V1_SURFACES[id];
       expect(surface.finalActionAuthority).toBe('human');
       expect(surface.status).not.toBe('blocked_legacy_authority');
       expect(surface.status).not.toBe('not_activated');
+      expect(surface.canonicalRoute).not.toBeNull();
+      expect(COMMAND_CENTER_V1_RELEASE_ROUTES).toContain(surface.canonicalRoute as typeof COMMAND_CENTER_V1_RELEASE_ROUTES[number]);
     }
     expect(new Set(COMMAND_CENTER_V1_RELEASE_ROUTES).size).toBe(COMMAND_CENTER_V1_RELEASE_ROUTES.length);
     expect(COMMAND_CENTER_V1_RELEASE_ROUTES).toContain('/management');
     expect(COMMAND_CENTER_V1_RELEASE_ROUTES).toContain('/records');
+    expect(COMMAND_CENTER_V1_SURFACES.records.status).toBe('certified_read_only');
   });
 
   test('admits no P0/P1 release debt and keeps all retained debt explicit and unique', () => {
@@ -89,9 +99,10 @@ describe('Command Center v1 Gate 5 final personal release certification', () => 
     expect(branch).not.toContain('respondWith');
   });
 
-  test('final workflow reruns security, release contracts, exact build, desktop browser, and mobile browser certification', () => {
+  test('final workflow reruns security, scope freeze, release contracts, exact build, desktop browser, and mobile browser certification', () => {
     const workflow = read('.github/workflows/command-center-gate5-release.yml');
     expect(workflow).toContain('npm audit --omit=dev --audit-level=high');
+    expect(workflow).toContain('git merge-base --is-ancestor');
     expect(workflow).toContain('commandCenterV1ReleaseCertification.test.ts');
     expect(workflow).toContain('commandCenterV1InvariantReplay.test.ts');
     expect(workflow).toContain('sh build.sh');
