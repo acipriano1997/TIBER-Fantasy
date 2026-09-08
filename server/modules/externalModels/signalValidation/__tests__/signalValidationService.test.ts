@@ -5,7 +5,7 @@ import { SignalValidationClient } from '../signalValidationClient';
 import { SignalValidationService } from '../signalValidationService';
 import { SignalValidationIntegrationError } from '../types';
 
-const cards = `player_id,player_name,season,team,best_recipe_name,candidate_rank,final_signal_score,breakout_label_default,breakout_context,usage_signal,efficiency_signal,development_signal,stability_signal,cohort_signal,role_signal,penalty_signal\n00-0042051,Malik Nabers,2025,NYG,role_balanced,1,92.4,true,Expanded alpha role,96,91,89,82,85,88,-3\n00-0042048,Rome Odunze,2025,CHI,role_balanced,2,88.1,false,Control row,90,84,87,80,82,81,-4`;
+const cards = `player_id,player_name,season,team,best_recipe_name,candidate_rank,final_signal_score,breakout_label_default,breakout_context,usage_signal,efficiency_signal,development_signal,stability_signal,cohort_signal,role_signal,penalty_signal,breakout_probability,breakout_probability_target,p_top_12_next_4w,p_top_24_next_4w,p_ros_tier_jump,p_adp_outperformance_12_slots,p_role_expansion\n00-0042051,Malik Nabers,2025,NYG,role_balanced,1,92.4,true,Expanded alpha role,96,91,89,82,85,88,-3,0.73,ros_tier_jump,0.21,0.46,0.73,0.61,0.68\n00-0042048,Rome Odunze,2025,CHI,role_balanced,2,88.1,false,Control row,90,84,87,80,82,81,-4,0.34,ros_tier_jump,0.08,0.22,0.34,0.39,0.52`;
 
 const summary = {
   best_recipe_name: 'role_balanced',
@@ -39,9 +39,10 @@ async function writeFixture(
     prescriptive_validation_passed: boolean;
     promoted_at?: string;
   },
+  playerCards: string = cards,
 ) {
   await Promise.all([
-    writeFile(path.join(dir, 'wr_player_signal_cards_2025.csv'), cards),
+    writeFile(path.join(dir, 'wr_player_signal_cards_2025.csv'), playerCards),
     writeFile(path.join(dir, 'wr_best_recipe_summary.json'), JSON.stringify(summary)),
     writeFile(
       path.join(dir, 'export_manifest.json'),
@@ -66,7 +67,7 @@ describe('SignalValidationService draft tags', () => {
     await rm(dir, { recursive: true, force: true });
   });
 
-  it('emits a 2026 Breakout tag only for affirmative rows after the full upstream promotion gate passes', async () => {
+  it('emits a probability-bearing 2026 Breakout tag only for affirmative rows after the full upstream promotion gate passes', async () => {
     await writeFixture(dir, {
       status: 'promoted',
       backtest_passed: true,
@@ -83,11 +84,53 @@ describe('SignalValidationService draft tags', () => {
       playerName: 'Malik Nabers',
       targetSeason: 2026,
       label: '2026 Breakout',
+      displayLabel: '2026 Breakout · 73%',
+      probability: {
+        value: 0.73,
+        percent: 73,
+        target: 'ros_tier_jump',
+      },
+      probabilities: {
+        primary: 0.73,
+        primaryTarget: 'ros_tier_jump',
+        top12Next4w: 0.21,
+        top24Next4w: 0.46,
+        rosTierJump: 0.73,
+        adpOutperformance12Slots: 0.61,
+        roleExpansion: 0.68,
+      },
       candidateRank: 1,
       finalSignalScore: 92.4,
       modelVersion: 'wr_signal_score_role_balanced_v3',
     });
     expect(result.lab.promotion?.draftTagEligible).toBe(true);
+  });
+
+  it('refuses promoted draft tags when an affirmative row lacks calibrated probability evidence', async () => {
+    const cardsWithoutProbability = cards
+      .split('\n')
+      .map((line) => line
+        .replace(',breakout_probability,breakout_probability_target,p_top_12_next_4w,p_top_24_next_4w,p_ros_tier_jump,p_adp_outperformance_12_slots,p_role_expansion', '')
+        .replace(',0.73,ros_tier_jump,0.21,0.46,0.73,0.61,0.68', '')
+        .replace(',0.34,ros_tier_jump,0.08,0.22,0.34,0.39,0.52', ''))
+      .join('\n');
+
+    await writeFixture(
+      dir,
+      {
+        status: 'promoted',
+        backtest_passed: true,
+        prescriptive_validation_passed: true,
+      },
+      cardsWithoutProbability,
+    );
+
+    const service = new SignalValidationService(new SignalValidationClient({ exportsDir: dir }));
+
+    await expect(service.getWrBreakoutDraftTags(2026)).rejects.toMatchObject({
+      code: 'invalid_payload',
+      status: 502,
+    } satisfies Partial<SignalValidationIntegrationError>);
   });
 
   it('refuses draft tags when the upstream export is not explicitly promoted', async () => {
