@@ -34,6 +34,25 @@ export type DraftBustTagsResult =
       message: string;
     };
 
+export type DraftBustEspnIdentity = {
+  espnPlayerId: string;
+  canonicalPlayerId: string | null;
+  status: 'resolved' | 'unresolved' | 'unavailable' | 'ambiguous';
+  reason: 'espn_exact_crosswalk' | 'espn_not_in_identity_map' | 'espn_identity_lookup_unavailable' | 'espn_ambiguous_duplicate_crosswalk_rows';
+};
+
+export type DraftBustEspnIdentityResult = {
+  identities: Map<string, DraftBustEspnIdentity>;
+  coverage: {
+    total: number;
+    resolved: number;
+    unresolved: number;
+    unavailable: number;
+    ambiguous: number;
+    coverageRatio: number;
+  };
+};
+
 const INACTIVE_HTTP_STATUSES = new Set([404, 409, 503]);
 
 function isProbability(value: unknown): value is number {
@@ -63,6 +82,27 @@ function isDraftBustTag(value: unknown): value is DraftBustTag {
   );
 }
 
+function isDraftBustEspnIdentity(value: unknown): value is DraftBustEspnIdentity {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Partial<DraftBustEspnIdentity>;
+  const statusOk = candidate.status === 'resolved'
+    || candidate.status === 'unresolved'
+    || candidate.status === 'unavailable'
+    || candidate.status === 'ambiguous';
+  const reasonOk = candidate.reason === 'espn_exact_crosswalk'
+    || candidate.reason === 'espn_not_in_identity_map'
+    || candidate.reason === 'espn_identity_lookup_unavailable'
+    || candidate.reason === 'espn_ambiguous_duplicate_crosswalk_rows';
+  const canonicalOk = candidate.status === 'resolved'
+    ? typeof candidate.canonicalPlayerId === 'string' && candidate.canonicalPlayerId.trim().length > 0
+    : candidate.canonicalPlayerId === null;
+  return typeof candidate.espnPlayerId === 'string'
+    && candidate.espnPlayerId.trim().length > 0
+    && statusOk
+    && reasonOk
+    && canonicalOk;
+}
+
 function inactiveReason(status: number, code?: string): 'not_found' | 'not_promoted' | 'upstream_unavailable' {
   if (code === 'not_promoted' || status === 409) return 'not_promoted';
   if (status === 503) return 'upstream_unavailable';
@@ -80,6 +120,61 @@ export function findDraftBustTag(canonicalPlayerId: string | null | undefined, t
   if (!playerId) return null;
   const matches = tags.filter((tag) => tag.playerId === playerId);
   return matches.length === 1 ? matches[0] : null;
+}
+
+export async function fetchDraftBustEspnIdentities(
+  espnPlayerIds: string[],
+  fetchImpl: typeof fetch = fetch,
+): Promise<DraftBustEspnIdentityResult> {
+  const uniqueIds = Array.from(new Set(espnPlayerIds.map((id) => id.trim()).filter(Boolean)));
+  if (uniqueIds.length === 0) {
+    return {
+      identities: new Map(),
+      coverage: { total: 0, resolved: 0, unresolved: 0, unavailable: 0, ambiguous: 0, coverageRatio: 1 },
+    };
+  }
+
+  const response = await fetchImpl('/api/data-lab/draft-bust-signals/identity/espn', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ espnPlayerIds: uniqueIds }),
+    cache: 'no-store',
+  });
+  const payload = await response.json().catch(() => ({})) as {
+    success?: boolean;
+    error?: string;
+    data?: {
+      identities?: unknown;
+      coverage?: Partial<DraftBustEspnIdentityResult['coverage']>;
+    };
+  };
+  if (!response.ok || !Array.isArray(payload.data?.identities)) {
+    throw new Error(payload.error ?? `ESPN identity join failed (HTTP ${response.status}).`);
+  }
+
+  const identities = payload.data.identities;
+  if (!identities.every(isDraftBustEspnIdentity)) {
+    throw new Error('ESPN identity join failed the client evidence contract.');
+  }
+
+  const coverage = payload.data.coverage;
+  if (!coverage
+    || !Number.isInteger(coverage.total)
+    || !Number.isInteger(coverage.resolved)
+    || !Number.isInteger(coverage.unresolved)
+    || !Number.isInteger(coverage.unavailable)
+    || !Number.isInteger(coverage.ambiguous)
+    || typeof coverage.coverageRatio !== 'number'
+    || !Number.isFinite(coverage.coverageRatio)
+    || coverage.coverageRatio < 0
+    || coverage.coverageRatio > 1) {
+    throw new Error('ESPN identity join coverage failed the client evidence contract.');
+  }
+
+  return {
+    identities: new Map(identities.map((identity) => [identity.espnPlayerId, identity])),
+    coverage: coverage as DraftBustEspnIdentityResult['coverage'],
+  };
 }
 
 export async function fetchDraftBustTags(
