@@ -1,11 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, CheckCircle2, ExternalLink, Loader2, Radio, ShieldCheck, WifiOff, X } from 'lucide-react';
 import { BreakoutSignalBadge } from '@/components/BreakoutSignalBadge';
+import { DraftBustSignalBadge } from '@/components/DraftBustSignalBadge';
 import {
   fetchBreakoutDraftTags,
   findBreakoutDraftTag,
   type BreakoutDraftTag,
 } from '@/lib/breakoutDraftTags';
+import {
+  fetchDraftBustTags,
+  findDraftBustTag,
+  type DraftBustTag,
+} from '@/lib/draftBustTags';
 import {
   clearEspnDraftBridgeAction,
   fetchEspnDraftBridgeStatus,
@@ -52,6 +58,7 @@ export default function EspnDraftRoom() {
   const [bridge, setBridge] = useState<EspnDraftBridgeStatus | null>(null);
   const [bridgeError, setBridgeError] = useState('');
   const [breakoutTags, setBreakoutTags] = useState<BreakoutDraftTag[]>([]);
+  const [bustTags, setBustTags] = useState<DraftBustTag[]>([]);
   const [search, setSearch] = useState('');
   const [stagedPlayer, setStagedPlayer] = useState<RankingsV2Item | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -128,6 +135,18 @@ export default function EspnDraftRoom() {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+    void fetchDraftBustTags(DRAFT_SEASON)
+      .then((result) => {
+        if (!cancelled) setBustTags(result.status === 'active' ? result.tags : []);
+      })
+      .catch(() => {
+        if (!cancelled) setBustTags([]);
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
     const action = bridge?.activeAction;
     if (!action || action.status === 'pending') return;
     if (action.status === 'confirmed') setStagedPlayer(null);
@@ -144,7 +163,14 @@ export default function EspnDraftRoom() {
   }, [players, search]);
 
   function breakoutTagFor(player: RankingsV2Item) {
-    return findBreakoutDraftTag({ name: player.playerName, team: player.team ?? null }, breakoutTags);
+    return findBreakoutDraftTag(
+      { canonicalPlayerId: player.playerId, name: player.playerName, team: player.team ?? null },
+      breakoutTags,
+    );
+  }
+
+  function bustTagFor(player: RankingsV2Item) {
+    return findDraftBustTag(player.playerId, bustTags);
   }
 
   async function confirmDraft() {
@@ -172,6 +198,8 @@ export default function EspnDraftRoom() {
       setActionError(error instanceof Error ? error.message : 'Could not clear ESPN draft state.');
     }
   }
+
+  const stagedBustTag = stagedPlayer ? bustTagFor(stagedPlayer) : null;
 
   return (
     <div className="min-h-screen bg-[#0a0e1a] text-white p-4 md:p-7">
@@ -293,7 +321,8 @@ export default function EspnDraftRoom() {
                 </thead>
                 <tbody>
                   {visiblePlayers.map((player, index) => {
-                    const tag = breakoutTagFor(player);
+                    const breakoutTag = breakoutTagFor(player);
+                    const bustTag = bustTagFor(player);
                     const pending = bridge?.activeAction?.status === 'pending';
                     const unsafe = Boolean(blocker || pending || submitting || bridge?.activeAction?.status === 'uncertain');
                     return (
@@ -306,7 +335,12 @@ export default function EspnDraftRoom() {
                         <td className="px-3 py-3 text-center text-sm text-slate-300">{player.team ?? 'FA'}</td>
                         <td className="px-3 py-3 text-center font-mono text-sm text-slate-100">{player.score?.toFixed(1) ?? '—'}</td>
                         <td className="px-3 py-3 text-center font-mono text-sm text-slate-100">{player.value?.toFixed(1) ?? '—'}</td>
-                        <td className="px-3 py-3 text-center"><BreakoutSignalBadge tag={tag} /></td>
+                        <td className="px-3 py-3 text-center">
+                          <div className="flex flex-wrap items-center justify-center gap-1.5">
+                            <BreakoutSignalBadge tag={breakoutTag} />
+                            <DraftBustSignalBadge tag={bustTag} playerName={player.playerName} />
+                          </div>
+                        </td>
                         <td className="px-3 py-3 text-right">
                           <button
                             type="button"
@@ -336,6 +370,11 @@ export default function EspnDraftRoom() {
                 <div className="text-xs font-semibold uppercase tracking-[0.18em] text-purple-300">Final confirmation</div>
                 <h2 className="mt-1 text-2xl font-bold">Draft {stagedPlayer.playerName}?</h2>
                 <p className="mt-1 text-sm text-slate-400">{stagedPlayer.team ?? 'FA'} · {stagedPlayer.position ?? position} · ESPN pick {bridge?.page?.currentPick ?? '—'}</p>
+                {stagedBustTag ? (
+                  <div className="mt-2">
+                    <DraftBustSignalBadge tag={stagedBustTag} playerName={stagedPlayer.playerName} />
+                  </div>
+                ) : null}
               </div>
               <button type="button" onClick={() => setStagedPlayer(null)} className="rounded-lg p-2 text-slate-400 hover:bg-slate-800 hover:text-white" aria-label="Cancel draft confirmation"><X className="h-5 w-5" /></button>
             </div>
