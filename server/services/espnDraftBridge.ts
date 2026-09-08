@@ -32,6 +32,7 @@ export type EspnDraftBridgeActionStatus =
 
 export type EspnDraftBridgeAction = {
   actionId: string;
+  pageInstanceId: string;
   requestedAt: string;
   expiresAt: string;
   pickNumber: number;
@@ -108,6 +109,18 @@ export class EspnDraftBridgeStore {
     };
 
     this.expireActionIfNeeded();
+    if (
+      this.action?.status === 'pending'
+      && this.action.pageInstanceId === pageInstanceId
+      && this.heartbeat.currentPick !== null
+      && this.heartbeat.currentPick !== this.action.pickNumber
+    ) {
+      this.action = {
+        ...this.action,
+        status: 'expired',
+        reason: `ESPN advanced from pick ${this.action.pickNumber} before the bound action executed.`,
+      };
+    }
     return this.getStatus();
   }
 
@@ -129,6 +142,9 @@ export class EspnDraftBridgeStore {
     const clockSafe = heartbeat?.secondsRemaining !== null
       && heartbeat?.secondsRemaining !== undefined
       && heartbeat.secondsRemaining >= ESPN_DRAFT_MIN_SECONDS;
+    const pickReadable = heartbeat?.currentPick !== null
+      && heartbeat?.currentPick !== undefined
+      && heartbeat.currentPick >= 1;
     return {
       schemaVersion: 'espn_draft_bridge_v1',
       connected,
@@ -138,6 +154,7 @@ export class EspnDraftBridgeStore {
         && !heartbeat.autopickEnabled
         && !heartbeat.draftPaused
         && heartbeat.enabledDraftButtons > 0
+        && pickReadable
         && clockSafe
       ),
       minimumDraftSeconds: ESPN_DRAFT_MIN_SECONDS,
@@ -189,6 +206,7 @@ export class EspnDraftBridgeStore {
     const now = this.now();
     this.action = {
       actionId: randomUUID(),
+      pageInstanceId: this.heartbeat.pageInstanceId,
       requestedAt: new Date(now).toISOString(),
       expiresAt: new Date(now + ACTION_TTL_MS).toISOString(),
       pickNumber: this.heartbeat.currentPick,
@@ -202,9 +220,10 @@ export class EspnDraftBridgeStore {
 
   nextAction(pageInstanceId: string) {
     this.expireActionIfNeeded();
-    if (!this.bridgeConnected() || !this.heartbeat) return null;
-    if (this.heartbeat.pageInstanceId !== cleanString(pageInstanceId, 80)) return null;
-    return this.action?.status === 'pending' ? this.action : null;
+    const cleanedPageInstanceId = cleanString(pageInstanceId, 80);
+    if (!this.action || this.action.status !== 'pending') return null;
+    if (!cleanedPageInstanceId || this.action.pageInstanceId !== cleanedPageInstanceId) return null;
+    return this.action;
   }
 
   resolveAction(input: {
@@ -215,11 +234,11 @@ export class EspnDraftBridgeStore {
     espnPlayerId?: unknown;
   }) {
     this.expireActionIfNeeded();
-    if (!this.heartbeat || cleanString(input.pageInstanceId, 80) !== this.heartbeat.pageInstanceId) {
-      throw new Error('Bridge page instance does not match the active ESPN draft room.');
-    }
     if (!this.action || cleanString(input.actionId, 80) !== this.action.actionId) {
       throw new Error('Draft action is stale or unknown.');
+    }
+    if (cleanString(input.pageInstanceId, 80) !== this.action.pageInstanceId) {
+      throw new Error('Bridge page instance does not match the draft action that was armed.');
     }
     if (this.action.status !== 'pending') return this.action;
 
@@ -241,8 +260,12 @@ export class EspnDraftBridgeStore {
     this.expireActionIfNeeded();
     if (this.action?.status === 'pending') throw new Error('Cannot clear a pending draft action.');
     if (this.action?.status === 'uncertain') {
-      if (!this.bridgeConnected() || !this.heartbeat) {
-        throw new Error('Reconnect the ESPN draft room before clearing an uncertain action.');
+      if (
+        !this.bridgeConnected()
+        || !this.heartbeat
+        || this.heartbeat.pageInstanceId !== this.action.pageInstanceId
+      ) {
+        throw new Error('Reconnect the ESPN draft room that owns the uncertain action before clearing it.');
       }
       if (this.heartbeat.currentPick === this.action.pickNumber) {
         throw new Error('ESPN is still on the uncertain pick. Verify or complete that pick in ESPN before rearming TIBER.');
