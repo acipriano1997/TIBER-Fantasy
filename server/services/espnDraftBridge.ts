@@ -43,6 +43,7 @@ type HeartbeatRecord = EspnDraftBridgeHeartbeat & { receivedAtMs: number };
 
 const HEARTBEAT_MAX_AGE_MS = 2_500;
 const ACTION_TTL_MS = 15_000;
+export const ESPN_DRAFT_MIN_SECONDS = 8;
 const MAX_STRING = 120;
 
 function cleanString(value: unknown, max = MAX_STRING): string {
@@ -57,6 +58,7 @@ function cleanNullableString(value: unknown, max = MAX_STRING): string | null {
 }
 
 function finiteInt(value: unknown): number | null {
+  if (value === null || value === undefined || value === '') return null;
   const number = Number(value);
   return Number.isInteger(number) && number >= 0 ? number : null;
 }
@@ -107,6 +109,9 @@ export class EspnDraftBridgeStore {
     this.expireActionIfNeeded();
     const connected = this.bridgeConnected();
     const heartbeat = connected ? this.heartbeat : null;
+    const clockSafe = heartbeat?.secondsRemaining !== null
+      && heartbeat?.secondsRemaining !== undefined
+      && heartbeat.secondsRemaining >= ESPN_DRAFT_MIN_SECONDS;
     return {
       schemaVersion: 'espn_draft_bridge_v1',
       connected,
@@ -116,7 +121,9 @@ export class EspnDraftBridgeStore {
         && !heartbeat.autopickEnabled
         && !heartbeat.draftPaused
         && heartbeat.enabledDraftButtons > 0
+        && clockSafe
       ),
+      minimumDraftSeconds: ESPN_DRAFT_MIN_SECONDS,
       page: heartbeat ? {
         leagueId: heartbeat.leagueId,
         teamId: heartbeat.teamId,
@@ -143,6 +150,9 @@ export class EspnDraftBridgeStore {
     if (this.heartbeat.autopickEnabled) throw new Error('Disable ESPN Autopick before drafting from TIBER.');
     if (this.heartbeat.draftPaused) throw new Error('The ESPN draft is paused.');
     if (this.heartbeat.enabledDraftButtons <= 0) throw new Error('ESPN has no enabled Draft buttons right now.');
+    if (this.heartbeat.secondsRemaining === null || this.heartbeat.secondsRemaining < ESPN_DRAFT_MIN_SECONDS) {
+      throw new Error(`Fewer than ${ESPN_DRAFT_MIN_SECONDS} readable seconds remain. Use ESPN directly for this pick.`);
+    }
     if (this.action?.status === 'pending') throw new Error('A draft request is already pending.');
     if (this.action?.status === 'uncertain') throw new Error('The previous ESPN draft action is uncertain. Verify ESPN before another pick.');
 
