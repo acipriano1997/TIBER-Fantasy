@@ -9,12 +9,30 @@ export const wrBestRecipeSummarySchema = z
     season: z.number().int().min(2000).max(2100).optional(),
     generated_at: z.string().optional(),
     model_version: z.string().optional(),
+    scoring_version: z.string().optional(),
     validation_score: z.number().finite().optional(),
     win_rate: z.number().finite().optional(),
     hit_rate: z.number().finite().optional(),
     candidate_count: z.number().int().nonnegative().optional(),
     summary: z.string().optional(),
     notes: z.array(z.string()).optional(),
+    key_metrics: z
+      .object({
+        candidate_count: z.number().int().nonnegative().optional(),
+        breakout_count: z.number().int().nonnegative().optional(),
+        precision_at_10: z.number().finite().optional(),
+        precision_at_20: z.number().finite().optional(),
+        precision_at_30: z.number().finite().optional(),
+        recall_at_10: z.number().finite().optional(),
+        recall_at_20: z.number().finite().optional(),
+        recall_at_30: z.number().finite().optional(),
+        average_breakout_rank: z.number().finite().optional(),
+        median_breakout_rank: z.number().finite().optional(),
+        false_positives_in_top_20: z.number().int().nonnegative().optional(),
+        false_negatives_outside_top_30: z.number().int().nonnegative().optional(),
+      })
+      .passthrough()
+      .optional(),
   })
   .passthrough();
 
@@ -23,6 +41,17 @@ export const signalValidationExportManifestSchema = z
     feature_season: z.number().int().min(2000).max(2100),
     outcome_season: z.number().int().min(2000).max(2100),
     generated_at: z.string().optional(),
+    artifacts: z
+      .array(
+        z
+          .object({
+            artifact_name: z.string().min(1),
+            relative_path: z.string().min(1),
+            format: z.string().min(1).optional(),
+          })
+          .passthrough(),
+      )
+      .optional(),
     promotion: z
       .object({
         status: z.enum(['promoted', 'candidate', 'rejected']),
@@ -77,6 +106,10 @@ export interface TiberWrBestRecipeSummary {
   winRate: number | null;
   hitRate: number | null;
   candidateCount: number | null;
+  breakoutCount: number | null;
+  precisionAt20: number | null;
+  recallAt20: number | null;
+  averageBreakoutRank: number | null;
   summary: string | null;
   generatedAt: string | null;
   modelVersion: string | null;
