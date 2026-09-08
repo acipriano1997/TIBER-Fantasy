@@ -12,6 +12,7 @@ import {
   DraftBustEvidenceError,
   readPromotedDraftBustTags,
 } from '../modules/externalModels/signalValidation/draftBustEvidence';
+import { resolveEspnDraftIdentities } from '../services/identity/espnDraftIdentityResolver';
 import { buildPromotedModuleOperatorDetails } from '../modules/externalModels/promotedModuleOperator';
 import { SignalValidationIntegrationError } from '../modules/externalModels/signalValidation/types';
 
@@ -22,6 +23,10 @@ const querySchema = z.object({
 
 const draftTagQuerySchema = z.object({
   season: z.coerce.number().int().min(2000).max(2100),
+});
+
+const espnIdentityBodySchema = z.object({
+  espnPlayerIds: z.array(z.string().min(1).max(64)).max(500),
 });
 
 function sendIntegrationError(
@@ -99,6 +104,32 @@ export function createDataLabBreakoutSignalsRouter(service: SignalValidationServ
         error: 'Unexpected provisional WR breakout draft-tag failure.',
       });
     }
+  });
+
+  router.post('/draft-bust-signals/identity/espn', async (req, res) => {
+    const parsed = espnIdentityBodySchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        success: false,
+        error: 'espnPlayerIds must be an array of valid ESPN provider ids.',
+        details: parsed.error.flatten(),
+      });
+    }
+
+    const result = await resolveEspnDraftIdentities(parsed.data.espnPlayerIds);
+    return res.json({
+      success: true,
+      data: {
+        identities: Array.from(result.identities.values()),
+        coverage: result.coverage,
+      },
+      meta: {
+        module: 'draft-bust-espn-identity-join',
+        readOnly: true,
+        matchPolicy: 'exact_provider_id_only',
+        fetchedAt: new Date().toISOString(),
+      },
+    });
   });
 
   router.get('/draft-bust-signals/draft-tags', async (req, res) => {
