@@ -6,7 +6,7 @@ on:
       - 'client/**'
       - 'shared/commandCenterV1MobileCertification.ts'
       - 'server/services/__tests__/commandCenterV1MobileCertification.test.ts'
-      - 'scripts/command-center-mobile-pwa-smoke.mjs'
+      - 'scripts/command-center-mobile-pwa-certify.mjs'
       - 'scripts/command-center-mobile-list-smoke.mjs'
       - '.github/workflows/command-center-gate4-ios.yml'
       - 'build.sh'
@@ -108,7 +108,7 @@ jobs:
           exit 1
 
       - name: Run iPhone viewport, PWA, offline, and lifecycle certification
-        run: node scripts/command-center-mobile-pwa-smoke.mjs
+        run: node scripts/command-center-mobile-pwa-certify.mjs
 
       - name: Run 390px realistic large-list certification
         run: node scripts/command-center-mobile-list-smoke.mjs
