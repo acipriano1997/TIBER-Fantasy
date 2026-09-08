@@ -1,0 +1,100 @@
+{
+  "spec_id": "breakout_v1_4_frozen_2026_09_08",
+  "status": "frozen_before_first_2025_outcome_evaluation",
+  "frozen_at": "2026-09-08T16:06:00Z",
+  "selection_evidence": {
+    "source": "pre-2025 governed TIBER-Data only",
+    "feature_seasons_used_for_development": [2021, 2022, 2023],
+    "max_outcome_season_used_for_development": 2024,
+    "season_2025_used_for_model_selection": false,
+    "chronological_oof_evaluable_rows": 222,
+    "chronological_oof_positive_events": 30,
+    "winner": "full_C5.0",
+    "winner_log_loss": 0.36255309401676666,
+    "winner_brier_score": 0.10924475196180883,
+    "winner_pr_auc": 0.34029319115761836,
+    "baseline_log_loss": 0.36755350222651356,
+    "baseline_brier_score": 0.11108199562533379,
+    "baseline_pr_auc": 0.2694344246593147
+  },
+  "target": {
+    "id": "ros_tier_jump",
+    "finish_definition": "WR season PPG rank descending; season PPR descending and player_id ascending are deterministic tie-breakers.",
+    "tier_edges": [12, 24, 36, 48],
+    "positive_definition": "Outcome finish enters any strictly better frozen tier than feature finish.",
+    "feature_top12_excluded": true,
+    "feature_min_games": 4,
+    "outcome_min_games": 8
+  },
+  "model": {
+    "family": "logistic_regression",
+    "C": 5.0,
+    "class_weight": null,
+    "solver": "lbfgs",
+    "max_iter": 5000,
+    "random_state": 20260908,
+    "numeric_imputation": "training_median_with_missing_indicators",
+    "scaling": "training_standard_scaler",
+    "features": [
+      "feature_ppg",
+      "feature_targets_per_game",
+      "feature_games_played",
+      "log_feature_finish",
+      "expected_ppg_baseline",
+      "feature_target_share",
+      "feature_air_yards_share",
+      "feature_wopr",
+      "feature_racr",
+      "feature_receiving_yards_per_target",
+      "feature_catch_rate",
+      "feature_season_age",
+      "feature_career_year",
+      "feature_draft_pick"
+    ]
+  },
+  "feature_derivations": {
+    "expected_ppg_baseline": "0.7 * feature_ppg + 0.2 * feature_targets_per_game + 10.0 * feature_target_share; null target_share contributes 0 only for exact producer compatibility",
+    "feature_receiving_yards_per_target": "receiving_yards / targets when targets > 0, otherwise missing",
+    "feature_catch_rate": "receptions / targets when targets > 0, otherwise missing",
+    "log_feature_finish": "ln(1 + feature_finish)"
+  },
+  "probability_calibration": {
+    "method": "ten_percent_training_rate_shrinkage",
+    "formula": "p_calibrated = 0.90 * p_raw + 0.10 * ((training_positive_events + 2) / (training_evaluable_rows + 4))",
+    "no_holdout_calibration": true
+  },
+  "action_policy": {
+    "probability_threshold": 0.25,
+    "adaptive_thresholding": false
+  },
+  "data_source": {
+    "repository": "Prometheus-Frameworks/TIBER-Data",
+    "manifest_path": "exports/promoted/nfl/PLAYER_SEASON_COVERAGE_V0_PROMOTION_MANIFEST.json",
+    "artifact_path": "exports/promoted/nfl/player_season_coverage_v0.json",
+    "artifact_sha256": "d45f612b207085df00b4b080e4f55ce1abbd060dcbf30b0bee777ff833ddd8ac",
+    "promotion_review": "TIBER-Data#202",
+    "position": "WR",
+    "season_type": "REG"
+  },
+  "final_holdout": {
+    "feature_season": 2024,
+    "outcome_season": 2025,
+    "must_be_evaluated_once_without_reselection": true
+  },
+  "challengers": {
+    "simple_challenger": "baseline logistic C=5.0 using feature_ppg, targets_per_game, games_played, log_feature_finish, expected_ppg_baseline with identical train-only shrinkage",
+    "constant_probability_baseline": "report both frozen training-smoothed event rate and oracle holdout empirical base rate"
+  },
+  "certification_gates": {
+    "minimum_holdout_positive_events": 30,
+    "minimum_precision": 0.15,
+    "minimum_precision_lift_strictly_greater_than": 1.5,
+    "precision_lift_lower_95_strictly_greater_than": 1.0,
+    "brier_must_beat_constant_base_rate": true,
+    "log_loss_must_beat_constant_base_rate": true,
+    "must_beat_simple_challenger_on_brier_and_log_loss": true,
+    "leakage_checks_required": true,
+    "reported_metrics_must_reconcile_from_confusion_counts": true
+  },
+  "promotion_authority": "none_research_only_until_independent_producer_review"
+}
