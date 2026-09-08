@@ -19,6 +19,25 @@ const bestRecipeSummary = {
   model_version: 'svm-2026.03.1',
 };
 
+const passingAccuracyCertification = {
+  certification_version: 'breakout_accuracy_v1',
+  passed: true,
+  chronological_out_of_sample: true,
+  final_holdout_untouched: true,
+  leakage_checks_passed: true,
+  calibration_passed: true,
+  challenger_beaten: true,
+  held_out_positive_events: 42,
+  held_out_precision: 0.24,
+  held_out_base_rate: 0.09,
+  precision_lift: 2.67,
+  precision_lift_lower_95: 1.21,
+  brier_score: 0.071,
+  base_rate_brier_score: 0.082,
+  log_loss: 0.241,
+  base_rate_log_loss: 0.303,
+};
+
 const promoted2026Manifest = {
   feature_season: 2025,
   outcome_season: 2026,
@@ -27,6 +46,7 @@ const promoted2026Manifest = {
     backtest_passed: true,
     prescriptive_validation_passed: true,
     promoted_at: '2026-08-31T00:00:00.000Z',
+    accuracy_certification: passingAccuracyCertification,
   },
 };
 
@@ -130,7 +150,7 @@ describe('signalValidationAdapter', () => {
     });
   });
 
-  it('marks a target-season signal draft-eligible only after explicit upstream promotion', () => {
+  it('marks a target-season signal draft-eligible only after promotion and quantitative accuracy certification', () => {
     const result = adaptSignalValidationExports(
       {
         season: 2025,
@@ -143,15 +163,75 @@ describe('signalValidationAdapter', () => {
       { exportDirectory: '/tmp/signal-validation' },
     );
 
-    expect(result.promotion).toEqual({
+    expect(result.promotion).toMatchObject({
       featureSeason: 2025,
       targetSeason: 2026,
       status: 'promoted',
       backtestPassed: true,
       prescriptiveValidationPassed: true,
       promotedAt: '2026-08-31T00:00:00.000Z',
+      accuracyCertification: {
+        certificationVersion: 'breakout_accuracy_v1',
+        heldOutPositiveEvents: 42,
+        heldOutPrecision: 0.24,
+        heldOutBaseRate: 0.09,
+        precisionLift: 2.67,
+        precisionLiftLower95: 1.21,
+        consumerThresholdsPassed: true,
+      },
       draftTagEligible: true,
     });
+  });
+
+  it('keeps an otherwise promoted export dormant when accuracy certification is absent', () => {
+    const result = adaptSignalValidationExports(
+      {
+        season: 2025,
+        availableSeasons: [2025],
+        playerSignalCardsCsv,
+        bestRecipeSummary,
+        exportManifest: {
+          feature_season: 2025,
+          outcome_season: 2026,
+          promotion: {
+            status: 'promoted',
+            backtest_passed: true,
+            prescriptive_validation_passed: true,
+          },
+        },
+        requestedTargetSeason: 2026,
+      },
+      { exportDirectory: '/tmp/signal-validation' },
+    );
+
+    expect(result.promotion?.accuracyCertification).toBeNull();
+    expect(result.promotion?.draftTagEligible).toBe(false);
+  });
+
+  it('fails the draft eligibility gate when a certification floor is missed', () => {
+    const result = adaptSignalValidationExports(
+      {
+        season: 2025,
+        availableSeasons: [2025],
+        playerSignalCardsCsv,
+        bestRecipeSummary,
+        exportManifest: {
+          ...promoted2026Manifest,
+          promotion: {
+            ...promoted2026Manifest.promotion,
+            accuracy_certification: {
+              ...passingAccuracyCertification,
+              held_out_precision: 0.149,
+            },
+          },
+        },
+        requestedTargetSeason: 2026,
+      },
+      { exportDirectory: '/tmp/signal-validation' },
+    );
+
+    expect(result.promotion?.accuracyCertification?.consumerThresholdsPassed).toBe(false);
+    expect(result.promotion?.draftTagEligible).toBe(false);
   });
 
   it('fails the draft eligibility gate when either validation pass is missing', () => {
