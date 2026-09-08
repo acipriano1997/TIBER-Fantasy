@@ -11,11 +11,19 @@ import {
   X,
 } from 'lucide-react';
 import { BreakoutSignalBadge } from '@/components/BreakoutSignalBadge';
+import { DraftBustSignalBadge } from '@/components/DraftBustSignalBadge';
 import {
   fetchBreakoutDraftTags,
   findBreakoutDraftTag,
   type BreakoutDraftTag,
 } from '@/lib/breakoutDraftTags';
+import {
+  fetchDraftBustEspnIdentities,
+  fetchDraftBustTags,
+  findDraftBustTag,
+  type DraftBustEspnIdentity,
+  type DraftBustTag,
+} from '@/lib/draftBustTags';
 import {
   clearEspnDraftBridgeAction,
   fetchEspnDraftBridgeStatus,
@@ -77,6 +85,8 @@ export default function EspnDraftRoom() {
   const [bridge, setBridge] = useState<EspnDraftBridgeStatus | null>(null);
   const [bridgeError, setBridgeError] = useState('');
   const [breakoutTags, setBreakoutTags] = useState<BreakoutDraftTag[]>([]);
+  const [bustTags, setBustTags] = useState<DraftBustTag[]>([]);
+  const [bustIdentities, setBustIdentities] = useState<Map<string, DraftBustEspnIdentity>>(new Map());
   const [search, setSearch] = useState('');
   const [stagedPlayer, setStagedPlayer] = useState<EspnDraftMarketRow | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -140,6 +150,36 @@ export default function EspnDraftRoom() {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+    void fetchDraftBustTags(DRAFT_SEASON)
+      .then((result) => {
+        if (!cancelled) setBustTags(result.status === 'active' ? result.tags : []);
+      })
+      .catch(() => {
+        if (!cancelled) setBustTags([]);
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const espnPlayerIds = (market?.rows ?? []).map((player) => player.espnPlayerId);
+    if (espnPlayerIds.length === 0) {
+      setBustIdentities(new Map());
+      return () => { cancelled = true; };
+    }
+
+    void fetchDraftBustEspnIdentities(espnPlayerIds)
+      .then((result) => {
+        if (!cancelled) setBustIdentities(result.identities);
+      })
+      .catch(() => {
+        if (!cancelled) setBustIdentities(new Map());
+      });
+    return () => { cancelled = true; };
+  }, [market?.fetchedAt, market?.rows]);
+
+  useEffect(() => {
     const action = bridge?.activeAction;
     if (!action || action.status === 'pending') return;
     if (action.status === 'confirmed') setStagedPlayer(null);
@@ -163,6 +203,11 @@ export default function EspnDraftRoom() {
     return findBreakoutDraftTag({ name: player.playerName, team: player.team }, breakoutTags);
   }
 
+  function bustTagFor(player: EspnDraftMarketRow) {
+    const canonicalPlayerId = bustIdentities.get(player.espnPlayerId)?.canonicalPlayerId ?? null;
+    return findDraftBustTag(canonicalPlayerId, bustTags);
+  }
+
   async function confirmDraft() {
     if (!stagedPlayer || blocker || submitting) return;
     setSubmitting(true);
@@ -184,6 +229,8 @@ export default function EspnDraftRoom() {
       setActionError(error instanceof Error ? error.message : 'Could not clear ESPN draft state.');
     }
   }
+
+  const stagedBustTag = stagedPlayer ? bustTagFor(stagedPlayer) : null;
 
   return (
     <div className="min-h-screen bg-[#0a0e1a] text-white p-4 md:p-7">
@@ -227,14 +274,20 @@ export default function EspnDraftRoom() {
             {marketLoading ? <div className="flex items-center justify-center gap-2 p-12 text-slate-400"><Loader2 className="h-5 w-5 animate-spin" /> Loading live 2026 ESPN {position} market…</div> : marketError ? <div className="p-10 text-center text-red-300">{marketError}</div> : visiblePlayers.length === 0 ? <div className="p-10 text-center text-slate-400">No undrafted ESPN {position} rows match this view.</div> : (
               <table className="w-full min-w-[820px]" data-testid="espn-draft-board">
                 <thead className="bg-slate-950 text-xs uppercase text-slate-400"><tr><th className="px-3 py-3 text-center">Market #</th><th className="px-3 py-3 text-left">Player</th><th className="px-3 py-3 text-center">Team</th><th className="px-3 py-3 text-center">ESPN Rank</th><th className="px-3 py-3 text-center">ESPN ADP</th><th className="px-3 py-3 text-center">Signal</th><th className="px-3 py-3 text-right">Action</th></tr></thead>
-                <tbody>{visiblePlayers.map((player, index) => { const tag = breakoutTagFor(player); const pending = bridge?.activeAction?.status === 'pending'; const unsafe = Boolean(blocker || pending || submitting || bridge?.activeAction?.status === 'uncertain'); return <tr key={player.espnPlayerId} className="border-t border-slate-800 hover:bg-slate-900/35"><td className="px-3 py-3 text-center font-mono text-sm text-slate-500">{index + 1}</td><td className="px-3 py-3"><div className="font-semibold text-white">{player.playerName}</div><div className="text-xs text-slate-500">{player.position} · ESPN ID {player.espnPlayerId}</div></td><td className="px-3 py-3 text-center text-sm text-slate-300">{player.team ?? '—'}</td><td className="px-3 py-3 text-center font-mono text-sm text-slate-100">{formatNumber(player.draftRank)}</td><td className="px-3 py-3 text-center font-mono text-sm text-slate-100">{formatNumber(player.averageDraftPosition)}</td><td className="px-3 py-3 text-center"><BreakoutSignalBadge tag={tag} /></td><td className="px-3 py-3 text-right"><button type="button" disabled={unsafe} onClick={() => { setActionError(''); setStagedPlayer(player); }} className="rounded-lg bg-purple-600 px-3 py-2 text-sm font-bold text-white hover:bg-purple-500 disabled:cursor-not-allowed disabled:bg-slate-800 disabled:text-slate-500" data-testid={`stage-espn-pick-${player.espnPlayerId}`}>Draft</button></td></tr>; })}</tbody>
+                <tbody>{visiblePlayers.map((player, index) => {
+                  const breakoutTag = breakoutTagFor(player);
+                  const bustTag = bustTagFor(player);
+                  const pending = bridge?.activeAction?.status === 'pending';
+                  const unsafe = Boolean(blocker || pending || submitting || bridge?.activeAction?.status === 'uncertain');
+                  return <tr key={player.espnPlayerId} className="border-t border-slate-800 hover:bg-slate-900/35"><td className="px-3 py-3 text-center font-mono text-sm text-slate-500">{index + 1}</td><td className="px-3 py-3"><div className="font-semibold text-white">{player.playerName}</div><div className="text-xs text-slate-500">{player.position} · ESPN ID {player.espnPlayerId}</div></td><td className="px-3 py-3 text-center text-sm text-slate-300">{player.team ?? '—'}</td><td className="px-3 py-3 text-center font-mono text-sm text-slate-100">{formatNumber(player.draftRank)}</td><td className="px-3 py-3 text-center font-mono text-sm text-slate-100">{formatNumber(player.averageDraftPosition)}</td><td className="px-3 py-3 text-center"><div className="flex flex-wrap items-center justify-center gap-1.5"><BreakoutSignalBadge tag={breakoutTag} /><DraftBustSignalBadge tag={bustTag} playerName={player.playerName} /></div></td><td className="px-3 py-3 text-right"><button type="button" disabled={unsafe} onClick={() => { setActionError(''); setStagedPlayer(player); }} className="rounded-lg bg-purple-600 px-3 py-2 text-sm font-bold text-white hover:bg-purple-500 disabled:cursor-not-allowed disabled:bg-slate-800 disabled:text-slate-500" data-testid={`stage-espn-pick-${player.espnPlayerId}`}>Draft</button></td></tr>;
+                })}</tbody>
               </table>
             )}
           </div>
         </section>
       </div>
 
-      {stagedPlayer ? <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4" role="dialog" aria-modal="true" aria-label="Confirm ESPN draft pick"><div className="w-full max-w-lg rounded-2xl border border-purple-700/60 bg-[#111827] p-5 shadow-2xl"><div className="flex items-start justify-between gap-4"><div><div className="text-xs font-semibold uppercase tracking-[0.18em] text-purple-300">Final confirmation</div><h2 className="mt-1 text-2xl font-bold">Draft {stagedPlayer.playerName}?</h2><p className="mt-1 text-sm text-slate-400">{stagedPlayer.team ?? 'Team unavailable'} · {stagedPlayer.position} · ESPN pick {bridge?.page?.currentPick ?? '—'}</p></div><button type="button" onClick={() => setStagedPlayer(null)} className="rounded-lg p-2 text-slate-400 hover:bg-slate-800 hover:text-white" aria-label="Cancel draft confirmation"><X className="h-5 w-5" /></button></div><div className="mt-4 rounded-xl border border-amber-700/50 bg-amber-950/30 p-3 text-sm text-amber-100">Confirming sends one local action to the ESPN bridge. It re-checks that you are on the clock, re-checks this exact player, and clicks ESPN&apos;s native Draft button once. Command Center cannot undo an ESPN pick.</div>{blocker ? <div className="mt-3 text-sm text-red-300">{blocker}</div> : null}<div className="mt-5 flex gap-3"><button type="button" onClick={() => setStagedPlayer(null)} className="flex-1 rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 font-semibold text-slate-200">Cancel</button><button type="button" disabled={Boolean(blocker || submitting)} onClick={() => void confirmDraft()} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 font-bold text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:bg-slate-800 disabled:text-slate-500" data-testid="confirm-espn-pick">{submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} Confirm ESPN Pick</button></div></div></div> : null}
+      {stagedPlayer ? <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4" role="dialog" aria-modal="true" aria-label="Confirm ESPN draft pick"><div className="w-full max-w-lg rounded-2xl border border-purple-700/60 bg-[#111827] p-5 shadow-2xl"><div className="flex items-start justify-between gap-4"><div><div className="text-xs font-semibold uppercase tracking-[0.18em] text-purple-300">Final confirmation</div><h2 className="mt-1 text-2xl font-bold">Draft {stagedPlayer.playerName}?</h2><p className="mt-1 text-sm text-slate-400">{stagedPlayer.team ?? 'Team unavailable'} · {stagedPlayer.position} · ESPN pick {bridge?.page?.currentPick ?? '—'}</p>{stagedBustTag ? <div className="mt-2"><DraftBustSignalBadge tag={stagedBustTag} playerName={stagedPlayer.playerName} /></div> : null}</div><button type="button" onClick={() => setStagedPlayer(null)} className="rounded-lg p-2 text-slate-400 hover:bg-slate-800 hover:text-white" aria-label="Cancel draft confirmation"><X className="h-5 w-5" /></button></div><div className="mt-4 rounded-xl border border-amber-700/50 bg-amber-950/30 p-3 text-sm text-amber-100">Confirming sends one local action to the ESPN bridge. It re-checks that you are on the clock, re-checks this exact player, and clicks ESPN&apos;s native Draft button once. Command Center cannot undo an ESPN pick.</div>{blocker ? <div className="mt-3 text-sm text-red-300">{blocker}</div> : null}<div className="mt-5 flex gap-3"><button type="button" onClick={() => setStagedPlayer(null)} className="flex-1 rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 font-semibold text-slate-200">Cancel</button><button type="button" disabled={Boolean(blocker || submitting)} onClick={() => void confirmDraft()} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 font-bold text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:bg-slate-800 disabled:text-slate-500" data-testid="confirm-espn-pick">{submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} Confirm ESPN Pick</button></div></div></div> : null}
     </div>
   );
 }
