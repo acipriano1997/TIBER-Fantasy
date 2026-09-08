@@ -6,6 +6,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import type { BreakoutDraftTag } from '@/lib/breakoutDraftTags';
+import './BreakoutSignalBadge.css';
 
 function formatGeneratedAt(value: string | null): string | null {
   if (!value) return null;
