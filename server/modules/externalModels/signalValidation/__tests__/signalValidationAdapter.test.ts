@@ -218,7 +218,7 @@ describe('signalValidationAdapter', () => {
     expect(result.promotion?.draftTagEligible).toBe(false);
   });
 
-  it('fails the draft eligibility gate when a certification floor is missed', () => {
+  it('fails the draft eligibility gate when an internally consistent certification misses the precision floor', () => {
     const result = adaptSignalValidationExports(
       {
         season: 2025,
@@ -231,7 +231,12 @@ describe('signalValidationAdapter', () => {
             ...promoted2026Manifest.promotion,
             accuracy_certification: {
               ...passingAccuracyCertification,
-              held_out_precision: 0.149,
+              held_out_true_positives: 7,
+              held_out_false_positives: 43,
+              held_out_false_negatives: 35,
+              held_out_true_negatives: 382,
+              held_out_precision: 0.14,
+              precision_lift: 1.56,
             },
           },
         },
@@ -240,7 +245,8 @@ describe('signalValidationAdapter', () => {
       { exportDirectory: '/tmp/signal-validation' },
     );
 
-    expect(result.promotion?.accuracyCertification?.metricsConsistent).toBe(false);
+    expect(result.promotion?.accuracyCertification?.metricsConsistent).toBe(true);
+    expect(result.promotion?.accuracyCertification?.recomputedPrecision).toBe(0.14);
     expect(result.promotion?.accuracyCertification?.consumerThresholdsPassed).toBe(false);
     expect(result.promotion?.draftTagEligible).toBe(false);
   });
