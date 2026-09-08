@@ -1,0 +1,67 @@
+name: Command Center Gate 3
+
+on:
+  pull_request:
+    paths:
+      - 'shared/commandCenterV1RuntimeCertification.ts'
+      - 'shared/commandCenterV1SurfaceManifest.ts'
+      - 'server/services/__tests__/commandCenterV1RuntimeCertification.test.ts'
+      - 'server/services/__tests__/commandCenterV1SurfaceManifest.test.ts'
+      - 'server/services/__tests__/commandCenterV1VerificationManifest.test.ts'
+      - 'server/services/leagueDashboardTruthBoundary.ts'
+      - 'server/modules/draftReview/**'
+      - 'server/services/recordsHistoryService.ts'
+      - 'client/src/pages/RecordsPage.tsx'
+      - 'server/routes/healthRoutes.ts'
+      - 'server/routes/sleeperUsageTruthBoundary.ts'
+      - 'server/index.ts'
+      - 'scripts/command-center-browser-smoke.mjs'
+      - '.github/workflows/command-center-browser-smoke.yml'
+      - '.github/workflows/sleeper-sync.yml'
+      - '.github/workflows/command-center-gate3.yml'
+      - 'build.sh'
+      - 'package.json'
+      - 'package-lock.json'
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: command-center-gate3-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate3:
+    name: Runtime certification and fallback audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Run Gate 0-3 release regressions
+        run: >-
+          npm test --
+          server/services/__tests__/commandCenterV1RuntimeCertification.test.ts
+          server/services/__tests__/commandCenterV1SurfaceManifest.test.ts
+          server/services/__tests__/commandCenterV1VerificationManifest.test.ts
+          server/services/__tests__/leagueDashboardTruthBoundary.test.ts
+          server/routes/__tests__/healthRoutes.test.ts
+          server/routes/__tests__/sleeperUsageTruthBoundary.test.ts
+
+      - name: Build exact release artifact
+        run: sh build.sh
