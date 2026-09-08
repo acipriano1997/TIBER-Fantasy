@@ -108,19 +108,11 @@ export class EspnDraftBridgeStore {
       receivedAtMs: this.now(),
     };
 
+    // Do not expire a pick merely because ESPN advanced. A successful native click can
+    // advance the board before the content script has time to post its confirmation.
+    // The extension independently compares action.pickNumber against ESPN immediately
+    // before clicking, while the TTL remains the server-side stale-action backstop.
     this.expireActionIfNeeded();
-    if (
-      this.action?.status === 'pending'
-      && this.action.pageInstanceId === pageInstanceId
-      && this.heartbeat.currentPick !== null
-      && this.heartbeat.currentPick !== this.action.pickNumber
-    ) {
-      this.action = {
-        ...this.action,
-        status: 'expired',
-        reason: `ESPN advanced from pick ${this.action.pickNumber} before the bound action executed.`,
-      };
-    }
     return this.getStatus();
   }
 
