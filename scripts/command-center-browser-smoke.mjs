@@ -177,6 +177,43 @@ async function navigateAndAssert(cdp, pathName, expectedText, report) {
   return elapsedMs;
 }
 
+/**
+ * Chrome's Fetch.urlPattern glob semantics have changed subtly across releases.
+ * Intercept every request, then decide in JavaScript what to pause/fulfill. This
+ * keeps the certification deterministic across runner Chrome versions while
+ * continuing non-target traffic immediately.
+ */
+async function enableRequestInterceptor(cdp, handler) {
+  const handlerErrors = [];
+  const stop = cdp.on('Fetch.requestPaused', async (event) => {
+    try {
+      const handled = await handler(event);
+      if (!handled) {
+        await cdp.send('Fetch.continueRequest', { requestId: event.requestId });
+      }
+    } catch (error) {
+      handlerErrors.push(error instanceof Error ? error.message : String(error));
+      try {
+        await cdp.send('Fetch.failRequest', { requestId: event.requestId, errorReason: 'Failed' });
+      } catch {
+        // Request may already have been canceled by navigation.
+      }
+    }
+  });
+
+  await cdp.send('Fetch.enable', {
+    patterns: [{ urlPattern: '*', requestStage: 'Request' }],
+  });
+
+  return {
+    errors: handlerErrors,
+    async disable() {
+      stop();
+      await cdp.send('Fetch.disable');
+    },
+  };
+}
+
 function buildRecordsPayload(count = 500) {
   const careers = Array.from({ length: count }, (_, index) => {
     const number = index + 1;
@@ -327,23 +364,22 @@ async function main() {
 
     // Resilience: deliberately leave Management data reads pending, then prove SPA navigation is still responsive.
     const hungRequestIds = new Set();
-    const managementPatterns = [
-      '*://*/api/league-context*',
-      '*://*/api/league-sync*',
-      '*://*/api/league-dashboard*',
-      '*://*/api/management*',
-      '*://*/api/data-lab/team-environment-movement*',
+    const managementNeedles = [
+      '/api/league-context',
+      '/api/league-sync',
+      '/api/league-dashboard',
+      '/api/management',
+      '/api/data-lab/team-environment-movement',
     ];
-    await cdp.send('Fetch.enable', {
-      patterns: managementPatterns.map((urlPattern) => ({ urlPattern, requestStage: 'Request' })),
-    });
-    const stopManagementInterception = cdp.on('Fetch.requestPaused', (event) => {
+    const managementInterceptor = await enableRequestInterceptor(cdp, async (event) => {
+      const requestUrl = event.request?.url ?? '';
+      if (!managementNeedles.some((needle) => requestUrl.includes(needle))) return false;
       hungRequestIds.add(event.requestId);
       // Intentionally do not continue the request until after the navigation proof.
+      return true;
     });
 
     await navigateAndAssert(cdp, '/management', 'Connect your team, inspect signals, then research your next move.', report);
-    await waitForExpression(cdp, 'true', 'Management paint', 500);
     const requestDeadline = Date.now() + 3_000;
     while (hungRequestIds.size === 0 && Date.now() < requestDeadline) await sleep(50);
     invariant(hungRequestIds.size > 0, 'Management resilience probe did not capture any governed data request to hold pending.');
@@ -379,19 +415,17 @@ async function main() {
         // Navigation may already have canceled a paused request.
       }
     }
-    stopManagementInterception();
-    await cdp.send('Fetch.disable');
+    await managementInterceptor.disable();
+    invariant(
+      managementInterceptor.errors.length === 0,
+      `Management request interception failed: ${managementInterceptor.errors.join('; ')}`,
+    );
 
     // Performance: feed Records a deterministic 500-manager historical payload and exercise the all-manager table.
     const recordsPayload = JSON.stringify(buildRecordsPayload(500));
-    await cdp.send('Fetch.enable', {
-      patterns: [{ urlPattern: '*://*/api/league-records*', requestStage: 'Request' }],
-    });
-    const stopRecordsInterception = cdp.on('Fetch.requestPaused', async (event) => {
-      if (!event.request.url.includes('/api/league-records')) {
-        await cdp.send('Fetch.continueRequest', { requestId: event.requestId });
-        return;
-      }
+    const recordsInterceptor = await enableRequestInterceptor(cdp, async (event) => {
+      const requestUrl = event.request?.url ?? '';
+      if (!requestUrl.includes('/api/league-records')) return false;
       await cdp.send('Fetch.fulfillRequest', {
         requestId: event.requestId,
         responseCode: 200,
@@ -401,6 +435,7 @@ async function main() {
         ],
         body: Buffer.from(recordsPayload, 'utf8').toString('base64'),
       });
+      return true;
     });
 
     await evaluate(cdp, `localStorage.setItem('tiber.records.leagueId', 'browser-smoke')`);
@@ -442,8 +477,11 @@ async function main() {
       `500-row Records interaction took ${rowInteractionMs}ms; budget is ${LARGE_LIST_INTERACTION_BUDGET_MS}ms.`,
     );
 
-    stopRecordsInterception();
-    await cdp.send('Fetch.disable');
+    await recordsInterceptor.disable();
+    invariant(
+      recordsInterceptor.errors.length === 0,
+      `Records request interception failed: ${recordsInterceptor.errors.join('; ')}`,
+    );
 
     const pageErrors = await evaluate(cdp, 'window.__tiberBrowserSmokeErrors ?? []');
     report.browserErrors.push(...(Array.isArray(pageErrors) ? pageErrors : []));
