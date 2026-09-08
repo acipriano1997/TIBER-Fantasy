@@ -1,5 +1,10 @@
 import { COMMAND_CENTER_V1_INVARIANTS } from './commandCenterV1InvariantManifest';
-import { COMMAND_CENTER_V1_SURFACES, type CommandCenterV1SurfaceId } from './commandCenterV1SurfaceManifest';
+import {
+  COMMAND_CENTER_V1_REQUIRED_SURFACE_IDS,
+  COMMAND_CENTER_V1_SURFACES,
+  isCommandCenterV1Gate1Complete,
+  type CommandCenterV1SurfaceId,
+} from './commandCenterV1SurfaceManifest';
 import { isCommandCenterV1Gate2Complete } from './commandCenterV1VerificationManifest';
 import {
   COMMAND_CENTER_V1_GATE3_NONBLOCKING_DEBT,
@@ -16,6 +21,17 @@ export type CommandCenterV1GateId = 'gate0' | 'gate1' | 'gate2' | 'gate3' | 'gat
 export const COMMAND_CENTER_V1_RELEASE_CANDIDATE_BASE_SHA =
   '14fec922a77e85e2a13b1a657df9db154eed33ef' as const;
 
+export const COMMAND_CENTER_V1_GATE0_REQUIRED_INVARIANT_IDS = [
+  'scoped_user_identity',
+  'league_ownership_identity',
+  'external_league_identity',
+  'external_roster_identity',
+  'external_owner_identity',
+  'observed_roster_geometry',
+  'observed_starter_truth',
+  'forge_freshness_and_coverage',
+] as const satisfies readonly (keyof typeof COMMAND_CENTER_V1_INVARIANTS)[];
+
 export const COMMAND_CENTER_V1_RELEASE_SURFACE_IDS: readonly CommandCenterV1SurfaceId[] = [
   'home_what_changed',
   'weekly_decisions',
@@ -24,6 +40,7 @@ export const COMMAND_CENTER_V1_RELEASE_SURFACE_IDS: readonly CommandCenterV1Surf
   'player_intelligence',
   'league_portfolio',
   'draft',
+  'records',
 ] as const;
 
 export const COMMAND_CENTER_V1_RELEASE_ROUTES = [
@@ -81,23 +98,87 @@ export const COMMAND_CENTER_V1_RELEASE_PROHIBITIONS = [
   'No stale/private API response may be replayed from the service-worker cache.',
 ] as const;
 
+const SHA40 = /^[0-9a-f]{40}$/;
+
+function sameMembers(left: readonly string[], right: readonly string[]): boolean {
+  if (left.length !== right.length) return false;
+  const leftSet = new Set(left);
+  const rightSet = new Set(right);
+  return leftSet.size === left.length
+    && rightSet.size === right.length
+    && left.every((value) => rightSet.has(value));
+}
+
 function gate0Complete(): boolean {
   const leagueSurface = COMMAND_CENTER_V1_SURFACES.league_portfolio;
-  const invariantBoundaryReady = Object.values(COMMAND_CENTER_V1_INVARIANTS).every(
-    (record) => record.authority === 'hard_release_boundary',
-  );
+  const invariantBoundaryReady = COMMAND_CENTER_V1_GATE0_REQUIRED_INVARIANT_IDS.every((id) => {
+    const record = COMMAND_CENTER_V1_INVARIANTS[id];
+    return record.stage === 'management_context'
+      && record.authority === 'hard_release_boundary';
+  });
   return leagueSurface.status === 'certified_read_only'
     && leagueSurface.finalActionAuthority === 'human'
     && invariantBoundaryReady;
 }
 
 function gate1Complete(): boolean {
-  return COMMAND_CENTER_V1_RELEASE_SURFACE_IDS.every((id) => {
-    const surface = COMMAND_CENTER_V1_SURFACES[id];
-    return surface.finalActionAuthority === 'human'
-      && surface.status !== 'blocked_legacy_authority'
-      && surface.status !== 'not_activated';
-  });
+  return isCommandCenterV1Gate1Complete()
+    && sameMembers(COMMAND_CENTER_V1_RELEASE_SURFACE_IDS, COMMAND_CENTER_V1_REQUIRED_SURFACE_IDS)
+    && COMMAND_CENTER_V1_RELEASE_SURFACE_IDS.every((id) => {
+      const surface = COMMAND_CENTER_V1_SURFACES[id];
+      return surface.finalActionAuthority === 'human'
+        && surface.status !== 'blocked_legacy_authority'
+        && surface.status !== 'not_activated';
+    });
+}
+
+export function isCommandCenterV1Gate5Complete(): boolean {
+  const releaseRoutesUnique = new Set(COMMAND_CENTER_V1_RELEASE_ROUTES).size === COMMAND_CENTER_V1_RELEASE_ROUTES.length;
+  const canonicalRoutes = COMMAND_CENTER_V1_RELEASE_SURFACE_IDS
+    .map((id) => COMMAND_CENTER_V1_SURFACES[id].canonicalRoute)
+    .filter((route): route is string => Boolean(route));
+  const releaseRoutesCoverSurfaces = sameMembers(COMMAND_CENTER_V1_RELEASE_ROUTES, canonicalRoutes);
+
+  const debtIds = COMMAND_CENTER_V1_RELEASE_NONBLOCKING_DEBT.map((item) => item.id);
+  const debtIsNonblocking = new Set(debtIds).size === debtIds.length
+    && COMMAND_CENTER_V1_RELEASE_NONBLOCKING_DEBT.length > 0
+    && COMMAND_CENTER_V1_RELEASE_NONBLOCKING_DEBT.every(
+      (item) => (item.severity === 'P2' || item.severity === 'P3') && item.note.length > 20,
+    );
+
+  const rollbackReady = SHA40.test(COMMAND_CENTER_V1_RELEASE_CANDIDATE_BASE_SHA)
+    && SHA40.test(COMMAND_CENTER_V1_ROLLBACK.runtimeEquivalentGate4Sha)
+    && SHA40.test(COMMAND_CENTER_V1_ROLLBACK.preMobileGate3Sha)
+    && COMMAND_CENTER_V1_RELEASE_CANDIDATE_BASE_SHA === COMMAND_CENTER_V1_ROLLBACK.runtimeEquivalentGate4Sha
+    && COMMAND_CENTER_V1_ROLLBACK.preMobileGate3Sha !== COMMAND_CENTER_V1_RELEASE_CANDIDATE_BASE_SHA
+    && COMMAND_CENTER_V1_ROLLBACK.rule.includes('roll back');
+
+  const runtimeReady = COMMAND_CENTER_V1_RUNTIME_BINDING.audience === 'personal_operator_only'
+    && COMMAND_CENTER_V1_RUNTIME_BINDING.buildCommand === 'sh build.sh'
+    && COMMAND_CENTER_V1_RUNTIME_BINDING.startCommand === 'node dist/index.mjs'
+    && COMMAND_CENTER_V1_RUNTIME_BINDING.runtimeProfile === 'full'
+    && COMMAND_CENTER_V1_RUNTIME_BINDING.livenessPath === '/api/health'
+    && COMMAND_CENTER_V1_RUNTIME_BINDING.databaseReadinessPath === '/api/health/db'
+    && COMMAND_CENTER_V1_RUNTIME_BINDING.pwaManifestPath === '/manifest.json'
+    && COMMAND_CENTER_V1_RUNTIME_BINDING.serviceWorkerPath === '/sw.js'
+    && COMMAND_CENTER_V1_RUNTIME_BINDING.finalFantasyActionAuthority === 'human'
+    && COMMAND_CENTER_V1_RUNTIME_BINDING.autonomousFantasyWrites === false
+    && COMMAND_CENTER_V1_RUNTIME_BINDING.databaseActivationRule.includes('transport readiness alone is not schema readiness');
+
+  const prohibitionText = COMMAND_CENTER_V1_RELEASE_PROHIBITIONS.join(' ');
+  const scopeFrozen = COMMAND_CENTER_V1_RELEASE_PROHIBITIONS.length >= 5
+    && prohibitionText.includes('No autonomous')
+    && prohibitionText.includes('No App Store')
+    && prohibitionText.includes('No Devy')
+    && prohibitionText.includes('No legacy heuristic/model surface')
+    && prohibitionText.includes('No stale/private API response');
+
+  return releaseRoutesUnique
+    && releaseRoutesCoverSurfaces
+    && debtIsNonblocking
+    && rollbackReady
+    && runtimeReady
+    && scopeFrozen;
 }
 
 export function commandCenterV1GateStatus(): Readonly<Record<CommandCenterV1GateId, boolean>> {
@@ -107,7 +188,7 @@ export function commandCenterV1GateStatus(): Readonly<Record<CommandCenterV1Gate
     gate2: isCommandCenterV1Gate2Complete(),
     gate3: isCommandCenterV1Gate3Complete(),
     gate4: isCommandCenterV1Gate4Complete(),
-    gate5: true,
+    gate5: isCommandCenterV1Gate5Complete(),
   } as const;
 }
 
