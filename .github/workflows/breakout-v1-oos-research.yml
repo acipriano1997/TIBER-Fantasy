@@ -20,13 +20,5 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install research dependencies
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install pandas numpy scikit-learn
-
-      - name: Run forward-only calibration comparison
-        run: python scripts/research/run_breakout_v1_3_calibration.py
-
-      - name: Show report
-        run: cat outputs/research/breakout_v1_3_calibration/report.json
+      - name: Inspect governed pre-2025 field contract only
+        run: python scripts/research/inspect_tiber_data_pre2025.py
