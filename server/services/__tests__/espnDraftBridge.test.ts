@@ -14,6 +14,7 @@ function heartbeat(overrides: Record<string, unknown> = {}) {
     rosterCount: 2,
     enabledDraftButtons: 12,
     availablePlayerCount: 120,
+    draftedPlayerNames: [],
     urlPath: '/football/draft?leagueId=12345&teamId=7',
     ...overrides,
   };
@@ -62,6 +63,15 @@ describe('ESPN draft bridge fail-closed state machine', () => {
       .toThrow(/already pending/i);
     expect(store.nextAction('other-page')).toBeNull();
     expect(store.nextAction('page-1')?.actionId).toBe(action.actionId);
+  });
+
+  test('rejects a player already observed in ESPN draft history', () => {
+    store.ingestHeartbeat(heartbeat({
+      draftedPlayerNames: ['Player One', 'Already Gone'],
+    }));
+    expect(store.getStatus().page?.draftedPlayerNames).toEqual(['Player One', 'Already Gone']);
+    expect(() => store.requestPick({ name: 'Player One', team: 'DAL', position: 'WR' }))
+      .toThrow(/already appears in ESPN draft history/i);
   });
 
   test('locks an uncertain click until ESPN has advanced beyond that exact pick', () => {
