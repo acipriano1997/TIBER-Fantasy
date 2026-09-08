@@ -18,6 +18,8 @@ export type CommandCenterV1TerminalStatus =
 
 export type CommandCenterV1GateId = 'gate0' | 'gate1' | 'gate2' | 'gate3' | 'gate4' | 'gate5';
 
+export const COMMAND_CENTER_V1_RELEASE_BRANCH = 'release/command-center-v1-personal' as const;
+
 export const COMMAND_CENTER_V1_RELEASE_CANDIDATE_BASE_SHA =
   '14fec922a77e85e2a13b1a657df9db154eed33ef' as const;
 
@@ -56,6 +58,7 @@ export const COMMAND_CENTER_V1_RELEASE_ROUTES = [
 
 export const COMMAND_CENTER_V1_RUNTIME_BINDING = {
   audience: 'personal_operator_only',
+  releaseBranch: COMMAND_CENTER_V1_RELEASE_BRANCH,
   buildCommand: 'sh build.sh',
   startCommand: 'node dist/index.mjs',
   runtimeProfile: 'full',
@@ -154,6 +157,8 @@ export function isCommandCenterV1Gate5Complete(): boolean {
     && COMMAND_CENTER_V1_ROLLBACK.rule.includes('roll back');
 
   const runtimeReady = COMMAND_CENTER_V1_RUNTIME_BINDING.audience === 'personal_operator_only'
+    && COMMAND_CENTER_V1_RUNTIME_BINDING.releaseBranch === COMMAND_CENTER_V1_RELEASE_BRANCH
+    && COMMAND_CENTER_V1_RELEASE_BRANCH === 'release/command-center-v1-personal'
     && COMMAND_CENTER_V1_RUNTIME_BINDING.buildCommand === 'sh build.sh'
     && COMMAND_CENTER_V1_RUNTIME_BINDING.startCommand === 'node dist/index.mjs'
     && COMMAND_CENTER_V1_RUNTIME_BINDING.runtimeProfile === 'full'
