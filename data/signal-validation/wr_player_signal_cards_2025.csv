@@ -1,9 +1,0 @@
-player_id,player_name,season,team,best_recipe_name,candidate_rank,final_signal_score,breakout_label_default,breakout_context,usage_signal,efficiency_signal,development_signal,stability_signal,cohort_signal,role_signal,penalty_signal
-00-0036322,Justin Jefferson,2025,MIN,role_balanced,1,93.4,true,Elite volume and route dominance profile,92.1,95.0,88.4,90.2,86.5,94.3,4.0
-00-0036900,Ja'Marr Chase,2025,CIN,role_balanced,2,92.7,true,Alpha receiver with ceiling spike weeks,91.2,94.1,87.8,89.7,85.9,93.8,4.3
-00-0039893,Brian Thomas Jr.,2025,JAX,role_balanced,3,89.5,true,Vertical role plus growing target share,86.4,90.3,91.0,84.6,83.4,88.9,5.1
-00-0039337,Malik Nabers,2025,NYG,role_balanced,4,88.8,true,High-usage rookie breakout trajectory maintained,89.7,87.2,92.8,82.9,84.1,90.4,6.0
-00-0039075,Puka Nacua,2025,LA,role_balanced,5,87.9,true,Route-winning profile with stable QB trust,88.2,89.1,90.6,83.3,82.5,89.5,5.7
-00-0038994,Jordan Addison,2025,MIN,role_balanced,6,84.6,true,Secondary target with explosive weekly upside,80.5,85.0,86.9,79.8,81.2,84.4,7.0
-00-0039064,Zay Flowers,2025,BAL,role_balanced,7,83.9,true,Efficiency plus role growth in pass game,78.9,86.1,85.5,80.2,80.7,83.8,7.3
-00-0042051,Rome Odunze,2025,CHI,role_balanced,8,82.8,true,Strong development signal entering expanded role,77.2,84.0,89.9,78.4,79.6,82.9,8.1
