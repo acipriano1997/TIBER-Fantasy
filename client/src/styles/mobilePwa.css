@@ -112,8 +112,10 @@ body {
   input,
   select,
   textarea {
-    /* iOS Safari auto-zooms focused controls below 16px. */
-    font-size: max(16px, 1em);
+    /* iOS Safari auto-zooms focused controls below 16px. Use an explicit
+       important floor because utility classes such as text-sm may otherwise
+       win after bundling and leave the computed control size at 14px. */
+    font-size: 16px !important;
   }
 
   button,
