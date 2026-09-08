@@ -53,3 +53,5 @@ coverage/
 
 # temporary agent continuity file (see CLAUDE.md handoff protocol)
 AGENT_HANDOFF.md
+
+.local-dev/
