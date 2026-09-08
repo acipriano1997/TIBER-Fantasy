@@ -44,6 +44,10 @@ export const breakoutAccuracyCertificationSchema = z.object({
   leakage_checks_passed: z.boolean(),
   calibration_passed: z.boolean(),
   challenger_beaten: z.boolean(),
+  held_out_true_positives: z.number().int().nonnegative(),
+  held_out_false_positives: z.number().int().nonnegative(),
+  held_out_false_negatives: z.number().int().nonnegative(),
+  held_out_true_negatives: z.number().int().nonnegative(),
   held_out_positive_events: z.number().int().nonnegative(),
   held_out_precision: z.number().finite().min(0).max(1),
   held_out_base_rate: z.number().finite().gt(0).max(1),
@@ -164,6 +168,10 @@ export interface TiberBreakoutAccuracyCertification {
   leakageChecksPassed: boolean;
   calibrationPassed: boolean;
   challengerBeaten: boolean;
+  heldOutTruePositives: number;
+  heldOutFalsePositives: number;
+  heldOutFalseNegatives: number;
+  heldOutTrueNegatives: number;
   heldOutPositiveEvents: number;
   heldOutPrecision: number;
   heldOutBaseRate: number;
@@ -173,6 +181,10 @@ export interface TiberBreakoutAccuracyCertification {
   baseRateBrierScore: number;
   logLoss: number;
   baseRateLogLoss: number;
+  recomputedPrecision: number;
+  recomputedBaseRate: number;
+  recomputedPrecisionLift: number;
+  metricsConsistent: boolean;
   consumerThresholdsPassed: boolean;
 }
 
