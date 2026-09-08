@@ -43,6 +43,7 @@ import TeamResearchLab from "@/pages/TeamResearchLab";
 import DataLabCommandCenterLab from "@/pages/DataLabCommandCenterLab";
 import TiberManagementDashboard from "@/pages/TiberManagementDashboard";
 import TiberDraftReview from "@/pages/TiberDraftReview";
+import EspnDraftRoom from "@/pages/EspnDraftRoom";
 import CommandCenterV1 from "@/pages/CommandCenterV1";
 import RecordsPage from "@/pages/RecordsPage";
 import StressLab from "@/pages/StressLab";
@@ -76,7 +77,6 @@ function Router({ runtimeProfile }: { runtimeProfile: RuntimeProfile }) {
 
   return (
     <Switch>
-      {/* All routes share the unified dark TiberLayout shell */}
       <Route>
         {() => (
           <TiberLayout>
@@ -85,6 +85,7 @@ function Router({ runtimeProfile }: { runtimeProfile: RuntimeProfile }) {
               <Route path="/team-management" component={TiberManagementDashboard} />
               <Route path="/draft-review" component={TiberDraftReview} />
               <Route path="/records" component={RecordsPage} />
+              <Route path="/command-center/draft" component={EspnDraftRoom} />
               <Route path="/command-center/weekly">
                 {() => <CommandCenterV1 surfaceId="weekly_decisions" />}
               </Route>
@@ -97,20 +98,10 @@ function Router({ runtimeProfile }: { runtimeProfile: RuntimeProfile }) {
               <Route path="/command-center">
                 {() => <CommandCenterV1 surfaceId="home_what_changed" />}
               </Route>
-              {/*
-                Observatory surface (user-facing name). The implementation component is
-                still named `StressLab` (legacy/internal name retained — see the naming
-                boundary note in StressLab.tsx). `/`, `/observatory`, and `/stress-lab`
-                (below) intentionally resolve to the same Observatory surface today;
-                `/stress-lab` is a legacy alias. PR A (#264) is naming/route/copy-label
-                hygiene only — no route rewrite.
-              */}
               <Route path="/" component={StressLab} />
               <Route path="/observatory" component={StressLab} />
-              {/* Observatory sub-surface: post-cutoff signal ledger intake/review (#297). */}
               <Route path="/observatory/post-cutoff-ledger" component={PostCutoffLedger} />
               <Route path="/dashboard" component={Dashboard} />
-              {/* CANONICAL (current): user-visible rankings surface until Rankings v2 route wiring lands. */}
               <Route path="/tiers" component={TiberTiers} />
               <Route path="/rookies" component={RookieBoard} />
               <Route path="/tiber-data-lab" component={DataLabHub} />
@@ -127,7 +118,6 @@ function Router({ runtimeProfile }: { runtimeProfile: RuntimeProfile }) {
               <Route path="/tiber-data-lab/player-research" component={PlayerResearchLab} />
               <Route path="/tiber-data-lab/team-research" component={TeamResearchLab} />
               <Route path="/tiber-data-lab/command-center" component={DataLabCommandCenterLab} />
-              {/* Legacy alias for the Observatory surface (see route note above). */}
               <Route path="/stress-lab" component={StressLab} />
               <Route path="/personnel">
                 {() => <Redirect to="/tiber-data-lab/personnel" />}
@@ -137,7 +127,6 @@ function Router({ runtimeProfile }: { runtimeProfile: RuntimeProfile }) {
               <Route path="/player/:playerId" component={PlayerPage} />
               <Route path="/forge" component={ForgeLanding} />
               <Route path="/forge/inspect" component={ForgeTransparency} />
-              {/* CANONICAL alias: preserve legacy /rankings links while routing public traffic to /tiers. */}
               <Route path="/rankings">
                 {() => <Redirect to="/tiers" />}
               </Route>
@@ -158,7 +147,6 @@ function Router({ runtimeProfile }: { runtimeProfile: RuntimeProfile }) {
               <Route path="/admin/rag-status" component={RagStatus} />
               <Route path="/admin/forge-lab" component={ForgeLab} />
               <Route path="/admin/forge-simulation" component={ForgeSimulation} />
-              {/* INTERNAL_ONLY: admin ranking formula sandboxes, not public rankings contract surfaces. */}
               <Route path="/admin/wr-rankings-sandbox" component={WRRankingsSandbox} />
               <Route path="/admin/qb-rankings-sandbox" component={QBRankingsSandbox} />
               <Route path="/dev/forge">
@@ -191,8 +179,6 @@ function AppContent() {
         }
         if (active) setRuntimeProfile(body.profile);
       })
-      // Fail closed to the public-only shell if the local capability endpoint is
-      // unavailable or malformed. The server remains the security boundary.
       .catch(() => {
         if (active) setRuntimeProfile("public-draft-review");
       });
