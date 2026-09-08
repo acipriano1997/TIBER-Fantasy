@@ -21,6 +21,7 @@ const navSections: NavSectionConfig[] = [
     description: "Inspectable systems only.",
     items: [
       { label: "Command Center", path: "/command-center", badge: "V1" },
+      { label: "ESPN Draft", path: "/command-center/draft", badge: "LIVE" },
       { label: "Post-Cutoff Ledger", path: "/observatory/post-cutoff-ledger", badge: "NEW" },
       { label: "Management", path: "/management", badge: "NEW" },
       { label: "Records", path: "/records", badge: "NEW" },
@@ -39,6 +40,7 @@ const navSections: NavSectionConfig[] = [
 ];
 
 function getSection(location: string): string {
+  if (location.startsWith("/command-center/draft")) return "ESPN Draft";
   if (location.startsWith("/command-center")) return "Command Center";
   if (location === "/" || location.startsWith("/observatory") || location.startsWith("/stress-lab")) return "Observatory";
   if (location.startsWith("/draft-review")) return "Draft Review";
@@ -82,9 +84,10 @@ function NavSection({
         )}
       </div>
       {items.map((item) => {
-        const isActive =
-          item.path === "/"
-            ? location === "/"
+        const isActive = item.path === "/"
+          ? location === "/"
+          : item.path === "/command-center"
+            ? location === "/command-center" || location.startsWith("/command-center/weekly") || location.startsWith("/command-center/waivers") || location.startsWith("/command-center/trades")
             : location.startsWith(item.path) && item.path !== "#";
 
         if (item.comingSoon) {
@@ -163,7 +166,7 @@ function SidebarContents({ onNavigate }: { onNavigate?: () => void }) {
         <div className="user-pill">
           <div>
             <div className="user-name">Operator surface</div>
-            <div className="user-league">Read-only inspection</div>
+            <div className="user-league">Guarded actions</div>
           </div>
         </div>
       </div>
@@ -227,6 +230,7 @@ export default function TiberLayout({
           <span className="tiber-topbar-section">{getSection(location)}</span>
         </div>
         <nav className="tiber-topbar-quicknav">
+          <Link href="/command-center/draft" className="tmd-topbar-link">ESPN Draft</Link>
           <Link href="/command-center" className="tmd-topbar-link">Command Center</Link>
           <Link href="/records" className="tmd-topbar-link">Records</Link>
           <Link href="/tiers" className="tmd-topbar-link">Rankings</Link>

@@ -1,0 +1,69 @@
+name: ESPN Draft Bridge Certification
+
+on:
+  push:
+    branches:
+      - feat/espn-command-center-draft-bridge
+  pull_request:
+    paths:
+      - 'server/services/espnDraftBridge.ts'
+      - 'server/services/espnDraftMarket.ts'
+      - 'server/services/__tests__/espnDraftBridge*.test.ts'
+      - 'server/services/__tests__/espnDraftMarket.test.ts'
+      - 'server/routes/managementRoutes.ts'
+      - 'client/src/lib/espnDraftBridge.ts'
+      - 'client/src/lib/espnDraftMarket.ts'
+      - 'client/src/pages/EspnDraftRoom.tsx'
+      - 'client/src/App.tsx'
+      - 'client/src/components/TiberLayout.tsx'
+      - 'tools/espn-draft-bridge/**'
+      - '.github/workflows/espn-draft-bridge.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: espn-draft-bridge-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  certify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Run bridge, extension, and market truth contracts
+        run: >-
+          npm test -- --runTestsByPath
+          server/services/__tests__/espnDraftBridge.test.ts
+          server/services/__tests__/espnDraftBridgeExtensionContract.test.ts
+          server/services/__tests__/espnDraftMarket.test.ts
+      - name: Typecheck bridge delta against baseline debt
+        shell: bash
+        run: |
+          set +e
+          npm run typecheck > /tmp/tiber-typecheck.log 2>&1
+          typecheck_status=$?
+          set -e
+
+          bridge_pattern='^(server/services/espnDraftBridge\.ts|server/services/espnDraftMarket\.ts|server/routes/managementRoutes\.ts|client/src/lib/espnDraftBridge\.ts|client/src/lib/espnDraftMarket\.ts|client/src/pages/EspnDraftRoom\.tsx|client/src/App\.tsx|client/src/components/TiberLayout\.tsx)\('
+          if grep -E "$bridge_pattern" /tmp/tiber-typecheck.log; then
+            echo "::error::ESPN Draft Bridge introduced or exposes type errors in its changed production files."
+            exit 1
+          fi
+
+          if [ "$typecheck_status" -ne 0 ]; then
+            error_count=$(grep -c 'error TS' /tmp/tiber-typecheck.log || true)
+            echo "::warning::Repository-wide typecheck has ${error_count} baseline errors outside the ESPN bridge production delta."
+          else
+            echo "Repository-wide typecheck is clean."
+          fi
+      - name: Build production application
+        run: sh build.sh
