@@ -1,6 +1,7 @@
 type PromotedModuleErrorCode =
   | 'config_error'
   | 'not_found'
+  | 'not_promoted'
   | 'invalid_payload'
   | 'malformed_export'
   | 'upstream_unavailable'
@@ -67,6 +68,14 @@ export function buildPromotedModuleOperatorDetails(options: {
         dependencySummary: options.dependencySummary,
         configuredSource,
         recommendedAction: 'This is a no-data state, not a local recomputation state. Confirm the selected player/season exists upstream.',
+        readOnlyMessage,
+      };
+    case 'not_promoted':
+      return {
+        state: 'no_data',
+        dependencySummary: options.dependencySummary,
+        configuredSource,
+        recommendedAction: 'Wait for an explicit upstream promotion after backtest and prescriptive validation pass. Do not fabricate or locally promote the signal.',
         readOnlyMessage,
       };
     case 'invalid_payload':
