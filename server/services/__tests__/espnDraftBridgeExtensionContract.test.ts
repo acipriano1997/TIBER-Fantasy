@@ -19,13 +19,15 @@ describe('ESPN draft bridge extension source contract', () => {
     expect(all).not.toMatch(/espn_s2|\bSWID\b|username|password|document\.cookie|cookies\./i);
   });
 
-  test('requires ESPN on-clock state, autopick off, an eight-second floor, and stable preflight', () => {
+  test('requires ESPN on-clock state, autopick off, an eight-second floor, and stable preflight twice', () => {
     expect(content).toContain("if (!first.onClock)");
     expect(content).toContain("if (first.autopickEnabled)");
     expect(content).toContain("if (first.draftPaused)");
     expect(content).toContain('first.secondsRemaining < 8');
     expect(content).toContain('const first = await stableSnapshot()');
     expect(content).toContain('const second = await stableSnapshot()');
+    expect(content).toContain('!Number.isFinite(second.secondsRemaining)');
+    expect(content).toContain('second.secondsRemaining < 8');
   });
 
   test('sends observed ESPN draft history so Command Center can hide drafted players', () => {
