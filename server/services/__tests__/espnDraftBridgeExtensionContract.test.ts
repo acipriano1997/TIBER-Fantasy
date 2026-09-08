@@ -19,6 +19,12 @@ describe('ESPN draft bridge extension source contract', () => {
     expect(all).not.toMatch(/espn_s2|\bSWID\b|username|password|document\.cookie|cookies\./i);
   });
 
+  test('runs only in the actual ESPN draft room and binds execution to the armed pick', () => {
+    expect(content).toContain("if (!/\\/football\\/draft(?:\\/|$)/i.test(location.pathname)) return;");
+    expect(content).toContain('first.currentPick !== action.pickNumber');
+    expect(content).toContain('second.currentPick !== action.pickNumber');
+  });
+
   test('requires ESPN on-clock state, autopick off, an eight-second floor, and stable preflight twice', () => {
     expect(content).toContain("if (!first.onClock)");
     expect(content).toContain("if (first.autopickEnabled)");
