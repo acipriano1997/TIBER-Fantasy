@@ -3,6 +3,7 @@
 
   if (window.top !== window || window.__tiberEspnDraftBridgeLoaded) return;
   window.__tiberEspnDraftBridgeLoaded = true;
+  if (!/\/football\/draft(?:\/|$)/i.test(location.pathname)) return;
 
   const pageInstanceId = crypto.randomUUID();
   const handledActions = new Set();
@@ -242,6 +243,7 @@
       if (first.autopickEnabled) return void await sendResult(action, 'rejected', 'Disable ESPN Autopick first.');
       if (first.draftPaused) return void await sendResult(action, 'rejected', 'The ESPN draft is paused.');
       if (!first.currentPick) return void await sendResult(action, 'rejected', 'Current ESPN pick could not be read.');
+      if (first.currentPick !== action.pickNumber) return void await sendResult(action, 'rejected', `Draft action was armed for pick ${action.pickNumber}, but ESPN is now on pick ${first.currentPick}.`);
       if (uncertainPick === first.currentPick) return void await sendResult(action, 'rejected', 'Previous pick is uncertain; verify ESPN before another action.');
       if (!Number.isFinite(first.secondsRemaining) || first.secondsRemaining < 8) {
         return void await sendResult(action, 'rejected', 'Fewer than 8 readable seconds remain; use ESPN directly for this pick.');
@@ -257,7 +259,7 @@
       const second = await stableSnapshot();
       const liveIdentity = rowIdentity(control.row);
       if (!second || !samePreflight(first, second)
-        || second.currentPick !== first.currentPick
+        || second.currentPick !== action.pickNumber
         || !second.onClock
         || second.autopickEnabled
         || second.draftPaused
