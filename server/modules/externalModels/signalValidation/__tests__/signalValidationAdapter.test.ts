@@ -27,6 +27,10 @@ const passingAccuracyCertification = {
   leakage_checks_passed: true,
   calibration_passed: true,
   challenger_beaten: true,
+  held_out_true_positives: 12,
+  held_out_false_positives: 38,
+  held_out_false_negatives: 30,
+  held_out_true_negatives: 387,
   held_out_positive_events: 42,
   held_out_precision: 0.24,
   held_out_base_rate: 0.09,
@@ -172,11 +176,17 @@ describe('signalValidationAdapter', () => {
       promotedAt: '2026-08-31T00:00:00.000Z',
       accuracyCertification: {
         certificationVersion: 'breakout_accuracy_v1',
+        heldOutTruePositives: 12,
+        heldOutFalsePositives: 38,
+        heldOutFalseNegatives: 30,
+        heldOutTrueNegatives: 387,
         heldOutPositiveEvents: 42,
         heldOutPrecision: 0.24,
         heldOutBaseRate: 0.09,
         precisionLift: 2.67,
         precisionLiftLower95: 1.21,
+        recomputedPrecision: 0.24,
+        metricsConsistent: true,
         consumerThresholdsPassed: true,
       },
       draftTagEligible: true,
@@ -230,7 +240,34 @@ describe('signalValidationAdapter', () => {
       { exportDirectory: '/tmp/signal-validation' },
     );
 
+    expect(result.promotion?.accuracyCertification?.metricsConsistent).toBe(false);
     expect(result.promotion?.accuracyCertification?.consumerThresholdsPassed).toBe(false);
+    expect(result.promotion?.draftTagEligible).toBe(false);
+  });
+
+  it('fails closed when producer-reported metrics disagree with the held-out confusion counts', () => {
+    const result = adaptSignalValidationExports(
+      {
+        season: 2025,
+        availableSeasons: [2025],
+        playerSignalCardsCsv,
+        bestRecipeSummary,
+        exportManifest: {
+          ...promoted2026Manifest,
+          promotion: {
+            ...promoted2026Manifest.promotion,
+            accuracy_certification: {
+              ...passingAccuracyCertification,
+              precision_lift: 9.99,
+            },
+          },
+        },
+        requestedTargetSeason: 2026,
+      },
+      { exportDirectory: '/tmp/signal-validation' },
+    );
+
+    expect(result.promotion?.accuracyCertification?.metricsConsistent).toBe(false);
     expect(result.promotion?.draftTagEligible).toBe(false);
   });
 
