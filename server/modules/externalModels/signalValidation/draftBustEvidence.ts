@@ -17,9 +17,11 @@ const bustRowSchema = z.object({
   backtest_passed: z.boolean(),
   prescriptive_validation_passed: z.boolean(),
   provenance: z.array(z.unknown()).min(1),
-  freshness_context: z.unknown(),
+  freshness_context: z.any().refine((value) => value !== undefined && value !== null, {
+    message: 'freshness_context is required',
+  }),
   label_definition_version: z.string().min(1),
-  display_eligible: z.boolean().optional(),
+  display_eligible: z.boolean(),
 }).passthrough();
 
 const bustArtifactSchema = z.union([
@@ -188,7 +190,7 @@ export async function readPromotedDraftBustTags(
       && row.promotion_passed
       && row.backtest_passed
       && row.prescriptive_validation_passed
-      && row.display_eligible !== false
+      && row.display_eligible
       && !explicitStale(row.freshness_context);
     if (!eligible) continue;
 
