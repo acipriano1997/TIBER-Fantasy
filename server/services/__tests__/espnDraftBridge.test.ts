@@ -96,19 +96,32 @@ describe('ESPN draft bridge fail-closed state machine', () => {
     })).toMatchObject({ status: 'rejected', pageInstanceId: 'page-1' });
   });
 
-  test('expires a pending action immediately when its bound ESPN tab advances to a new pick', () => {
+  test('a post-click pick advance does not erase a confirmation that is still in flight', () => {
     store.ingestHeartbeat(heartbeat({ pageInstanceId: 'page-1', currentPick: 31 }));
     const action = store.requestPick({ name: 'Player One', team: 'DAL', position: 'WR' });
-    expect(action.status).toBe('pending');
 
+    // A successful ESPN native click can advance the board before the content script has
+    // posted its confirmation. The server must keep the action pending long enough to accept
+    // that bound result; stale-pick prevention lives in the extension immediately pre-click.
     store.ingestHeartbeat(heartbeat({ pageInstanceId: 'page-1', currentPick: 32 }));
     expect(store.getStatus().activeAction).toMatchObject({
       actionId: action.actionId,
       pageInstanceId: 'page-1',
       pickNumber: 31,
-      status: 'expired',
+      status: 'pending',
     });
-    expect(store.nextAction('page-1')).toBeNull();
+
+    expect(store.resolveAction({
+      pageInstanceId: 'page-1',
+      actionId: action.actionId,
+      status: 'confirmed',
+      reason: 'ESPN confirmed Player One at pick 31.',
+      espnPlayerId: '123',
+    })).toMatchObject({
+      status: 'confirmed',
+      pickNumber: 31,
+      espnPlayerId: '123',
+    });
   });
 
   test('rejects a player already observed in ESPN draft history', () => {
