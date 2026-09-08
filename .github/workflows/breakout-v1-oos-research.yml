@@ -1,9 +1,6 @@
 name: Breakout V1 Chronological OOS Research
 
 on:
-  push:
-    branches:
-      - research/run-breakout-v1-oos
   workflow_dispatch:
 
 jobs:
@@ -12,21 +9,8 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install research dependencies
+      - name: Refuse accidental holdout reuse
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install pandas numpy scikit-learn
-
-      - name: Run frozen unseen 2024 to 2025 holdout once
-        run: python scripts/research/run_breakout_v1_4_unseen_2025.py
-
-      - name: Show report
-        run: cat outputs/research/breakout_v1_4_unseen_2025/report.json
+          echo "2024->2025 is consumed evidence for breakout_v1_4_frozen_2026_09_08."
+          echo "Do not rerun or retune against this holdout as unseen evidence."
+          exit 1
