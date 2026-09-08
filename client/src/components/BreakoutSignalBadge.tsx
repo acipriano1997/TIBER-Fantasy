@@ -1,4 +1,3 @@
-import { Badge } from '@/components/ui/badge';
 import {
   Tooltip,
   TooltipContent,
@@ -28,13 +27,9 @@ export function BreakoutSignalBadge({ tag }: { tag: BreakoutDraftTag | null }) {
             aria-label={`${tag.label} promoted model evidence for ${tag.playerName}`}
             data-breakout-signal-season={tag.targetSeason}
             data-breakout-signal-player-id={tag.playerId ?? undefined}
+            className="inline-flex items-center rounded-full border border-amber-400/35 bg-amber-400/10 px-1.5 py-0.5 text-[9px] font-semibold leading-none text-amber-200"
           >
-            <Badge
-              variant="outline"
-              className="border-amber-400/35 bg-amber-400/10 px-1.5 py-0 text-[9px] font-semibold text-amber-200"
-            >
-              {tag.label}
-            </Badge>
+            {tag.label}
           </span>
         </TooltipTrigger>
         <TooltipContent side="top" className="max-w-72 space-y-1.5 text-xs leading-relaxed">
