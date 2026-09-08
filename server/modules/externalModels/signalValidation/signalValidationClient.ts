@@ -4,12 +4,14 @@ import {
   CanonicalSignalValidationExports,
   SignalValidationClientConfig,
   SignalValidationIntegrationError,
+  signalValidationExportManifestSchema,
 } from './types';
 
 const DEFAULT_EXPORTS_DIR = path.join(process.cwd(), 'data', 'signal-validation');
 const WR_SIGNAL_FILE_PREFIX = 'wr_player_signal_cards_';
 const WR_SIGNAL_FILE_SUFFIX = '.csv';
 const WR_BEST_RECIPE_FILE = 'wr_best_recipe_summary.json';
+const WR_EXPORT_MANIFEST_FILE = 'export_manifest.json';
 
 function parseSeasonFromFilename(filename: string): number | null {
   const match = filename.match(/^wr_player_signal_cards_(\d{4})\.csv$/);
@@ -59,6 +61,45 @@ export class SignalValidationClient {
     }
   }
 
+  private async readExportManifest(required: boolean): Promise<unknown | undefined> {
+    const manifestPath = path.join(this.exportsDir, WR_EXPORT_MANIFEST_FILE);
+
+    try {
+      return JSON.parse(await fs.readFile(manifestPath, 'utf8'));
+    } catch (error) {
+      const nodeError = error as NodeJS.ErrnoException;
+
+      if (nodeError.code === 'ENOENT' && !required) {
+        return undefined;
+      }
+
+      if (nodeError.code === 'ENOENT') {
+        throw new SignalValidationIntegrationError(
+          'not_found',
+          `Signal Validation ${WR_EXPORT_MANIFEST_FILE} is required for promoted draft tags.`,
+          404,
+          error,
+        );
+      }
+
+      if (error instanceof SyntaxError) {
+        throw new SignalValidationIntegrationError(
+          'malformed_export',
+          'Signal Validation export manifest JSON is not valid JSON.',
+          502,
+          error,
+        );
+      }
+
+      throw new SignalValidationIntegrationError(
+        'upstream_unavailable',
+        'Unable to read the Signal Validation export manifest.',
+        503,
+        error,
+      );
+    }
+  }
+
   async readWrBreakoutExports(requestedSeason?: number): Promise<CanonicalSignalValidationExports> {
     const availableSeasons = await this.listAvailableSeasons();
 
@@ -89,9 +130,10 @@ export class SignalValidationClient {
     const summaryPath = path.join(this.exportsDir, WR_BEST_RECIPE_FILE);
 
     try {
-      const [playerSignalCardsCsv, bestRecipeSummaryRaw] = await Promise.all([
+      const [playerSignalCardsCsv, bestRecipeSummaryRaw, exportManifest] = await Promise.all([
         fs.readFile(csvPath, 'utf8'),
         fs.readFile(summaryPath, 'utf8'),
+        this.readExportManifest(false),
       ]);
 
       return {
@@ -99,8 +141,13 @@ export class SignalValidationClient {
         availableSeasons,
         playerSignalCardsCsv,
         bestRecipeSummary: JSON.parse(bestRecipeSummaryRaw),
+        exportManifest,
       };
     } catch (error) {
+      if (error instanceof SignalValidationIntegrationError) {
+        throw error;
+      }
+
       const nodeError = error as NodeJS.ErrnoException;
 
       if (nodeError.code === 'ENOENT') {
@@ -129,5 +176,37 @@ export class SignalValidationClient {
         error,
       );
     }
+  }
+
+  async readWrBreakoutExportsForTargetSeason(targetSeason: number): Promise<CanonicalSignalValidationExports> {
+    const exportManifest = await this.readExportManifest(true);
+    const parsed = signalValidationExportManifestSchema.safeParse(exportManifest);
+
+    if (!parsed.success) {
+      throw new SignalValidationIntegrationError(
+        'invalid_payload',
+        'Signal Validation export manifest does not match the promoted-signal contract.',
+        502,
+        parsed.error.flatten(),
+      );
+    }
+
+    if (parsed.data.outcome_season !== targetSeason) {
+      throw new SignalValidationIntegrationError(
+        'not_found',
+        `No promoted Signal Validation WR export targets season ${targetSeason}. ` +
+          `The current manifest targets ${parsed.data.outcome_season}.`,
+        404,
+        undefined,
+        [parsed.data.outcome_season],
+      );
+    }
+
+    const exports = await this.readWrBreakoutExports(parsed.data.feature_season);
+    return {
+      ...exports,
+      exportManifest,
+      requestedTargetSeason: targetSeason,
+    };
   }
 }
