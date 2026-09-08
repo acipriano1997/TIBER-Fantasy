@@ -75,18 +75,51 @@ export class SignalValidationService {
 
       const tags = lab.rows
         .filter((row) => isAffirmativeBreakoutLabel(row.breakoutLabelDefault))
-        .map((row) => ({
-          playerId: row.playerId,
-          playerName: row.playerName,
-          team: row.team,
-          targetSeason,
-          label: `${targetSeason} Breakout`,
-          candidateRank: row.candidateRank,
-          finalSignalScore: row.finalSignalScore,
-          breakoutContext: row.breakoutContext,
-          modelVersion: lab.bestRecipeSummary.modelVersion,
-          generatedAt: lab.bestRecipeSummary.generatedAt,
-        }));
+        .map((row) => {
+          const primaryProbability = row.probabilities.primary;
+          const primaryTarget = row.probabilities.primaryTarget;
+
+          if (primaryProbability == null || !primaryTarget) {
+            throw new SignalValidationIntegrationError(
+              'invalid_payload',
+              `Promoted breakout row for ${row.playerName} is missing a calibrated primary probability or probability target. ` +
+                'TIBER will not convert final_signal_score into a percentage.',
+              502,
+              {
+                playerId: row.playerId,
+                playerName: row.playerName,
+                primaryProbability,
+                primaryTarget,
+              },
+            );
+          }
+
+          const probabilityPercent = Math.round(primaryProbability * 100);
+
+          return {
+            playerId: row.playerId,
+            playerName: row.playerName,
+            team: row.team,
+            targetSeason,
+            label: `${targetSeason} Breakout`,
+            displayLabel: `${targetSeason} Breakout · ${probabilityPercent}%`,
+            probability: {
+              value: primaryProbability,
+              percent: probabilityPercent,
+              target: primaryTarget,
+            },
+            probabilities: {
+              ...row.probabilities,
+              primary: primaryProbability,
+              primaryTarget,
+            },
+            candidateRank: row.candidateRank,
+            finalSignalScore: row.finalSignalScore,
+            breakoutContext: row.breakoutContext,
+            modelVersion: lab.bestRecipeSummary.modelVersion,
+            generatedAt: lab.bestRecipeSummary.generatedAt,
+          } satisfies TiberBreakoutDraftTag;
+        });
 
       return { lab, tags };
     } catch (error) {

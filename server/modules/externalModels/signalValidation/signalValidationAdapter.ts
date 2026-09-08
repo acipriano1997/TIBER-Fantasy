@@ -26,6 +26,16 @@ const BREAKOUT_CONTEXT_KEYS = [
 const PLAYER_ID_KEYS = ['player_id', 'gsis_id', 'player_gsis_id'] as const;
 const TEAM_KEYS = ['team', 'feature_team', 'team_id', 'team_abbr'] as const;
 const BEST_RECIPE_KEYS = ['best_recipe_name', 'recipe_name', 'top_recipe_name'] as const;
+const PRIMARY_PROBABILITY_KEYS = [
+  'breakout_probability',
+  'calibrated_breakout_probability',
+  'primary_breakout_probability',
+] as const;
+const PRIMARY_PROBABILITY_TARGET_KEYS = [
+  'breakout_probability_target',
+  'primary_breakout_probability_target',
+  'probability_target',
+] as const;
 
 function pickString(record: Record<string, string | undefined>, keys: readonly string[]): string | null {
   for (const key of keys) {
@@ -45,6 +55,39 @@ function parseNumber(value: string | undefined): number | null {
 
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : null;
+}
+
+function parseProbability(value: string | undefined, field: string, playerName: string): number | null {
+  if (value == null || value.trim() === '') {
+    return null;
+  }
+
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric < 0 || numeric > 1) {
+    throw new SignalValidationIntegrationError(
+      'invalid_payload',
+      `Signal Validation probability ${field} for ${playerName} must be a finite value between 0 and 1.`,
+      502,
+      { field, playerName, value },
+    );
+  }
+
+  return numeric;
+}
+
+function pickProbability(
+  record: Record<string, string | undefined>,
+  keys: readonly string[],
+  playerName: string,
+): number | null {
+  for (const key of keys) {
+    const value = record[key];
+    if (value != null && value.trim() !== '') {
+      return parseProbability(value, key, playerName);
+    }
+  }
+
+  return null;
 }
 
 function toRawFields(record: Record<string, string | undefined>): Record<string, string | null> {
@@ -121,6 +164,19 @@ export function normalizeWrSignalCardRows(rows: Record<string, string | undefine
       bestRecipeName: pickString(record, BEST_RECIPE_KEYS),
       breakoutLabelDefault: pickString(record, ['breakout_label_default']),
       breakoutContext: pickString(record, BREAKOUT_CONTEXT_KEYS),
+      probabilities: {
+        primary: pickProbability(record, PRIMARY_PROBABILITY_KEYS, playerName),
+        primaryTarget: pickString(record, PRIMARY_PROBABILITY_TARGET_KEYS),
+        top12Next4w: parseProbability(record.p_top_12_next_4w, 'p_top_12_next_4w', playerName),
+        top24Next4w: parseProbability(record.p_top_24_next_4w, 'p_top_24_next_4w', playerName),
+        rosTierJump: parseProbability(record.p_ros_tier_jump, 'p_ros_tier_jump', playerName),
+        adpOutperformance12Slots: parseProbability(
+          record.p_adp_outperformance_12_slots,
+          'p_adp_outperformance_12_slots',
+          playerName,
+        ),
+        roleExpansion: parseProbability(record.p_role_expansion, 'p_role_expansion', playerName),
+      },
       components: {
         usage: parseNumber(record.usage_signal),
         efficiency: parseNumber(record.efficiency_signal),

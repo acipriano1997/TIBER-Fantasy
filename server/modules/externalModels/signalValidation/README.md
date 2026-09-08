@@ -35,21 +35,82 @@ The manifest must explicitly carry an upstream promotion block:
 
 TIBER-Fantasy does not infer these booleans from local thresholds or re-run the model. A draft tag is eligible only when all three upstream conditions are explicit: promoted status, successful backtest, and successful prescriptive validation. Missing, stale, candidate, rejected, or failed promotion evidence is blocked.
 
+## Calibrated probability contract
+
+A promoted affirmative breakout row must also carry an upstream-calibrated primary probability and an explicit target describing the event that probability measures. TIBER-Fantasy never converts `final_signal_score` into a percentage.
+
+Accepted primary probability columns, in precedence order:
+
+- `breakout_probability`
+- `calibrated_breakout_probability`
+- `primary_breakout_probability`
+
+Accepted target columns, in precedence order:
+
+- `breakout_probability_target`
+- `primary_breakout_probability_target`
+- `probability_target`
+
+All probability values are decimal probabilities in the closed interval `[0, 1]`. Values such as `73` are invalid; `0.73` is valid.
+
+The producer may additionally export calibrated component probabilities that map directly to Command Center breakout outcomes:
+
+- `p_top_12_next_4w`
+- `p_top_24_next_4w`
+- `p_ros_tier_jump`
+- `p_adp_outperformance_12_slots`
+- `p_role_expansion`
+
+A compact draft tag can therefore render as `2026 Breakout · 73%` while preserving the exact probability target and the secondary probabilities for a tooltip or expanded player detail view. The percentage displayed on the badge is a whole-number rendering of the producer probability; the raw decimal remains in the API payload.
+
+Example row fields:
+
+```csv
+player_id,player_name,breakout_label_default,breakout_probability,breakout_probability_target,p_ros_tier_jump,p_adp_outperformance_12_slots,p_role_expansion
+00-0042051,Example Player,true,0.73,ros_tier_jump,0.73,0.61,0.68
+```
+
+If a promoted affirmative row lacks a primary calibrated probability or its target, the draft-tag endpoint fails closed with `invalid_payload`. The UI must not substitute signal score, rank, hit rate, or any locally derived heuristic as a probability.
+
 ## Contract
 
 - Client: filesystem/export discovery, target-season manifest resolution, and read errors
-- Adapter: CSV + JSON validation/normalization into stable TIBER-facing types
-- Service: `getWrBreakoutLab()` plus promotion-gated `getWrBreakoutDraftTags(targetSeason)`
+- Adapter: CSV + JSON validation/normalization into stable TIBER-facing types, including calibrated probabilities
+- Service: `getWrBreakoutLab()` plus promotion- and probability-gated `getWrBreakoutDraftTags(targetSeason)`
 - Routes:
   - `GET /api/data-lab/breakout-signals[?season=<feature-year>]`
   - `GET /api/data-lab/breakout-signals/draft-tags?season=<target-year>`
 
-The draft-tag response is intentionally minimal and identity-friendly (`playerId`, player name/team, candidate rank, signal score, context, model version, generated timestamp) so draft surfaces can render a badge such as `2026 Breakout` without copying model logic into the UI.
+The draft-tag response is identity-friendly and includes `playerId`, player name/team, candidate rank, signal score, context, model version, generated timestamp, a ready-to-render `displayLabel`, the primary calibrated probability, its target, and any secondary calibrated breakout probabilities.
+
+Illustrative tag payload:
+
+```json
+{
+  "label": "2026 Breakout",
+  "displayLabel": "2026 Breakout · 73%",
+  "probability": {
+    "value": 0.73,
+    "percent": 73,
+    "target": "ros_tier_jump"
+  },
+  "probabilities": {
+    "primary": 0.73,
+    "primaryTarget": "ros_tier_jump",
+    "top12Next4w": 0.21,
+    "top24Next4w": 0.46,
+    "rosTierJump": 0.73,
+    "adpOutperformance12Slots": 0.61,
+    "roleExpansion": 0.68
+  }
+}
+```
 
 ## Product behavior
 
 - Read-only only; no rescoring or mutation
-- Empty, malformed, missing-export, stale-target, and not-promoted states are surfaced explicitly
+- Empty, malformed, missing-export, stale-target, not-promoted, and invalid-probability states are surfaced explicitly
 - The WR Breakout Lab adds client-side sort/search/filter controls plus grouped read-only detail sections for exported signal cards
 - TIBER-Fantasy displays promoted Signal-Validation-Model outputs and does not recompute breakout logic
 - Draft badges fail closed: no upstream promotion proof means no breakout tag
+- Draft badges also fail closed when calibrated probability evidence is absent or invalid

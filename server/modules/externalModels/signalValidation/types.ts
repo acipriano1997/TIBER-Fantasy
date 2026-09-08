@@ -85,6 +85,23 @@ export interface SignalValidationComponentSignals {
   penalty: number | null;
 }
 
+export interface TiberBreakoutProbabilitySet {
+  /** Producer-calibrated probability used as the compact draft-badge headline. */
+  primary: number | null;
+  /** Explicit producer-defined event measured by `primary`; never inferred locally. */
+  primaryTarget: string | null;
+  top12Next4w: number | null;
+  top24Next4w: number | null;
+  rosTierJump: number | null;
+  adpOutperformance12Slots: number | null;
+  roleExpansion: number | null;
+}
+
+export interface TiberBreakoutDraftProbabilitySet extends Omit<TiberBreakoutProbabilitySet, 'primary' | 'primaryTarget'> {
+  primary: number;
+  primaryTarget: string;
+}
+
 export interface TiberWrBreakoutSignalRow {
   candidateRank: number | null;
   finalSignalScore: number | null;
@@ -95,6 +112,7 @@ export interface TiberWrBreakoutSignalRow {
   bestRecipeName: string | null;
   breakoutLabelDefault: string | null;
   breakoutContext: string | null;
+  probabilities: TiberBreakoutProbabilitySet;
   components: SignalValidationComponentSignals;
   rawFields: Record<string, string | null>;
 }
@@ -145,7 +163,16 @@ export interface TiberBreakoutDraftTag {
   playerName: string;
   team: string | null;
   targetSeason: number;
+  /** Stable text label retained for existing consumers. */
   label: string;
+  /** Ready-to-render compact badge text, e.g. `2026 Breakout · 73%`. */
+  displayLabel: string;
+  probability: {
+    value: number;
+    percent: number;
+    target: string;
+  };
+  probabilities: TiberBreakoutDraftProbabilitySet;
   candidateRank: number | null;
   finalSignalScore: number | null;
   breakoutContext: string | null;

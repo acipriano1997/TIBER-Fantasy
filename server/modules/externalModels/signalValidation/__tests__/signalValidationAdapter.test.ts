@@ -5,7 +5,7 @@ import {
 } from '../signalValidationAdapter';
 import { SignalValidationIntegrationError } from '../types';
 
-const playerSignalCardsCsv = `candidate_rank,final_signal_score,player_name,player_id,team,season,best_recipe_name,usage_signal,efficiency_signal,development_signal,stability_signal,cohort_signal,role_signal,penalty_signal,breakout_label_default,breakout_context\n1,92.4,Malik Nabers,00-0042051,NYG,2025,Second-Year Surge,96,91,89,82,85,88,-3,true,Elite rookie route command with more downfield volume expected\n2,88.1,Rome Odunze,00-0042048,CHI,2025,Second-Year Surge,90,84,87,80,82,81,-4,false,Target share runway if route tree expands`;
+const playerSignalCardsCsv = `candidate_rank,final_signal_score,player_name,player_id,team,season,best_recipe_name,usage_signal,efficiency_signal,development_signal,stability_signal,cohort_signal,role_signal,penalty_signal,breakout_label_default,breakout_context,breakout_probability,breakout_probability_target,p_top_12_next_4w,p_top_24_next_4w,p_ros_tier_jump,p_adp_outperformance_12_slots,p_role_expansion\n1,92.4,Malik Nabers,00-0042051,NYG,2025,Second-Year Surge,96,91,89,82,85,88,-3,true,Elite rookie route command with more downfield volume expected,0.73,ros_tier_jump,0.21,0.46,0.73,0.61,0.68\n2,88.1,Rome Odunze,00-0042048,CHI,2025,Second-Year Surge,90,84,87,80,82,81,-4,false,Target share runway if route tree expands,0.34,ros_tier_jump,0.08,0.22,0.34,0.39,0.52`;
 
 const bestRecipeSummary = {
   best_recipe_name: 'Second-Year Surge',
@@ -53,6 +53,15 @@ describe('signalValidationAdapter', () => {
       bestRecipeName: 'Second-Year Surge',
       breakoutLabelDefault: 'true',
       breakoutContext: 'Elite rookie route command with more downfield volume expected',
+      probabilities: {
+        primary: 0.73,
+        primaryTarget: 'ros_tier_jump',
+        top12Next4w: 0.21,
+        top24Next4w: 0.46,
+        rosTierJump: 0.73,
+        adpOutperformance12Slots: 0.61,
+        roleExpansion: 0.68,
+      },
       components: {
         usage: 96,
         efficiency: 91,
@@ -75,7 +84,7 @@ describe('signalValidationAdapter', () => {
   });
 
   it('maps the canonical producer field names without inventing replacements', () => {
-    const canonicalCsv = `player_id,player_name,feature_season,outcome_season,feature_team,best_recipe_name,candidate_rank,final_signal_score,breakout_label_default,breakout_reason,usage_signal,efficiency_signal,development_signal,stability_signal,cohort_signal,role_signal,penalty_signal\n00-0042051,Rome Odunze,2025,2026,CHI,role_balanced,1,88.2,true,Development and opportunity profile,77,84,90,78,80,83,8`;
+    const canonicalCsv = `player_id,player_name,feature_season,outcome_season,feature_team,best_recipe_name,candidate_rank,final_signal_score,breakout_label_default,breakout_reason,usage_signal,efficiency_signal,development_signal,stability_signal,cohort_signal,role_signal,penalty_signal,calibrated_breakout_probability,probability_target,p_ros_tier_jump\n00-0042051,Rome Odunze,2025,2026,CHI,role_balanced,1,88.2,true,Development and opportunity profile,77,84,90,78,80,83,8,0.57,ros_tier_jump,0.57`;
     const canonicalSummary = {
       best_recipe_name: 'role_balanced',
       scoring_version: 'wr_signal_score_role_balanced_v1',
@@ -105,6 +114,11 @@ describe('signalValidationAdapter', () => {
       team: 'CHI',
       season: 2025,
       breakoutContext: 'Development and opportunity profile',
+      probabilities: {
+        primary: 0.57,
+        primaryTarget: 'ros_tier_jump',
+        rosTierJump: 0.57,
+      },
     });
     expect(result.bestRecipeSummary).toMatchObject({
       modelVersion: 'wr_signal_score_role_balanced_v1',
@@ -160,6 +174,20 @@ describe('signalValidationAdapter', () => {
     );
 
     expect(result.promotion?.draftTagEligible).toBe(false);
+  });
+
+  it('rejects out-of-range producer probabilities instead of coercing them', () => {
+    const invalidCsv = playerSignalCardsCsv.replace(',0.73,ros_tier_jump,', ',73,ros_tier_jump,');
+
+    expect(() => adaptSignalValidationExports(
+      {
+        season: 2025,
+        availableSeasons: [2025],
+        playerSignalCardsCsv: invalidCsv,
+        bestRecipeSummary,
+      },
+      { exportDirectory: '/tmp/signal-validation' },
+    )).toThrow(SignalValidationIntegrationError);
   });
 
   it('does not treat explicit false labels as breakout candidates', () => {
