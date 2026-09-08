@@ -8,6 +8,7 @@ import { buildStrategyContextActivationDiagnostics } from '../modules/management
 import { buildForgeEvidenceActivationDiagnostics } from '../modules/management/forgeEvidenceActivationDiagnostics';
 import { buildTeamDirectionForgeFreshnessReceipt } from '../modules/management/forgeTeamDirectionFreshnessPolicy';
 import { espnDraftBridgeStore } from '../services/espnDraftBridge';
+import { fetchEspnDraftMarket, type EspnDraftScoring } from '../services/espnDraftMarket';
 
 type ManagementDeps = {
   storage: typeof storage;
@@ -45,6 +46,35 @@ function requireLocalDraftBridge(req: express.Request, res: express.Response, ne
 
 export function createManagementRouter(deps: ManagementDeps = defaultDeps) {
   const router = express.Router();
+
+  router.get('/api/management/espn-draft-market', requireLocalDraftBridge, async (req, res) => {
+    try {
+      const season = Number(req.query.season ?? 2026);
+      const scoring = String(req.query.scoring ?? 'PPR').toUpperCase() as EspnDraftScoring;
+      const position = String(req.query.position ?? '').toUpperCase();
+      if (!Number.isInteger(season) || season < 2020 || season > 2100) {
+        return res.status(400).json({ success: false, error: 'Invalid season.' });
+      }
+      if (!['PPR', 'HALF_PPR', 'STANDARD'].includes(scoring)) {
+        return res.status(400).json({ success: false, error: 'Invalid scoring type.' });
+      }
+      if (position && !['QB', 'RB', 'WR', 'TE'].includes(position)) {
+        return res.status(400).json({ success: false, error: 'Invalid draft position.' });
+      }
+
+      const snapshot = await fetchEspnDraftMarket({ season, scoring });
+      const rows = position ? snapshot.rows.filter((row) => row.position === position) : snapshot.rows;
+      return res.json({
+        success: true,
+        ...snapshot,
+        rows,
+        marketOnly: true,
+        footballValueAuthority: false,
+      });
+    } catch (error) {
+      return res.status(503).json({ success: false, error: (error as Error).message });
+    }
+  });
 
   router.get('/api/management/espn-draft-bridge/status', requireLocalDraftBridge, (_req, res) => {
     res.json({ success: true, ...espnDraftBridgeStore.getStatus() });
