@@ -12,6 +12,7 @@ export type EspnDraftBridgeStatus = {
   schemaVersion: 'espn_draft_bridge_v1';
   connected: boolean;
   readyToDraft: boolean;
+  minimumDraftSeconds: number;
   page: null | {
     leagueId: string | null;
     teamId: string | null;
