@@ -1,0 +1,71 @@
+{
+  "result_id": "breakout_v1_4_unseen_2025_consumed",
+  "status": "research_only_not_certified",
+  "evaluated_at": "2026-09-08T16:07:09Z",
+  "frozen_spec": "research/breakout_v1_4_frozen_spec.json",
+  "evaluation_head": "4dbabd33c85b0119a8ca1ffade3cd67caf852d07",
+  "workflow_run_id": 34249042114,
+  "data_artifact_sha256": "d45f612b207085df00b4b080e4f55ce1abbd060dcbf30b0bee777ff833ddd8ac",
+  "chronology": {
+    "training_feature_seasons": [2021, 2022, 2023],
+    "holdout_feature_season": 2024,
+    "holdout_outcome_season": 2025,
+    "holdout_used_in_selection": false,
+    "holdout_consumed": true,
+    "may_not_be_reused_as_unseen": true
+  },
+  "champion": {
+    "n": 110,
+    "positive_events": 21,
+    "tagged": 24,
+    "tp": 10,
+    "fp": 14,
+    "fn": 11,
+    "tn": 75,
+    "precision": 0.4166666666666667,
+    "recall": 0.47619047619047616,
+    "base_rate": 0.19090909090909092,
+    "lift": 2.1825396825396823,
+    "brier_score": 0.13148812689744838,
+    "log_loss": 0.40235746839159037,
+    "pr_auc": 0.46536817837118316
+  },
+  "precision_lift_95": {
+    "method": "nonparametric_row_bootstrap",
+    "iterations": 20000,
+    "lower_95": 1.35989010989011,
+    "median": 2.1739130434782608,
+    "upper_95": 3.2352941176470593
+  },
+  "simple_challenger": {
+    "tp": 9,
+    "fp": 17,
+    "fn": 12,
+    "tn": 72,
+    "precision": 0.34615384615384615,
+    "recall": 0.42857142857142855,
+    "lift": 1.813186813186813,
+    "brier_score": 0.14083068531528392,
+    "log_loss": 0.4322710693901927,
+    "pr_auc": 0.3470869874712922
+  },
+  "oracle_holdout_base_rate_constant": {
+    "probability": 0.19090909090909092,
+    "brier_score": 0.1544628099173554,
+    "log_loss": 0.4875384739892131
+  },
+  "certification_checks": {
+    "positive_events_at_least_30": false,
+    "precision_at_least_15pct": true,
+    "lift_gt_1_5": true,
+    "lift_lower_95_gt_1": true,
+    "brier_beats_oracle_base_rate": true,
+    "log_loss_beats_oracle_base_rate": true,
+    "brier_beats_simple_challenger": true,
+    "log_loss_beats_simple_challenger": true
+  },
+  "certification_result": "fail_only_on_minimum_holdout_positive_event_count",
+  "promotion_authority": "none",
+  "consumer_activation": "off",
+  "next_valid_evidence": "A new genuinely unseen season/population or a preregistered independent external validation set. Do not lower the 30-event gate after observing this result."
+}
