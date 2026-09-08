@@ -15,7 +15,7 @@ describe('ESPN draft bridge extension source contract', () => {
       'http://127.0.0.1:5000/*',
       'http://localhost:5000/*',
     ]);
-    expect(parsed.permissions).toEqual(['storage']);
+    expect(parsed.permissions).toEqual([]);
     expect(all).not.toMatch(/espn_s2|\bSWID\b|username|password|document\.cookie|cookies\./i);
   });
 
@@ -26,6 +26,13 @@ describe('ESPN draft bridge extension source contract', () => {
     expect(content).toContain('first.secondsRemaining < 8');
     expect(content).toContain('const first = await stableSnapshot()');
     expect(content).toContain('const second = await stableSnapshot()');
+  });
+
+  test('sends observed ESPN draft history so Command Center can hide drafted players', () => {
+    expect(content).toContain('function draftedPlayerNames()');
+    expect(content).toContain(".pick-message__container .playerinfo__playername, .pick-history .playerinfo__playername");
+    expect(content).toContain('.draft-board-grid-pick-cell.completedPick');
+    expect(content).toContain('draftedPlayerNames: draftedPlayerNames()');
   });
 
   test('uses ESPN native Draft controls and treats a post-click ambiguity as uncertain with no retry loop', () => {
