@@ -173,7 +173,10 @@ def build_2026_candidates(df):
             continue
         if not (np.isfinite(r.season_ppg) and np.isfinite(r.targets_per_game)):
             continue
-        rows.append(feature_row(r))
+        row = feature_row(r)
+        history = df[(df.player_id == r.player_id) & (df.season < 2025)]
+        row["signal_kind"] = "rebound" if bool((history.finish <= 24).fillna(False).any()) else "breakout"
+        rows.append(row)
     return pd.DataFrame(rows)
 
 
@@ -213,6 +216,41 @@ def main():
     tagged = candidates[candidates.tagged].sort_values(
         ["probability", "player_name"], ascending=[False, True]
     )
+
+    tags = []
+    for rank, r in enumerate(tagged.itertuples(index=False), start=1):
+        signal_name = "Rebound" if r.signal_kind == "rebound" else "Breakout"
+        probability = float(r.probability)
+        tags.append({
+            "playerId": str(r.player_id),
+            "playerName": str(r.player_name),
+            "team": None if pd.isna(r.team) else str(r.team),
+            "targetSeason": 2026,
+            "label": f"2026 {signal_name} Research",
+            "displayLabel": f"2026 {signal_name} · {round(probability * 100):d}%",
+            "probability": {
+                "value": probability,
+                "percent": round(probability * 100),
+                "target": "ros_tier_jump",
+            },
+            "probabilities": {
+                "primary": probability,
+                "primaryTarget": "ros_tier_jump",
+                "top12Next4w": None,
+                "top24Next4w": None,
+                "rosTierJump": probability,
+                "adpOutperformance12Slots": None,
+                "roleExpansion": None,
+            },
+            "candidateRank": rank,
+            "finalSignalScore": None,
+            "breakoutContext": "Frozen v1.4 probability of moving into a better WR PPG tier in 2026, using 2025 production, role, development and draft-capital evidence.",
+            "modelVersion": "breakout_v1_4_frozen_2026_09_08",
+            "generatedAt": "2026-09-08T16:21:03Z",
+            "evidenceStatus": "provisional_research_only",
+            "signalKind": r.signal_kind,
+        })
+
     out = {
         "schema_version": "draft_night_provisional_breakout_v1",
         "target_season": 2026,
@@ -233,37 +271,7 @@ def main():
             "certified": False,
             "reason": "Failed only preregistered >=30 unseen positive-event count gate.",
         },
-        "tags": [
-            {
-                "playerId": str(r.player_id),
-                "playerName": str(r.player_name),
-                "team": None if pd.isna(r.team) else str(r.team),
-                "targetSeason": 2026,
-                "label": "2026 Breakout Research",
-                "displayLabel": f"2026 Breakout · {round(float(r.probability) * 100):d}%",
-                "probability": {
-                    "value": float(r.probability),
-                    "percent": round(float(r.probability) * 100),
-                    "target": "ros_tier_jump",
-                },
-                "probabilities": {
-                    "primary": float(r.probability),
-                    "primaryTarget": "ros_tier_jump",
-                    "top12Next4w": None,
-                    "top24Next4w": None,
-                    "rosTierJump": float(r.probability),
-                    "adpOutperformance12Slots": None,
-                    "roleExpansion": None,
-                },
-                "candidateRank": rank,
-                "finalSignalScore": None,
-                "breakoutContext": "Frozen v1.4 research probability from 2025 production, role, development and draft-capital evidence.",
-                "modelVersion": "breakout_v1_4_frozen_2026_09_08",
-                "generatedAt": "2026-09-08T16:18:00Z",
-                "evidenceStatus": "provisional_research_only",
-            }
-            for rank, r in enumerate(tagged.itertuples(index=False), start=1)
-        ],
+        "tags": tags,
     }
     print("=== BREAKOUT_2026_PROVISIONAL_JSON ===")
     print(json.dumps(out, indent=2))
