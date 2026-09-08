@@ -1,0 +1,138 @@
+/* Personal iPhone/PWA hardening.
+ *
+ * This file is intentionally shell-only. It does not create a second mobile UI;
+ * it gives the shared desktop/mobile shell safe-area, touch, and focus geometry
+ * appropriate for an installed iPhone web app.
+ */
+:root {
+  --tiber-safe-top: env(safe-area-inset-top, 0px);
+  --tiber-safe-right: env(safe-area-inset-right, 0px);
+  --tiber-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --tiber-safe-left: env(safe-area-inset-left, 0px);
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  min-height: 100dvh;
+  overscroll-behavior-y: none;
+}
+
+.tiber-topbar {
+  height: calc(var(--topbar-height, 52px) + var(--tiber-safe-top));
+  padding-top: var(--tiber-safe-top);
+  padding-right: max(20px, var(--tiber-safe-right));
+  padding-left: max(20px, var(--tiber-safe-left));
+}
+
+.tiber-main {
+  padding-top: calc(var(--topbar-height, 52px) + var(--tiber-safe-top));
+  padding-bottom: var(--tiber-safe-bottom);
+  min-height: 100dvh;
+}
+
+.tiber-sidebar {
+  top: calc(var(--topbar-height, 52px) + var(--tiber-safe-top));
+  padding-bottom: var(--tiber-safe-bottom);
+}
+
+.sidebar-footer {
+  padding-bottom: calc(16px + var(--tiber-safe-bottom));
+}
+
+@media (max-width: 768px) {
+  .tiber-main {
+    margin-left: 0;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: clip;
+  }
+
+  .tiber-topbar {
+    padding-right: max(12px, var(--tiber-safe-right));
+    padding-left: max(8px, var(--tiber-safe-left));
+    gap: 8px;
+  }
+
+  .tiber-topbar-brand {
+    min-width: 0;
+    gap: 8px;
+  }
+
+  .tiber-topbar-section {
+    min-width: 0;
+    max-width: min(52vw, 220px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .tiber-hamburger,
+  .tiber-drawer-close {
+    min-width: 44px;
+    min-height: 44px;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    align-items: center;
+    justify-content: center;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .tiber-sidebar-mobile {
+    width: min(88vw, 320px);
+    max-width: calc(100vw - max(20px, var(--tiber-safe-right)));
+    padding-left: var(--tiber-safe-left);
+    padding-bottom: var(--tiber-safe-bottom);
+    overflow-x: hidden;
+  }
+
+  .tiber-drawer-close {
+    top: 8px;
+    right: max(8px, var(--tiber-safe-right));
+    border-radius: 10px;
+  }
+
+  .sidebar-nav {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    padding-bottom: 12px;
+  }
+
+  .nav-item {
+    min-height: 44px;
+    padding: 10px 12px;
+    touch-action: manipulation;
+  }
+
+  input,
+  select,
+  textarea {
+    /* iOS Safari auto-zooms focused controls below 16px. */
+    font-size: max(16px, 1em);
+  }
+
+  button,
+  a,
+  input,
+  select,
+  textarea {
+    scroll-margin-top: calc(var(--topbar-height, 52px) + var(--tiber-safe-top) + 12px);
+    scroll-margin-bottom: calc(var(--tiber-safe-bottom) + 16px);
+  }
+
+  :focus-visible {
+    outline-offset: 3px;
+  }
+}
+
+@media (max-width: 430px) {
+  .tiber-content {
+    padding-right: 14px;
+    padding-left: 14px;
+  }
+}
