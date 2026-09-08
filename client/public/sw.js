@@ -1,5 +1,5 @@
-const STATIC_CACHE = 'tiber-static-v2';
-const DOCUMENT_CACHE = 'tiber-document-v2';
+const STATIC_CACHE = 'tiber-static-v3';
+const DOCUMENT_CACHE = 'tiber-document-v3';
 
 const STATIC_ASSETS = [
   '/',
@@ -51,9 +51,9 @@ self.addEventListener('fetch', (event) => {
   }
 
   if (url.pathname.toLowerCase().startsWith('/api/')) {
-    // API responses may contain private state or runtime capabilities. They must
-    // never survive a profile change or be replayed while the network is down.
-    event.respondWith(apiNetworkOnly(request));
+    // Private/live API traffic is deliberately outside the service-worker
+    // response pipeline. The worker cannot cache, synthesize, or replay these
+    // responses; normal browser networking owns success/failure semantics.
     return;
   }
 
@@ -64,10 +64,6 @@ self.addEventListener('fetch', (event) => {
 
   event.respondWith(staleWhileRevalidate(request));
 });
-
-async function apiNetworkOnly(request) {
-  return fetch(request, { cache: 'no-store' });
-}
 
 async function networkFirst(request) {
   try {
