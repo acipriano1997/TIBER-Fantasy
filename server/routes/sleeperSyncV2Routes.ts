@@ -17,6 +17,7 @@ import { db } from '../infra/db';
 import { ownershipEvents, sleeperSyncState } from '@shared/schema';
 import { eq, and, gte, desc, sql } from 'drizzle-orm';
 import { SleeperApiError, sleeperClient } from '../integrations/sleeperClient';
+import { auditSleeperScoringCoverage } from '../services/sleeperScoringCoverageAudit';
 
 const router = Router();
 
@@ -446,18 +447,28 @@ leaguesRouter.get('/leagues/live', async (req: Request, res: Response) => {
   }
 
   const fetchedAt = new Date().toISOString();
-  const formatted = leagues.map((league) => ({
-    leagueId: league.league_id,
-    name: league.name,
-    season: league.season,
-    status: league.status ?? null,
-    totalRosters: league.total_rosters ?? null,
-    rosterPositions: league.roster_positions ?? [],
-    scoringSettings: league.scoring_settings ?? {},
-    settings: league.settings ?? {},
-    draftId: league.draft_id ?? null,
-    previousLeagueId: league.previous_league_id ?? null,
-  }));
+  const formatted = leagues.map((league) => {
+    const scoringSettings = league.scoring_settings ?? {};
+    const scoringCoverage = auditSleeperScoringCoverage(scoringSettings);
+
+    return {
+      leagueId: league.league_id,
+      name: league.name,
+      season: league.season,
+      status: league.status ?? null,
+      totalRosters: league.total_rosters ?? null,
+      rosterPositions: league.roster_positions ?? [],
+      scoringSettings,
+      scoringCoverage,
+      settings: league.settings ?? {},
+      draftId: league.draft_id ?? null,
+      previousLeagueId: league.previous_league_id ?? null,
+    };
+  });
+  const redLeagueIds = formatted
+    .filter((league) => league.scoringCoverage.status === 'RED')
+    .map((league) => league.leagueId);
+  const greenLeagueCount = formatted.length - redLeagueIds.length;
 
   return res.json({
     success: true,
@@ -468,6 +479,15 @@ leaguesRouter.get('/leagues/live', async (req: Request, res: Response) => {
       season,
       leagues: formatted,
       count: formatted.length,
+      scoringCertification: {
+        status: redLeagueIds.length === 0 ? 'GREEN' : 'RED',
+        profileId: 'tiber_forecast_xfpg_ppr_v1',
+        authority: 'TIBER-Forecast',
+        greenLeagueCount,
+        redLeagueCount: redLeagueIds.length,
+        redLeagueIds,
+        productionAuthorityUnlocked: redLeagueIds.length === 0,
+      },
       provenance: {
         source: 'sleeper',
         mode: 'live',
