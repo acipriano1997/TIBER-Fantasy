@@ -4,6 +4,10 @@ import {
   SignalValidationService,
   signalValidationService,
 } from '../modules/externalModels/signalValidation/signalValidationService';
+import {
+  ProvisionalBreakoutArtifactError,
+  readDraftNightProvisionalBreakoutArtifact,
+} from '../modules/externalModels/signalValidation/draftNightProvisionalBreakout';
 import { buildPromotedModuleOperatorDetails } from '../modules/externalModels/promotedModuleOperator';
 import { SignalValidationIntegrationError } from '../modules/externalModels/signalValidation/types';
 
@@ -38,6 +42,60 @@ function sendIntegrationError(
 
 export function createDataLabBreakoutSignalsRouter(service: SignalValidationService = signalValidationService) {
   const router = express.Router();
+
+  router.get('/breakout-signals/draft-tags/provisional', async (req, res) => {
+    const parsed = draftTagQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({
+        success: false,
+        error: 'season is required and must be a valid target season.',
+        details: parsed.error.flatten(),
+      });
+    }
+
+    try {
+      const artifact = await readDraftNightProvisionalBreakoutArtifact(parsed.data.season);
+      return res.json({
+        success: true,
+        data: {
+          targetSeason: artifact.target_season,
+          tags: artifact.tags,
+          evidenceStatus: artifact.status,
+          model: {
+            id: artifact.model_id,
+            probabilityTarget: artifact.probability_target,
+            actionThreshold: artifact.action_threshold,
+          },
+          validation: artifact.holdout_evidence,
+          source: {
+            provider: 'tiber-draft-night-research',
+            featureSeason: artifact.feature_season,
+            sourceArtifactSha256: artifact.source_artifact_sha256,
+          },
+        },
+        meta: {
+          module: 'wr-breakout-draft-tags-provisional',
+          readOnly: true,
+          certified: false,
+          fetchedAt: new Date().toISOString(),
+        },
+      });
+    } catch (error) {
+      if (error instanceof ProvisionalBreakoutArtifactError) {
+        return res.status(error.status).json({
+          success: false,
+          error: error.message,
+          code: error.code,
+          evidenceStatus: 'unavailable',
+        });
+      }
+      console.error('[DataLabBreakoutSignalsRoutes] Unexpected provisional draft-tag error:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Unexpected provisional WR breakout draft-tag failure.',
+      });
+    }
+  });
 
   router.get('/breakout-signals/draft-tags', async (req, res) => {
     try {
