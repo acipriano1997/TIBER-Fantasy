@@ -17,7 +17,7 @@ on:
       - 'package-lock.json'
   push:
     branches:
-      - main
+      - release/command-center-v1-personal
   workflow_dispatch:
 
 permissions:
