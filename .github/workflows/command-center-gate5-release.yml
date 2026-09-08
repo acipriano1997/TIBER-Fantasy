@@ -9,6 +9,7 @@ on:
       - 'scripts/command-center-browser-smoke.mjs'
       - 'scripts/command-center-mobile-pwa-certify.mjs'
       - 'scripts/command-center-mobile-list-smoke.mjs'
+      - 'scripts/command-center-mobile-pwa-smoke.mjs'
       - 'docs/command-center-v1/**'
       - '.github/workflows/command-center-gate5-release.yml'
       - 'build.sh'
@@ -60,10 +61,34 @@ jobs:
       TIBER_MOBILE_ROUTE_TIMEOUT_MS: '12000'
       TIBER_MOBILE_LIST_RENDER_BUDGET_MS: '2500'
       TIBER_MOBILE_LIST_INTERACTION_BUDGET_MS: '1000'
+      TIBER_GATE5_BASE_SHA: '14fec922a77e85e2a13b1a657df9db154eed33ef'
 
     steps:
       - name: Checkout frozen candidate
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify Gate 4 ancestry and frozen Gate 5 scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor "$TIBER_GATE5_BASE_SHA" HEAD
+          mapfile -t changed < <(git diff --name-only "$TIBER_GATE5_BASE_SHA"...HEAD)
+          printf 'Gate 5 changed files:\n'
+          printf '  %s\n' "${changed[@]}"
+
+          allowed='^(\.github/workflows/command-center-gate5-release\.yml|docs/command-center-v1/release-certification\.md|package\.json|package-lock\.json|scripts/command-center-mobile-pwa-smoke\.mjs|server/services/__tests__/commandCenterV1ReleaseCertification\.test\.ts|server/services/__tests__/commandCenterV1SurfaceManifest\.test\.ts|shared/commandCenterV1MobileCertification\.ts|shared/commandCenterV1ReleaseCertification\.ts|shared/commandCenterV1SurfaceManifest\.ts)$'
+          unexpected=0
+          for file in "${changed[@]}"; do
+            if [[ ! "$file" =~ $allowed ]]; then
+              echo "::error::Gate 5 scope freeze rejected unexpected change: $file"
+              unexpected=1
+            fi
+          done
+          if [ "$unexpected" -ne 0 ]; then
+            exit 1
+          fi
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
