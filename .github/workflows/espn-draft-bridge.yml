@@ -7,9 +7,12 @@ on:
   pull_request:
     paths:
       - 'server/services/espnDraftBridge.ts'
+      - 'server/services/espnDraftMarket.ts'
       - 'server/services/__tests__/espnDraftBridge*.test.ts'
+      - 'server/services/__tests__/espnDraftMarket.test.ts'
       - 'server/routes/managementRoutes.ts'
       - 'client/src/lib/espnDraftBridge.ts'
+      - 'client/src/lib/espnDraftMarket.ts'
       - 'client/src/pages/EspnDraftRoom.tsx'
       - 'client/src/App.tsx'
       - 'client/src/components/TiberLayout.tsx'
@@ -36,11 +39,12 @@ jobs:
           cache: npm
       - name: Install locked dependencies
         run: npm ci
-      - name: Run bridge state and extension contracts
+      - name: Run bridge, extension, and market truth contracts
         run: >-
           npm test -- --runTestsByPath
           server/services/__tests__/espnDraftBridge.test.ts
           server/services/__tests__/espnDraftBridgeExtensionContract.test.ts
+          server/services/__tests__/espnDraftMarket.test.ts
       - name: Typecheck bridge delta against baseline debt
         shell: bash
         run: |
@@ -49,7 +53,7 @@ jobs:
           typecheck_status=$?
           set -e
 
-          bridge_pattern='^(server/services/espnDraftBridge\.ts|server/routes/managementRoutes\.ts|client/src/lib/espnDraftBridge\.ts|client/src/pages/EspnDraftRoom\.tsx|client/src/App\.tsx|client/src/components/TiberLayout\.tsx)\('
+          bridge_pattern='^(server/services/espnDraftBridge\.ts|server/services/espnDraftMarket\.ts|server/routes/managementRoutes\.ts|client/src/lib/espnDraftBridge\.ts|client/src/lib/espnDraftMarket\.ts|client/src/pages/EspnDraftRoom\.tsx|client/src/App\.tsx|client/src/components/TiberLayout\.tsx)\('
           if grep -E "$bridge_pattern" /tmp/tiber-typecheck.log; then
             echo "::error::ESPN Draft Bridge introduced or exposes type errors in its changed production files."
             exit 1
