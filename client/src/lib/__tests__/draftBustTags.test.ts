@@ -1,4 +1,5 @@
 import {
+  fetchDraftBustEspnIdentities,
   fetchDraftBustTags,
   findDraftBustTag,
   formatDraftBustTag,
@@ -42,6 +43,44 @@ describe('draft bust display contract', () => {
     expect(findDraftBustTag('canonical-player-1', [tag])).toEqual(tag);
     expect(findDraftBustTag('espn-12345', [tag])).toBeNull();
     expect(findDraftBustTag(null, [tag])).toBeNull();
+  });
+});
+
+describe('fetchDraftBustEspnIdentities', () => {
+  test('returns exact ESPN-to-canonical resolution without changing provider identity', async () => {
+    const fetchImpl = jest.fn<typeof fetch>().mockResolvedValueOnce(jsonResponse({
+      success: true,
+      data: {
+        identities: [
+          { espnPlayerId: '123', canonicalPlayerId: 'canonical-player-1', status: 'resolved', reason: 'espn_exact_crosswalk' },
+          { espnPlayerId: '456', canonicalPlayerId: null, status: 'unresolved', reason: 'espn_not_in_identity_map' },
+        ],
+        coverage: { total: 2, resolved: 1, unresolved: 1, unavailable: 0, ambiguous: 0, coverageRatio: 0.5 },
+      },
+    }));
+
+    const result = await fetchDraftBustEspnIdentities(['123', '456', '123'], fetchImpl);
+    expect(fetchImpl).toHaveBeenCalledWith(
+      '/api/data-lab/draft-bust-signals/identity/espn',
+      expect.objectContaining({ method: 'POST' }),
+    );
+    expect(result.identities.get('123')?.canonicalPlayerId).toBe('canonical-player-1');
+    expect(result.identities.get('456')?.canonicalPlayerId).toBeNull();
+    expect(result.coverage.coverageRatio).toBe(0.5);
+    const body = JSON.parse(String((fetchImpl.mock.calls[0][1] as RequestInit).body));
+    expect(body.espnPlayerIds).toEqual(['123', '456']);
+  });
+
+  test('rejects a resolved identity without a canonical player id', async () => {
+    const fetchImpl = jest.fn<typeof fetch>().mockResolvedValueOnce(jsonResponse({
+      success: true,
+      data: {
+        identities: [{ espnPlayerId: '123', canonicalPlayerId: null, status: 'resolved', reason: 'espn_exact_crosswalk' }],
+        coverage: { total: 1, resolved: 1, unresolved: 0, unavailable: 0, ambiguous: 0, coverageRatio: 1 },
+      },
+    }));
+
+    await expect(fetchDraftBustEspnIdentities(['123'], fetchImpl)).rejects.toThrow('client evidence contract');
   });
 });
 
