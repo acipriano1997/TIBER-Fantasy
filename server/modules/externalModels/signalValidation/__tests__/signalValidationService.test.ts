@@ -39,6 +39,10 @@ const passingAccuracyCertification = {
   leakage_checks_passed: true,
   calibration_passed: true,
   challenger_beaten: true,
+  held_out_true_positives: 12,
+  held_out_false_positives: 38,
+  held_out_false_negatives: 30,
+  held_out_true_negatives: 387,
   held_out_positive_events: 42,
   held_out_precision: 0.24,
   held_out_base_rate: 0.09,
@@ -129,6 +133,7 @@ describe('SignalValidationService draft tags', () => {
       modelVersion: 'wr_signal_score_role_balanced_v3',
     });
     expect(result.lab.promotion?.draftTagEligible).toBe(true);
+    expect(result.lab.promotion?.accuracyCertification?.metricsConsistent).toBe(true);
     expect(result.lab.promotion?.accuracyCertification?.consumerThresholdsPassed).toBe(true);
   });
 
@@ -152,7 +157,27 @@ describe('SignalValidationService draft tags', () => {
       ...promotedAndAccurate,
       accuracy_certification: {
         ...passingAccuracyCertification,
-        held_out_precision: 0.149,
+        held_out_true_positives: 7,
+        held_out_false_positives: 43,
+        held_out_precision: 0.14,
+        precision_lift: 1.56,
+      },
+    });
+
+    const service = new SignalValidationService(new SignalValidationClient({ exportsDir: dir }));
+
+    await expect(service.getWrBreakoutDraftTags(2026)).rejects.toMatchObject({
+      code: 'not_promoted',
+      status: 409,
+    } satisfies Partial<SignalValidationIntegrationError>);
+  });
+
+  it('refuses an otherwise promoted model when producer metrics conflict with held-out counts', async () => {
+    await writeFixture(dir, {
+      ...promotedAndAccurate,
+      accuracy_certification: {
+        ...passingAccuracyCertification,
+        precision_lift: 9.99,
       },
     });
 
