@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  score:
+  verify:
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -25,5 +25,20 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install pandas numpy scikit-learn
 
-      - name: Build 2026 provisional breakout tags
+      - name: Reproduce 2026 provisional breakout tags
         run: python scripts/research/build_breakout_v1_4_2026_provisional.py
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install locked application dependencies
+        run: npm ci
+
+      - name: Run draft badge contract tests
+        run: >-
+          npm test --
+          client/src/lib/__tests__/breakoutDraftTags.test.ts
+          server/modules/externalModels/signalValidation/__tests__/draftNightProvisionalBreakout.test.ts
