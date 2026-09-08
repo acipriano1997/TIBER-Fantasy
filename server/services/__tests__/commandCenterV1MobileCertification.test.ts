@@ -59,7 +59,7 @@ describe('Command Center v1 Gate 4 personal iPhone/PWA certification', () => {
     expect(css).toContain('min-height: 100dvh');
     expect(css).toContain('min-width: 44px');
     expect(css).toContain('min-height: 44px');
-    expect(css).toContain('font-size: max(16px, 1em)');
+    expect(css).toContain('font-size: 16px !important');
     expect(css).toContain('touch-action: manipulation');
     expect(css).toContain('-webkit-text-size-adjust: 100%');
   });
