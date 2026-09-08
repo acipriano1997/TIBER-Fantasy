@@ -2,9 +2,13 @@
 
 Status target: `command_center_v1_certified_personal_release`
 
+Release branch: `release/command-center-v1-personal`
+
 Release-candidate base: `14fec922a77e85e2a13b1a657df9db154eed33ef`
 
 This document is the Gate 5 release freeze for the personal Fantasy Football Command Center. It certifies the **earned release boundary**, not every experimental or legacy subsystem present in the repository.
+
+The dedicated release branch is intentionally anchored to the Gate 4 candidate. Newer work on `main` is post-freeze development and is **not** implicitly part of the certified v1 release. A feature must pass a later explicit promotion/recertification step before it can enter this release lineage.
 
 ## Release boundary
 
@@ -32,11 +36,11 @@ A typed unavailable/unsupported state is considered a valid certified behavior. 
 | Gate 2 | Certified | Immutable decision receipts, frozen replay, deterministic invariants, independent challenger, golden traces, postgame process evaluation, adversarial red team. |
 | Gate 3 | Certified | Production build, runtime health/readiness, baseline-aware CI, synthetic-fallback quarantine, browser resilience, realistic list performance, active-surface fallback audit. |
 | Gate 4 | Certified | Personal iPhone/PWA software contract: 375/390/430 px, safe areas, touch/focus geometry, service-worker privacy, offline fail-closed behavior, lifecycle recovery, zoom, phone-scale list performance. |
-| Gate 5 | Certification workflow required | Re-run the frozen Gate 0–4 contract, production dependency audit, exact build, built desktop browser certification, built mobile/PWA certification, and realistic mobile list test on one final PR head. |
+| Gate 5 | Certification workflow required | Re-run the frozen Gate 0–4 contract, production dependency audit, exact build, built desktop browser certification, built mobile/PWA certification, and realistic mobile list test on one final PR head and again on the merged release commit. |
 
 ## Runtime binding
 
-The personal release is built with:
+The certified lineage is `release/command-center-v1-personal`. The personal release is built with:
 
 `sh build.sh`
 
@@ -61,7 +65,7 @@ Two explicit rollback points are retained:
 1. `14fec922a77e85e2a13b1a657df9db154eed33ef` — Gate 4 runtime-equivalent rollback if final release metadata/certification wiring is suspect.
 2. `1d59ef7f01b7444b6d7752f709344fe7f8098ced` — pre-mobile Gate 3 rollback if Gate 4 mobile runtime behavior itself is implicated. Disable the personal iPhone path until recertified in that case.
 
-The exact Gate 5 merge commit becomes the pinned v1 personal-release commit after the final PR is green and merged.
+The exact Gate 5 merge commit becomes the pinned v1 personal-release commit after the final PR is green, merged into `release/command-center-v1-personal`, and the post-merge Gate 5 workflow is green on that merge commit.
 
 ## Known non-blocking debt
 
@@ -81,7 +85,7 @@ The v1 release does not authorize autonomous lineup, waiver, trade, draft, keepe
 
 ## Final certification rule
 
-The Gate 5 PR may merge only when the exact PR head is green for the final release workflow and the existing independent release checks it triggers. After merge, record the merge SHA as the pinned personal-release commit in the canonical release ledger.
+The Gate 5 PR may merge only when the exact PR head is green for the final release workflow and the existing independent release checks it triggers. It must target `release/command-center-v1-personal`, not moving `main`. After merge, the Gate 5 workflow must pass again on the exact release-branch merge commit before that SHA is recorded in the canonical release ledger.
 
 Success terminal state:
 
