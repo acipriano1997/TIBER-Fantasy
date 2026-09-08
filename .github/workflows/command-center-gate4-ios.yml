@@ -1,0 +1,127 @@
+name: Command Center Gate 4 iPhone PWA
+
+on:
+  pull_request:
+    paths:
+      - 'client/**'
+      - 'shared/commandCenterV1MobileCertification.ts'
+      - 'server/services/__tests__/commandCenterV1MobileCertification.test.ts'
+      - 'scripts/command-center-mobile-pwa-smoke.mjs'
+      - 'scripts/command-center-mobile-list-smoke.mjs'
+      - '.github/workflows/command-center-gate4-ios.yml'
+      - 'build.sh'
+      - 'package.json'
+      - 'package-lock.json'
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: command-center-gate4-ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  iphone-pwa:
+    name: Production-equivalent iPhone/PWA certification
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: tiber
+          POSTGRES_PASSWORD: tiber
+          POSTGRES_DB: tiber
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U tiber -d tiber"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    env:
+      PORT: '5000'
+      DATABASE_URL: postgresql://tiber:tiber@127.0.0.1:5432/tiber
+      DATABASE_SSL: disable
+      TIBER_RUNTIME_PROFILE: full
+      USE_SLEEPER_SYNC: 'false'
+      TIBER_MOBILE_BASE_URL: http://127.0.0.1:5000
+      TIBER_MOBILE_ROUTE_TIMEOUT_MS: '12000'
+      TIBER_MOBILE_LIST_RENDER_BUDGET_MS: '2500'
+      TIBER_MOBILE_LIST_INTERACTION_BUDGET_MS: '1000'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Run Gate 4 source contract
+        run: npm test -- server/services/__tests__/commandCenterV1MobileCertification.test.ts
+
+      - name: Locate Chrome
+        shell: bash
+        run: |
+          set -euo pipefail
+          CHROME_BIN="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || command -v chromium-browser || true)"
+          if [ -z "$CHROME_BIN" ]; then
+            echo "::error::Chrome/Chromium is required for mobile PWA certification."
+            exit 1
+          fi
+          echo "CHROME_BIN=$CHROME_BIN" >> "$GITHUB_ENV"
+          "$CHROME_BIN" --version
+
+      - name: Build release artifact
+        run: sh build.sh
+
+      - name: Start built personal release
+        shell: bash
+        env:
+          NODE_ENV: production
+        run: |
+          set -euo pipefail
+          nohup node dist/index.mjs > gate4-server.log 2>&1 &
+          echo $! > gate4-server.pid
+          for i in {1..90}; do
+            if curl -fsS http://127.0.0.1:5000/api/health >/dev/null 2>&1 \
+              && curl -fsS http://127.0.0.1:5000/api/health/db >/dev/null 2>&1 \
+              && curl -fsS http://127.0.0.1:5000/manifest.json >/dev/null 2>&1 \
+              && curl -fsS http://127.0.0.1:5000/sw.js >/dev/null 2>&1; then
+              echo "Built PWA is live and DB transport is ready."
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::Built PWA did not become ready."
+          cat gate4-server.log || true
+          exit 1
+
+      - name: Run iPhone viewport, PWA, offline, and lifecycle certification
+        run: node scripts/command-center-mobile-pwa-smoke.mjs
+
+      - name: Run 390px realistic large-list certification
+        run: node scripts/command-center-mobile-list-smoke.mjs
+
+      - name: Display server logs on failure
+        if: failure()
+        run: |
+          echo '=== gate4-server.log ==='
+          cat gate4-server.log || true
+
+      - name: Stop built personal release
+        if: always()
+        run: |
+          if [ -f gate4-server.pid ]; then
+            kill "$(cat gate4-server.pid)" 2>/dev/null || true
+          fi
