@@ -25,6 +25,7 @@ export type EspnDraftBridgeStatus = {
     rosterCount: number;
     enabledDraftButtons: number;
     availablePlayerCount: number;
+    draftedPlayerNames: string[];
     urlPath: string;
   };
   activeAction: EspnDraftBridgeAction | null;
