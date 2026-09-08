@@ -1,5 +1,6 @@
 export type EspnDraftBridgeAction = {
   actionId: string;
+  pageInstanceId: string;
   requestedAt: string;
   expiresAt: string;
   pickNumber: number;
