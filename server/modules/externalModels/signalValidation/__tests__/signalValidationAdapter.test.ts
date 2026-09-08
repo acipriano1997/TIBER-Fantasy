@@ -74,6 +74,48 @@ describe('signalValidationAdapter', () => {
     expect(result.promotion).toBeUndefined();
   });
 
+  it('maps the canonical producer field names without inventing replacements', () => {
+    const canonicalCsv = `player_id,player_name,feature_season,outcome_season,feature_team,best_recipe_name,candidate_rank,final_signal_score,breakout_label_default,breakout_reason,usage_signal,efficiency_signal,development_signal,stability_signal,cohort_signal,role_signal,penalty_signal\n00-0042051,Rome Odunze,2025,2026,CHI,role_balanced,1,88.2,true,Development and opportunity profile,77,84,90,78,80,83,8`;
+    const canonicalSummary = {
+      best_recipe_name: 'role_balanced',
+      scoring_version: 'wr_signal_score_role_balanced_v1',
+      generated_at: '2026-03-23T01:40:41Z',
+      key_metrics: {
+        candidate_count: 1122,
+        breakout_count: 228,
+        precision_at_20: 0.519,
+        recall_at_20: 0.1798,
+        average_breakout_rank: 88.2412,
+      },
+    };
+
+    const result = adaptSignalValidationExports(
+      {
+        season: 2025,
+        availableSeasons: [2025, 2024],
+        playerSignalCardsCsv: canonicalCsv,
+        bestRecipeSummary: canonicalSummary,
+      },
+      { exportDirectory: '/tmp/signal-validation' },
+    );
+
+    expect(result.rows[0]).toMatchObject({
+      playerId: '00-0042051',
+      playerName: 'Rome Odunze',
+      team: 'CHI',
+      season: 2025,
+      breakoutContext: 'Development and opportunity profile',
+    });
+    expect(result.bestRecipeSummary).toMatchObject({
+      modelVersion: 'wr_signal_score_role_balanced_v1',
+      candidateCount: 1122,
+      breakoutCount: 228,
+      precisionAt20: 0.519,
+      recallAt20: 0.1798,
+      averageBreakoutRank: 88.2412,
+    });
+  });
+
   it('marks a target-season signal draft-eligible only after explicit upstream promotion', () => {
     const result = adaptSignalValidationExports(
       {
