@@ -57,6 +57,27 @@
       .filter(Boolean);
   }
 
+  function draftedPlayerNames() {
+    const names = [];
+    const seen = new Set();
+    const add = (name) => {
+      const cleaned = String(name || '').trim();
+      const key = normalizeName(cleaned);
+      if (!cleaned || !key || key === 'empty' || seen.has(key)) return;
+      seen.add(key);
+      names.push(cleaned.slice(0, 100));
+    };
+
+    document.querySelectorAll('.pick-message__container .playerinfo__playername, .pick-history .playerinfo__playername')
+      .forEach((element) => add(text(element)));
+    document.querySelectorAll('.draft-board-grid-pick-cell.completedPick').forEach((cell) => {
+      const first = text(cell.querySelector('.playerFirstName'));
+      const last = text(cell.querySelector('.playerLastName'));
+      add(`${first} ${last}`.trim());
+    });
+    return names.slice(0, 300);
+  }
+
   function availableRows() {
     return [...document.querySelectorAll('.draft-players .players-table tbody tr, .draft-players .players-table [role="row"]')];
   }
@@ -172,6 +193,7 @@
       rosterCount: rosterPlayers().length,
       enabledDraftButtons,
       availablePlayerCount: availableRows().length,
+      draftedPlayerNames: draftedPlayerNames(),
       urlPath: `${location.pathname}${location.search}`.slice(0, 240),
     };
   }
@@ -182,7 +204,8 @@
       && a.autopickEnabled === b.autopickEnabled
       && a.draftPaused === b.draftPaused
       && a.currentPick === b.currentPick
-      && a.rosterCount === b.rosterCount;
+      && a.rosterCount === b.rosterCount
+      && a.draftedPlayerNames.join('|') === b.draftedPlayerNames.join('|');
   }
 
   async function stableSnapshot() {
