@@ -1,8 +1,8 @@
 name: Gate 5 Dependency Refresh
 
 # Temporary branch-only helper. Gate 5 removes this workflow before the final
-# release PR; its only purpose is to let npm regenerate the lock graph after
-# test/type tooling was reclassified as dev-only and apply compatible audit fixes.
+# release PR; its only purpose is to reconcile the lock graph after dependency
+# classification/security changes and commit the resulting package-lock.json.
 on:
   push:
     branches:
@@ -36,11 +36,16 @@ jobs:
       - name: Reconcile dependency classification with lockfile
         run: npm install --package-lock-only --ignore-scripts
 
-      - name: Apply only semver-compatible production audit fixes to lockfile
-        run: npm audit fix --package-lock-only --omit=dev --ignore-scripts
+      - name: Apply compatible production audit fixes to lockfile
+        shell: bash
+        run: |
+          # npm audit fix returns non-zero while any advisory remains, including
+          # moderate-only findings. Gate 5's actual policy is enforced by the
+          # next step, which rejects HIGH/CRITICAL production findings.
+          npm audit fix --package-lock-only --omit=dev --ignore-scripts || true
 
-      - name: Report residual production audit
-        run: npm audit --omit=dev --audit-level=high || true
+      - name: Reject residual high or critical production advisories
+        run: npm audit --omit=dev --audit-level=high
 
       - name: Commit refreshed lockfile
         shell: bash
