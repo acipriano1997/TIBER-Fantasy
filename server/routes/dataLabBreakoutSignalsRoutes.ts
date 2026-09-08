@@ -8,6 +8,10 @@ import {
   ProvisionalBreakoutArtifactError,
   readDraftNightProvisionalBreakoutArtifact,
 } from '../modules/externalModels/signalValidation/draftNightProvisionalBreakout';
+import {
+  DraftBustEvidenceError,
+  readPromotedDraftBustTags,
+} from '../modules/externalModels/signalValidation/draftBustEvidence';
 import { buildPromotedModuleOperatorDetails } from '../modules/externalModels/promotedModuleOperator';
 import { SignalValidationIntegrationError } from '../modules/externalModels/signalValidation/types';
 
@@ -93,6 +97,52 @@ export function createDataLabBreakoutSignalsRouter(service: SignalValidationServ
       return res.status(500).json({
         success: false,
         error: 'Unexpected provisional WR breakout draft-tag failure.',
+      });
+    }
+  });
+
+  router.get('/draft-bust-signals/draft-tags', async (req, res) => {
+    const parsed = draftTagQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({
+        success: false,
+        error: 'season is required and must be a valid target season.',
+        details: parsed.error.flatten(),
+      });
+    }
+
+    try {
+      const result = await readPromotedDraftBustTags(parsed.data.season);
+      return res.json({
+        success: true,
+        data: {
+          targetSeason: parsed.data.season,
+          tags: result.tags,
+          source: {
+            provider: 'signal-validation-model',
+            artifact: `${parsed.data.season}_bust_scores.json`,
+            promotionManifest: `${parsed.data.season}_bust_signal_promotion.json`,
+          },
+        },
+        meta: {
+          module: 'draft-bust-tags',
+          readOnly: true,
+          certified: true,
+          fetchedAt: new Date().toISOString(),
+        },
+      });
+    } catch (error) {
+      if (error instanceof DraftBustEvidenceError) {
+        return res.status(error.status).json({
+          success: false,
+          error: error.message,
+          code: error.code,
+        });
+      }
+      console.error('[DataLabBreakoutSignalsRoutes] Unexpected draft-bust error:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Unexpected draft-bust evidence failure.',
       });
     }
   });
