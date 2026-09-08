@@ -36,6 +36,25 @@ export const wrBestRecipeSummarySchema = z
   })
   .passthrough();
 
+export const breakoutAccuracyCertificationSchema = z.object({
+  certification_version: z.string().min(1),
+  passed: z.boolean(),
+  chronological_out_of_sample: z.boolean(),
+  final_holdout_untouched: z.boolean(),
+  leakage_checks_passed: z.boolean(),
+  calibration_passed: z.boolean(),
+  challenger_beaten: z.boolean(),
+  held_out_positive_events: z.number().int().nonnegative(),
+  held_out_precision: z.number().finite().min(0).max(1),
+  held_out_base_rate: z.number().finite().gt(0).max(1),
+  precision_lift: z.number().finite().nonnegative(),
+  precision_lift_lower_95: z.number().finite().nonnegative(),
+  brier_score: z.number().finite().min(0).max(1),
+  base_rate_brier_score: z.number().finite().min(0).max(1),
+  log_loss: z.number().finite().nonnegative(),
+  base_rate_log_loss: z.number().finite().nonnegative(),
+}).passthrough();
+
 export const signalValidationExportManifestSchema = z
   .object({
     feature_season: z.number().int().min(2000).max(2100),
@@ -58,13 +77,16 @@ export const signalValidationExportManifestSchema = z
         backtest_passed: z.boolean(),
         prescriptive_validation_passed: z.boolean(),
         promoted_at: z.string().optional(),
+        accuracy_certification: breakoutAccuracyCertificationSchema.optional(),
       })
+      .passthrough()
       .optional(),
   })
   .passthrough();
 
 export type CanonicalWrBestRecipeSummary = z.infer<typeof wrBestRecipeSummarySchema>;
 export type CanonicalSignalValidationExportManifest = z.infer<typeof signalValidationExportManifestSchema>;
+export type CanonicalBreakoutAccuracyCertification = z.infer<typeof breakoutAccuracyCertificationSchema>;
 
 export interface CanonicalSignalValidationExports {
   season: number;
@@ -134,6 +156,26 @@ export interface TiberWrBestRecipeSummary {
   rawCanonical?: CanonicalWrBestRecipeSummary;
 }
 
+export interface TiberBreakoutAccuracyCertification {
+  certificationVersion: string;
+  producerPassed: boolean;
+  chronologicalOutOfSample: boolean;
+  finalHoldoutUntouched: boolean;
+  leakageChecksPassed: boolean;
+  calibrationPassed: boolean;
+  challengerBeaten: boolean;
+  heldOutPositiveEvents: number;
+  heldOutPrecision: number;
+  heldOutBaseRate: number;
+  precisionLift: number;
+  precisionLiftLower95: number;
+  brierScore: number;
+  baseRateBrierScore: number;
+  logLoss: number;
+  baseRateLogLoss: number;
+  consumerThresholdsPassed: boolean;
+}
+
 export interface TiberSignalPromotion {
   featureSeason: number;
   targetSeason: number;
@@ -141,6 +183,7 @@ export interface TiberSignalPromotion {
   backtestPassed: boolean;
   prescriptiveValidationPassed: boolean;
   promotedAt: string | null;
+  accuracyCertification: TiberBreakoutAccuracyCertification | null;
   draftTagEligible: boolean;
 }
 
