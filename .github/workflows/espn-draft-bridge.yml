@@ -1,0 +1,40 @@
+name: ESPN Draft Bridge Certification
+
+on:
+  push:
+    branches:
+      - feat/espn-command-center-draft-bridge
+  pull_request:
+    paths:
+      - 'server/services/espnDraftBridge.ts'
+      - 'server/services/__tests__/espnDraftBridge*.test.ts'
+      - 'server/routes/managementRoutes.ts'
+      - 'client/src/lib/espnDraftBridge.ts'
+      - 'client/src/pages/EspnDraftRoom.tsx'
+      - 'client/src/App.tsx'
+      - 'client/src/components/TiberLayout.tsx'
+      - 'tools/espn-draft-bridge/**'
+      - '.github/workflows/espn-draft-bridge.yml'
+  workflow_dispatch:
+
+jobs:
+  certify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Run bridge state and extension contracts
+        run: >-
+          npm test -- --runTestsByPath
+          server/services/__tests__/espnDraftBridge.test.ts
+          server/services/__tests__/espnDraftBridgeExtensionContract.test.ts
+      - name: Typecheck bridge integration
+        run: npm run typecheck
+      - name: Build application
+        run: npm run build
