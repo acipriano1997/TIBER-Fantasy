@@ -19,7 +19,8 @@ export type CommandCenterV1SurfaceId =
   | 'trades'
   | 'player_intelligence'
   | 'league_portfolio'
-  | 'draft';
+  | 'draft'
+  | 'records';
 
 export type CommandCenterV1SurfaceRecord = {
   id: CommandCenterV1SurfaceId;
@@ -157,6 +158,22 @@ export const COMMAND_CENTER_V1_SURFACES: Readonly<Record<CommandCenterV1SurfaceI
       'client/src/pages/TiberDraftReview.tsx',
     ],
   },
+  records: {
+    id: 'records',
+    label: 'Records',
+    status: 'certified_read_only',
+    userFacingState: 'available',
+    releaseOutcome: 'read_only_context',
+    finalActionAuthority: 'human',
+    canonicalRoute: '/records',
+    reason: 'Records reconstructs Sleeper history from available source facts, exposes partial coverage instead of imputing missing seasons/weeks, and does not issue fantasy-action recommendations.',
+    evidence: [
+      'server/services/recordsHistoryService.ts',
+      'client/src/pages/RecordsPage.tsx',
+      'scripts/command-center-browser-smoke.mjs',
+      'scripts/command-center-mobile-list-smoke.mjs',
+    ],
+  },
 } as const;
 
 export const COMMAND_CENTER_V1_REQUIRED_SURFACE_IDS: readonly CommandCenterV1SurfaceId[] = [
@@ -167,6 +184,7 @@ export const COMMAND_CENTER_V1_REQUIRED_SURFACE_IDS: readonly CommandCenterV1Sur
   'player_intelligence',
   'league_portfolio',
   'draft',
+  'records',
 ] as const;
 
 export function getCommandCenterV1Surface(id: CommandCenterV1SurfaceId): CommandCenterV1SurfaceRecord {

@@ -113,5 +113,12 @@ describe('Command Center v1 Gate 1 surface manifest', () => {
       userFacingState: 'available',
       releaseOutcome: 'read_only_context',
     });
+    expect(COMMAND_CENTER_V1_SURFACES.records).toMatchObject({
+      status: 'certified_read_only',
+      canonicalRoute: '/records',
+      userFacingState: 'available',
+      releaseOutcome: 'read_only_context',
+      finalActionAuthority: 'human',
+    });
   });
 });

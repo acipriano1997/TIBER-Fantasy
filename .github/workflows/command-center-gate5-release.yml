@@ -1,0 +1,176 @@
+name: Command Center Gate 5 Final Release
+
+on:
+  pull_request:
+    paths:
+      - 'client/**'
+      - 'server/**'
+      - 'shared/**'
+      - 'scripts/command-center-browser-smoke.mjs'
+      - 'scripts/command-center-mobile-pwa-certify.mjs'
+      - 'scripts/command-center-mobile-list-smoke.mjs'
+      - 'scripts/command-center-mobile-pwa-smoke.mjs'
+      - 'docs/command-center-v1/**'
+      - '.github/workflows/command-center-gate5-release.yml'
+      - 'build.sh'
+      - 'package.json'
+      - 'package-lock.json'
+  push:
+    branches:
+      - release/command-center-v1-personal
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: command-center-gate5-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  final-release:
+    name: Frozen personal-release certification
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: tiber
+          POSTGRES_PASSWORD: tiber
+          POSTGRES_DB: tiber
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U tiber -d tiber"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    env:
+      PORT: '5000'
+      DATABASE_URL: postgresql://tiber:tiber@127.0.0.1:5432/tiber
+      DATABASE_SSL: disable
+      TIBER_RUNTIME_PROFILE: full
+      USE_SLEEPER_SYNC: 'false'
+      TIBER_BROWSER_BASE_URL: http://127.0.0.1:5000
+      TIBER_MOBILE_BASE_URL: http://127.0.0.1:5000
+      TIBER_BROWSER_ROUTE_TIMEOUT_MS: '12000'
+      TIBER_BROWSER_SPA_NAV_BUDGET_MS: '1500'
+      TIBER_BROWSER_LARGE_LIST_RENDER_BUDGET_MS: '2500'
+      TIBER_BROWSER_LARGE_LIST_INTERACTION_BUDGET_MS: '1000'
+      TIBER_MOBILE_ROUTE_TIMEOUT_MS: '12000'
+      TIBER_MOBILE_LIST_RENDER_BUDGET_MS: '2500'
+      TIBER_MOBILE_LIST_INTERACTION_BUDGET_MS: '1000'
+      TIBER_GATE5_BASE_SHA: '14fec922a77e85e2a13b1a657df9db154eed33ef'
+
+    steps:
+      - name: Checkout frozen candidate
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify Gate 4 ancestry and frozen Gate 5 scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor "$TIBER_GATE5_BASE_SHA" HEAD
+          mapfile -t changed < <(git diff --name-only "$TIBER_GATE5_BASE_SHA"...HEAD)
+          printf 'Gate 5 changed files:\n'
+          printf '  %s\n' "${changed[@]}"
+
+          allowed='^(\.github/workflows/command-center-gate5-release\.yml|docs/command-center-v1/release-certification\.md|package\.json|package-lock\.json|scripts/command-center-mobile-pwa-smoke\.mjs|server/services/__tests__/commandCenterV1ReleaseCertification\.test\.ts|server/services/__tests__/commandCenterV1SurfaceManifest\.test\.ts|shared/commandCenterV1MobileCertification\.ts|shared/commandCenterV1ReleaseCertification\.ts|shared/commandCenterV1SurfaceManifest\.ts)$'
+          unexpected=0
+          for file in "${changed[@]}"; do
+            if [[ ! "$file" =~ $allowed ]]; then
+              echo "::error::Gate 5 scope freeze rejected unexpected change: $file"
+              unexpected=1
+            fi
+          done
+          if [ "$unexpected" -ne 0 ]; then
+            exit 1
+          fi
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Reject high or critical production dependency vulnerabilities
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Run Gate 0-5 release contracts
+        run: >-
+          npm test --
+          server/services/__tests__/commandCenterV1ReleaseCertification.test.ts
+          server/services/__tests__/commandCenterV1RuntimeCertification.test.ts
+          server/services/__tests__/commandCenterV1MobileCertification.test.ts
+          server/services/__tests__/commandCenterV1SurfaceManifest.test.ts
+          server/services/__tests__/commandCenterV1VerificationManifest.test.ts
+          server/services/__tests__/commandCenterV1InvariantReplay.test.ts
+          server/services/__tests__/leagueDashboardTruthBoundary.test.ts
+          server/routes/__tests__/healthRoutes.test.ts
+          server/routes/__tests__/sleeperUsageTruthBoundary.test.ts
+
+      - name: Locate Chrome
+        shell: bash
+        run: |
+          set -euo pipefail
+          CHROME_BIN="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || command -v chromium-browser || true)"
+          if [ -z "$CHROME_BIN" ]; then
+            echo "::error::Chrome/Chromium is required for final release certification."
+            exit 1
+          fi
+          echo "CHROME_BIN=$CHROME_BIN" >> "$GITHUB_ENV"
+          "$CHROME_BIN" --version
+
+      - name: Build exact personal-release artifact
+        run: sh build.sh
+
+      - name: Start built personal release
+        shell: bash
+        env:
+          NODE_ENV: production
+        run: |
+          set -euo pipefail
+          nohup node dist/index.mjs > gate5-server.log 2>&1 &
+          echo $! > gate5-server.pid
+          for i in {1..90}; do
+            if curl -fsS http://127.0.0.1:5000/api/health >/dev/null 2>&1 \
+              && curl -fsS http://127.0.0.1:5000/api/health/db >/dev/null 2>&1 \
+              && curl -fsS http://127.0.0.1:5000/command-center 2>/dev/null | grep -q '<div id="root"></div>' \
+              && curl -fsS http://127.0.0.1:5000/manifest.json >/dev/null 2>&1 \
+              && curl -fsS http://127.0.0.1:5000/sw.js >/dev/null 2>&1; then
+              echo "Frozen personal-release artifact is live and transport-ready."
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::Frozen personal-release artifact did not become ready."
+          cat gate5-server.log || true
+          exit 1
+
+      - name: Run built desktop/browser certification
+        run: node scripts/command-center-browser-smoke.mjs
+
+      - name: Run built iPhone/PWA certification
+        run: node scripts/command-center-mobile-pwa-certify.mjs
+
+      - name: Run built 390px realistic list certification
+        run: node scripts/command-center-mobile-list-smoke.mjs
+
+      - name: Display server logs on failure
+        if: failure()
+        run: |
+          echo '=== gate5-server.log ==='
+          cat gate5-server.log || true
+
+      - name: Stop built personal release
+        if: always()
+        run: |
+          if [ -f gate5-server.pid ]; then
+            kill "$(cat gate5-server.pid)" 2>/dev/null || true
+          fi
