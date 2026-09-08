@@ -25,8 +25,8 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install pandas numpy scikit-learn
 
-      - name: Run prospective high-confidence policy research
-        run: python scripts/research/run_breakout_v1_2_policy.py
+      - name: Run forward-only calibration comparison
+        run: python scripts/research/run_breakout_v1_3_calibration.py
 
       - name: Show report
-        run: cat outputs/research/breakout_v1_2_policy/report.json
+        run: cat outputs/research/breakout_v1_3_calibration/report.json
