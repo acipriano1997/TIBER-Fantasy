@@ -63,7 +63,7 @@ describe('Sleeper live portfolio production preflight', () => {
     mockGetUserLeagues.mockReset();
   });
 
-  it('resolves username to immutable user ID and preserves every live league scoring contract', async () => {
+  it('resolves immutable user identity and marks incompatible live scoring leagues RED', async () => {
     mockGetUser.mockResolvedValue({
       user_id: 'user-123',
       username: 'Cippy97',
@@ -104,6 +104,24 @@ describe('Sleeper live portfolio production preflight', () => {
     expect(res.body.data.count).toBe(2);
     expect(res.body.data.leagues[0].leagueId).toBe('league-1');
     expect(res.body.data.leagues[0].scoringSettings).toEqual({ pass_td: 6, rec: 1, rush_yd: 0.1 });
+    expect(res.body.data.leagues[0].scoringCoverage).toMatchObject({
+      status: 'RED',
+      authority: 'TIBER-Forecast',
+      coefficientMismatches: ['pass_td'],
+    });
+    expect(res.body.data.leagues[1].scoringCoverage).toMatchObject({
+      status: 'RED',
+      coefficientMismatches: ['rec'],
+    });
+    expect(res.body.data.scoringCertification).toEqual({
+      status: 'RED',
+      profileId: 'tiber_forecast_xfpg_ppr_v1',
+      authority: 'TIBER-Forecast',
+      greenLeagueCount: 0,
+      redLeagueCount: 2,
+      redLeagueIds: ['league-1', 'league-2'],
+      productionAuthorityUnlocked: false,
+    });
     expect(res.body.data.leagues[0].rosterPositions).toContain('FLEX');
     expect(res.body.data.provenance).toMatchObject({
       source: 'sleeper',
@@ -113,6 +131,54 @@ describe('Sleeper live portfolio production preflight', () => {
     });
     expect(mockGetUser).toHaveBeenCalledWith('Cippy97');
     expect(mockGetUserLeagues).toHaveBeenCalledWith('user-123', '2026');
+  });
+
+  it('unlocks scoring authority only when every nonzero league key exactly matches Forecast', async () => {
+    mockGetUser.mockResolvedValue({
+      user_id: 'user-123',
+      username: 'Cippy97',
+      display_name: 'Cippy97',
+    });
+    mockGetUserLeagues.mockResolvedValue([
+      {
+        league_id: 'league-green',
+        name: 'Exact Forecast PPR',
+        season: '2026',
+        scoring_settings: {
+          pass_yd: 0.04,
+          pass_td: 4,
+          pass_int: -1,
+          rush_yd: 0.1,
+          rush_td: 6,
+          rec: 1,
+          rec_yd: 0.1,
+          rec_td: 6,
+          bonus_pass_yd_300: 0,
+        },
+        roster_positions: ['QB', 'RB', 'WR', 'TE', 'FLEX', 'BN'],
+        settings: { leg: 1 },
+      },
+    ]);
+
+    const app = express();
+    app.use('/api/sleeper', leaguesRouter);
+
+    const res = await call(app, '/api/sleeper/leagues/live?username=Cippy97&season=2026');
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.leagues[0].scoringCoverage).toMatchObject({
+      status: 'GREEN',
+      nonzeroKeyCount: 8,
+      coveredKeyCount: 8,
+      coveragePct: 100,
+    });
+    expect(res.body.data.scoringCertification).toMatchObject({
+      status: 'GREEN',
+      greenLeagueCount: 1,
+      redLeagueCount: 0,
+      redLeagueIds: [],
+      productionAuthorityUnlocked: true,
+    });
   });
 
   it('returns a typed 404 for an unknown Sleeper username', async () => {
