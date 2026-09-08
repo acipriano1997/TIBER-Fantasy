@@ -18,6 +18,19 @@ const summary = {
   model_version: 'wr_signal_score_role_balanced_v3',
 };
 
+const declared2026Artifacts = [
+  {
+    artifact_name: 'wr_player_signal_cards_2025.csv',
+    relative_path: 'wr_player_signal_cards_2025.csv',
+    format: 'csv',
+  },
+  {
+    artifact_name: 'wr_best_recipe_summary.json',
+    relative_path: 'wr_best_recipe_summary.json',
+    format: 'json',
+  },
+];
+
 async function writeFixture(
   dir: string,
   promotion?: {
@@ -35,6 +48,7 @@ async function writeFixture(
       JSON.stringify({
         feature_season: 2025,
         outcome_season: 2026,
+        artifacts: declared2026Artifacts,
         ...(promotion ? { promotion } : {}),
       }),
     ),
@@ -83,6 +97,66 @@ describe('SignalValidationService draft tags', () => {
     await expect(service.getWrBreakoutDraftTags(2026)).rejects.toMatchObject({
       code: 'not_promoted',
       status: 409,
+    } satisfies Partial<SignalValidationIntegrationError>);
+  });
+
+  it('refuses a target-season draft signal when required artifacts are not declared by the manifest', async () => {
+    await Promise.all([
+      writeFile(path.join(dir, 'wr_player_signal_cards_2025.csv'), cards),
+      writeFile(path.join(dir, 'wr_best_recipe_summary.json'), JSON.stringify(summary)),
+      writeFile(
+        path.join(dir, 'export_manifest.json'),
+        JSON.stringify({
+          feature_season: 2025,
+          outcome_season: 2026,
+          artifacts: [declared2026Artifacts[0]],
+          promotion: {
+            status: 'promoted',
+            backtest_passed: true,
+            prescriptive_validation_passed: true,
+          },
+        }),
+      ),
+    ]);
+
+    const service = new SignalValidationService(new SignalValidationClient({ exportsDir: dir }));
+
+    await expect(service.getWrBreakoutDraftTags(2026)).rejects.toMatchObject({
+      code: 'invalid_payload',
+      status: 502,
+    } satisfies Partial<SignalValidationIntegrationError>);
+  });
+
+  it('hides an unmanifested future-season fixture from the available/default breakout seasons', async () => {
+    const cards2024 = cards.replace(/,2025,/g, ',2024,');
+    await Promise.all([
+      writeFile(path.join(dir, 'wr_player_signal_cards_2024.csv'), cards2024),
+      writeFile(path.join(dir, 'wr_player_signal_cards_2025.csv'), cards),
+      writeFile(path.join(dir, 'wr_best_recipe_summary.json'), JSON.stringify({ ...summary, season: 2024 })),
+      writeFile(
+        path.join(dir, 'export_manifest.json'),
+        JSON.stringify({
+          feature_season: 2024,
+          outcome_season: 2025,
+          artifacts: [
+            {
+              artifact_name: 'wr_player_signal_cards_2024.csv',
+              relative_path: 'wr_player_signal_cards_2024.csv',
+              format: 'csv',
+            },
+            declared2026Artifacts[1],
+          ],
+        }),
+      ),
+    ]);
+
+    const client = new SignalValidationClient({ exportsDir: dir });
+    await expect(client.listAvailableSeasons()).resolves.toEqual([2024]);
+    await expect(client.readWrBreakoutExports()).resolves.toMatchObject({ season: 2024, availableSeasons: [2024] });
+    await expect(client.readWrBreakoutExports(2025)).rejects.toMatchObject({
+      code: 'not_found',
+      status: 404,
+      availableSeasons: [2024],
     } satisfies Partial<SignalValidationIntegrationError>);
   });
 
