@@ -7,6 +7,7 @@ import { buildManagementStrategyContext } from '@shared/managementStrategyContex
 import { buildStrategyContextActivationDiagnostics } from '../modules/management/strategyContextActivationDiagnostics';
 import { buildForgeEvidenceActivationDiagnostics } from '../modules/management/forgeEvidenceActivationDiagnostics';
 import { buildTeamDirectionForgeFreshnessReceipt } from '../modules/management/forgeTeamDirectionFreshnessPolicy';
+import { espnDraftBridgeStore } from '../services/espnDraftBridge';
 
 type ManagementDeps = {
   storage: typeof storage;
@@ -21,8 +22,65 @@ const defaultDeps: ManagementDeps = {
   classifyTeamDirection,
 };
 
+function requireLocalDraftBridge(req: express.Request, res: express.Response, next: express.NextFunction) {
+  const host = String(req.headers.host || '').split(':')[0].toLowerCase();
+  if (!['127.0.0.1', 'localhost', '::1', '[::1]'].includes(host)) {
+    return res.status(403).json({
+      success: false,
+      error: 'ESPN draft execution is local-only. Open TIBER through localhost on the draft computer.',
+    });
+  }
+  res.setHeader('Cache-Control', 'no-store');
+  return next();
+}
+
 export function createManagementRouter(deps: ManagementDeps = defaultDeps) {
   const router = express.Router();
+
+  router.get('/api/management/espn-draft-bridge/status', requireLocalDraftBridge, (_req, res) => {
+    res.json({ success: true, ...espnDraftBridgeStore.getStatus() });
+  });
+
+  router.post('/api/management/espn-draft-bridge/heartbeat', requireLocalDraftBridge, express.json({ limit: '8kb' }), (req, res) => {
+    try {
+      const status = espnDraftBridgeStore.ingestHeartbeat(req.body ?? {});
+      res.json({ success: true, ...status });
+    } catch (error) {
+      res.status(400).json({ success: false, error: (error as Error).message });
+    }
+  });
+
+  router.post('/api/management/espn-draft-bridge/request', requireLocalDraftBridge, express.json({ limit: '4kb' }), (req, res) => {
+    try {
+      const action = espnDraftBridgeStore.requestPick(req.body ?? {});
+      res.status(202).json({ success: true, action });
+    } catch (error) {
+      res.status(409).json({ success: false, error: (error as Error).message });
+    }
+  });
+
+  router.get('/api/management/espn-draft-bridge/next', requireLocalDraftBridge, (req, res) => {
+    const pageInstanceId = typeof req.query.page_instance_id === 'string' ? req.query.page_instance_id : '';
+    res.json({ success: true, action: espnDraftBridgeStore.nextAction(pageInstanceId) });
+  });
+
+  router.post('/api/management/espn-draft-bridge/result', requireLocalDraftBridge, express.json({ limit: '4kb' }), (req, res) => {
+    try {
+      const action = espnDraftBridgeStore.resolveAction(req.body ?? {});
+      res.json({ success: true, action });
+    } catch (error) {
+      res.status(409).json({ success: false, error: (error as Error).message });
+    }
+  });
+
+  router.delete('/api/management/espn-draft-bridge/action', requireLocalDraftBridge, (_req, res) => {
+    try {
+      espnDraftBridgeStore.clearResolvedAction();
+      res.json({ success: true });
+    } catch (error) {
+      res.status(409).json({ success: false, error: (error as Error).message });
+    }
+  });
 
   router.get('/api/management/team-direction', async (req, res) => {
     try {
@@ -79,7 +137,6 @@ export function createManagementRouter(deps: ManagementDeps = defaultDeps) {
           })
         : [];
 
-      // Derive Superflex from league roster_positions if available
       const leagueSettings = dashboardPayload.leagueSettings ?? dashboardPayload.settings ?? null;
       const rosterPositions: string[] =
         (leagueSettings as any)?.roster_positions ??
@@ -89,9 +146,6 @@ export function createManagementRouter(deps: ManagementDeps = defaultDeps) {
         (p: string) => String(p).toUpperCase() === 'SUPER_FLEX'
       );
 
-      // W6 / G6: evaluate the named Fantasy-owned policy on every Team
-      // Direction request. The receipt is constructed once and consumed by the
-      // classifier, backend diagnostics, Management UI response, and export.
       const forgeFreshnessReceipt = buildTeamDirectionForgeFreshnessReceipt({
         artifact: dashboardPayload.diagnostics?.forgeArtifact ?? null,
         rosterPlayers: teamData.roster ?? [],
@@ -116,11 +170,7 @@ export function createManagementRouter(deps: ManagementDeps = defaultDeps) {
         diagnostics: dashboardPayload.diagnostics,
         strategyTemplateDiagnostics,
       });
-      // Slice 3: additive, read-only diagnostic visibility of Strategy Context
-      // activation readiness. Does not activate templates or change any behavior.
       const strategyContextActivation = buildStrategyContextActivationDiagnostics(managementStrategyContext);
-      // Slice 4: additive, read-only FORGE evidence activation/citation metadata.
-      // Citation only — does not change the Team Direction classifier or output.
       const forgeEvidenceActivation = buildForgeEvidenceActivationDiagnostics({
         forgeArtifact: dashboardPayload.diagnostics?.forgeArtifact,
         rosterMatching: dashboardPayload.diagnostics?.forgeRosterMatching,
