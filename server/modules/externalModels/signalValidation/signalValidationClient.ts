@@ -42,12 +42,35 @@ export class SignalValidationClient {
 
     try {
       const entries = await fs.readdir(this.exportsDir, { withFileTypes: true });
-      return entries
+      let seasons = entries
         .filter((entry) => entry.isFile())
         .map((entry) => parseSeasonFromFilename(entry.name))
         .filter((season): season is number => season != null)
         .sort((a, b) => b - a);
+
+      const exportManifest = await this.readExportManifest(false);
+      if (exportManifest != null) {
+        const parsed = signalValidationExportManifestSchema.safeParse(exportManifest);
+        if (!parsed.success) {
+          throw new SignalValidationIntegrationError(
+            'invalid_payload',
+            'Signal Validation export manifest does not match the expected season contract.',
+            502,
+            parsed.error.flatten(),
+          );
+        }
+
+        // Historical seasons at or before the manifest feature season remain inspectable,
+        // but a stray newer filename cannot advance the promoted/default season boundary.
+        seasons = seasons.filter((season) => season <= parsed.data.feature_season);
+      }
+
+      return seasons;
     } catch (error) {
+      if (error instanceof SignalValidationIntegrationError) {
+        throw error;
+      }
+
       if ((error as NodeJS.ErrnoException)?.code === 'ENOENT') {
         return [];
       }
@@ -101,25 +124,39 @@ export class SignalValidationClient {
   }
 
   async readWrBreakoutExports(requestedSeason?: number): Promise<CanonicalSignalValidationExports> {
+    const exportManifest = await this.readExportManifest(false);
+    const parsedManifest = exportManifest == null ? undefined : signalValidationExportManifestSchema.safeParse(exportManifest);
+
+    if (parsedManifest && !parsedManifest.success) {
+      throw new SignalValidationIntegrationError(
+        'invalid_payload',
+        'Signal Validation export manifest does not match the expected season contract.',
+        502,
+        parsedManifest.error.flatten(),
+      );
+    }
+
     const availableSeasons = await this.listAvailableSeasons();
 
     if (!availableSeasons.length) {
       throw new SignalValidationIntegrationError(
         'not_found',
-        `No Signal Validation WR player signal card exports were found in SIGNAL_VALIDATION_EXPORTS_DIR (${this.exportsDir}). ` +
+        `No manifest-supported Signal Validation WR player signal card exports were found in SIGNAL_VALIDATION_EXPORTS_DIR (${this.exportsDir}). ` +
           `Expected files: ${WR_SIGNAL_FILE_PREFIX}{season}${WR_SIGNAL_FILE_SUFFIX} and ${WR_BEST_RECIPE_FILE}.`,
         404,
       );
     }
 
-    const season = requestedSeason ?? availableSeasons[0];
+    const manifestFeatureSeason = parsedManifest?.success ? parsedManifest.data.feature_season : undefined;
+    const season = requestedSeason ?? manifestFeatureSeason ?? availableSeasons[0];
 
     if (!availableSeasons.includes(season)) {
       const availableList = availableSeasons.join(', ');
       throw new SignalValidationIntegrationError(
         'not_found',
-        `Signal Validation exports for season ${season} were not found. Available export seasons: ${availableList}. ` +
-          'The WR export filename uses the feature season token (wr_player_signal_cards_{feature_season}.csv).',
+        `Signal Validation exports for season ${season} were not found inside the manifest-supported boundary. ` +
+          `Available export seasons: ${availableList}. The WR export filename uses the feature season token ` +
+          '(wr_player_signal_cards_{feature_season}.csv).',
         404,
         undefined,
         availableSeasons,
@@ -130,10 +167,9 @@ export class SignalValidationClient {
     const summaryPath = path.join(this.exportsDir, WR_BEST_RECIPE_FILE);
 
     try {
-      const [playerSignalCardsCsv, bestRecipeSummaryRaw, exportManifest] = await Promise.all([
+      const [playerSignalCardsCsv, bestRecipeSummaryRaw] = await Promise.all([
         fs.readFile(csvPath, 'utf8'),
         fs.readFile(summaryPath, 'utf8'),
-        this.readExportManifest(false),
       ]);
 
       return {
@@ -199,6 +235,22 @@ export class SignalValidationClient {
         404,
         undefined,
         [parsed.data.outcome_season],
+      );
+    }
+
+    const requiredSignalFile = `${WR_SIGNAL_FILE_PREFIX}${parsed.data.feature_season}${WR_SIGNAL_FILE_SUFFIX}`;
+    const requiredArtifacts = [requiredSignalFile, WR_BEST_RECIPE_FILE];
+    const declaredArtifacts = new Set(
+      (parsed.data.artifacts ?? []).flatMap((artifact) => [artifact.artifact_name, artifact.relative_path]),
+    );
+    const missingDeclarations = requiredArtifacts.filter((artifact) => !declaredArtifacts.has(artifact));
+
+    if (missingDeclarations.length > 0) {
+      throw new SignalValidationIntegrationError(
+        'invalid_payload',
+        `Signal Validation manifest does not declare the required promoted draft-tag artifacts: ${missingDeclarations.join(', ')}.`,
+        502,
+        { requiredArtifacts, declaredArtifacts: [...declaredArtifacts] },
       );
     }
 
