@@ -1,0 +1,82 @@
+{
+  "spec_id": "breakout_v1_3_frozen_2026_09_08",
+  "status": "frozen_before_unseen_2025_holdout",
+  "frozen_at": "2026-09-08T16:01:00Z",
+  "target": {
+    "id": "ros_tier_jump",
+    "definition": "For a WR outside the feature-season Top 12, outcome positional PPR finish improves by at least one frozen tier: 13-24, 25-36, 37-48, or >48 into any better tier.",
+    "tiers": [12, 24, 36, 48],
+    "feature_top12_excluded": true,
+    "feature_min_games": 4,
+    "outcome_min_games": 8
+  },
+  "chronology": {
+    "final_unseen_feature_season": 2024,
+    "final_unseen_outcome_season": 2025,
+    "holdout_rows_inspected_before_freeze": false,
+    "training_and_development_may_use_through_feature_season": 2023,
+    "holdout_must_not_affect_features_model_calibration_or_threshold": true
+  },
+  "model": {
+    "family": "regularized_logistic_regression",
+    "C": 10.0,
+    "class_weight": null,
+    "solver": "lbfgs",
+    "random_state": 20260908,
+    "candidate_feature_contract": [
+      "feature_ppg",
+      "feature_targets_per_game",
+      "feature_games_played",
+      "log_feature_finish",
+      "expected_ppg_baseline"
+    ],
+    "feature_contract_fallback_rule": "If expected_ppg_baseline cannot be reproduced from the governed TIBER-Data artifact using feature-season-only fields, do not manufacture it or inspect 2025 outcomes. Freeze a separately versioned TIBER-native spec using only consistently available production fields before loading 2025 rows."
+  },
+  "probability_calibration": {
+    "method": "ten_percent_historical_rate_shrinkage",
+    "formula": "p_calibrated = 0.90 * p_raw + 0.10 * historical_smoothed_event_rate",
+    "historical_smoothed_event_rate": "(prior_positive_events + 2) / (prior_evaluable_rows + 4)",
+    "development_evidence": {
+      "chronological_oof_rows": 296,
+      "positive_events": 49,
+      "brier_score": 0.12872966793408347,
+      "log_loss": 0.41304331794230953
+    },
+    "note": "Online Platt calibration was rejected after chronological development because it worsened aggregate Brier and log loss."
+  },
+  "action_policy": {
+    "probability_threshold": 0.25,
+    "adaptive_thresholding": false,
+    "note": "Prospective adaptive high-confidence thresholds were rejected after failing to generalize from 2021-2022 into 2023."
+  },
+  "data_source": {
+    "repository": "Prometheus-Frameworks/TIBER-Data",
+    "manifest_path": "exports/promoted/nfl/PLAYER_SEASON_COVERAGE_V0_PROMOTION_MANIFEST.json",
+    "artifact_path": "exports/promoted/nfl/player_season_coverage_v0.json",
+    "artifact_sha256": "d45f612b207085df00b4b080e4f55ce1abbd060dcbf30b0bee777ff833ddd8ac",
+    "promotion_review": "TIBER-Data#202",
+    "promotion_status": "promoted_governed_artifact",
+    "allowed_season_type": "REG",
+    "position": "WR"
+  },
+  "prohibited_inputs": [
+    "2025 outcome information during feature/model/calibration/threshold selection",
+    "current depth chart",
+    "current injury or availability state",
+    "manual analyst observations",
+    "unpromoted market ADP",
+    "route/snap/air-yard fields without governed historical coverage"
+  ],
+  "certification_gates": {
+    "minimum_holdout_positive_events": 30,
+    "minimum_precision": 0.15,
+    "minimum_precision_lift_strictly_greater_than": 1.5,
+    "precision_lift_lower_95_strictly_greater_than": 1.0,
+    "brier_must_beat_constant_base_rate": true,
+    "log_loss_must_beat_constant_base_rate": true,
+    "must_beat_simple_independent_challenger": true,
+    "leakage_checks_required": true,
+    "reported_metrics_must_reconcile_from_confusion_counts": true
+  },
+  "promotion_authority": "none_research_only_until_independent_producer_review"
+}
