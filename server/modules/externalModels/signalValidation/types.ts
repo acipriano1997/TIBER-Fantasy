@@ -18,13 +18,32 @@ export const wrBestRecipeSummarySchema = z
   })
   .passthrough();
 
+export const signalValidationExportManifestSchema = z
+  .object({
+    feature_season: z.number().int().min(2000).max(2100),
+    outcome_season: z.number().int().min(2000).max(2100),
+    generated_at: z.string().optional(),
+    promotion: z
+      .object({
+        status: z.enum(['promoted', 'candidate', 'rejected']),
+        backtest_passed: z.boolean(),
+        prescriptive_validation_passed: z.boolean(),
+        promoted_at: z.string().optional(),
+      })
+      .optional(),
+  })
+  .passthrough();
+
 export type CanonicalWrBestRecipeSummary = z.infer<typeof wrBestRecipeSummarySchema>;
+export type CanonicalSignalValidationExportManifest = z.infer<typeof signalValidationExportManifestSchema>;
 
 export interface CanonicalSignalValidationExports {
   season: number;
   availableSeasons: number[];
   playerSignalCardsCsv: string;
   bestRecipeSummary: unknown;
+  exportManifest?: unknown;
+  requestedTargetSeason?: number;
 }
 
 export interface SignalValidationComponentSignals {
@@ -64,11 +83,22 @@ export interface TiberWrBestRecipeSummary {
   rawCanonical?: CanonicalWrBestRecipeSummary;
 }
 
+export interface TiberSignalPromotion {
+  featureSeason: number;
+  targetSeason: number;
+  status: 'promoted' | 'candidate' | 'rejected' | 'unverified';
+  backtestPassed: boolean;
+  prescriptiveValidationPassed: boolean;
+  promotedAt: string | null;
+  draftTagEligible: boolean;
+}
+
 export interface TiberWrBreakoutLab {
   season: number;
   availableSeasons: number[];
   rows: TiberWrBreakoutSignalRow[];
   bestRecipeSummary: TiberWrBestRecipeSummary;
+  promotion?: TiberSignalPromotion;
   source: {
     provider: 'signal-validation-model';
     exportDirectory: string;
@@ -77,9 +107,23 @@ export interface TiberWrBreakoutLab {
   freshness?: ArtifactFreshness;
 }
 
+export interface TiberBreakoutDraftTag {
+  playerId: string | null;
+  playerName: string;
+  team: string | null;
+  targetSeason: number;
+  label: string;
+  candidateRank: number | null;
+  finalSignalScore: number | null;
+  breakoutContext: string | null;
+  modelVersion: string | null;
+  generatedAt: string | null;
+}
+
 export type SignalValidationErrorCode =
   | 'config_error'
   | 'not_found'
+  | 'not_promoted'
   | 'invalid_payload'
   | 'malformed_export'
   | 'upstream_unavailable';
