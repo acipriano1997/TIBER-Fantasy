@@ -63,13 +63,31 @@ function normalizeId(value: string | null | undefined): string | null {
   return normalized || null;
 }
 
+function isNullableString(value: unknown): value is string | null {
+  return value === null || typeof value === 'string';
+}
+
+function isNullableFiniteNumber(value: unknown): value is number | null {
+  return value === null || (typeof value === 'number' && Number.isFinite(value));
+}
+
 function isBreakoutDraftTag(value: unknown): value is BreakoutDraftTag {
   if (!value || typeof value !== 'object') return false;
   const candidate = value as Partial<BreakoutDraftTag>;
   return (
+    isNullableString(candidate.playerId) &&
     typeof candidate.playerName === 'string' &&
+    candidate.playerName.trim().length > 0 &&
+    isNullableString(candidate.team) &&
     typeof candidate.targetSeason === 'number' &&
-    typeof candidate.label === 'string'
+    Number.isInteger(candidate.targetSeason) &&
+    typeof candidate.label === 'string' &&
+    candidate.label.trim().length > 0 &&
+    isNullableFiniteNumber(candidate.candidateRank) &&
+    isNullableFiniteNumber(candidate.finalSignalScore) &&
+    isNullableString(candidate.breakoutContext) &&
+    isNullableString(candidate.modelVersion) &&
+    isNullableString(candidate.generatedAt)
   );
 }
 
