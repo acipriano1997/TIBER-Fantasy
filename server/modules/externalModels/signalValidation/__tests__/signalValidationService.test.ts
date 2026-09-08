@@ -152,13 +152,15 @@ describe('SignalValidationService draft tags', () => {
     } satisfies Partial<SignalValidationIntegrationError>);
   });
 
-  it('refuses an otherwise promoted model when held-out precision misses the floor', async () => {
+  it('refuses an otherwise promoted model when an internally consistent held-out result misses the precision floor', async () => {
     await writeFixture(dir, {
       ...promotedAndAccurate,
       accuracy_certification: {
         ...passingAccuracyCertification,
         held_out_true_positives: 7,
         held_out_false_positives: 43,
+        held_out_false_negatives: 35,
+        held_out_true_negatives: 382,
         held_out_precision: 0.14,
         precision_lift: 1.56,
       },
