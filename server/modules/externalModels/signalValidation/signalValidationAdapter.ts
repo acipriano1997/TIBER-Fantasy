@@ -2,10 +2,12 @@ import Papa from 'papaparse';
 import { ZodError } from 'zod';
 import { assessAndLogArtifactFreshness } from '../artifactFreshness';
 import {
+  CanonicalBreakoutAccuracyCertification,
   CanonicalSignalValidationExportManifest,
   CanonicalSignalValidationExports,
   CanonicalWrBestRecipeSummary,
   SignalValidationIntegrationError,
+  TiberBreakoutAccuracyCertification,
   TiberSignalPromotion,
   TiberWrBestRecipeSummary,
   TiberWrBreakoutLab,
@@ -94,6 +96,10 @@ function toRawFields(record: Record<string, string | undefined>): Record<string,
   return Object.fromEntries(
     Object.entries(record).map(([key, value]) => [key, value == null || value === '' ? null : value]),
   );
+}
+
+function nearlyEqual(left: number, right: number, tolerance: number): boolean {
+  return Math.abs(left - right) <= tolerance;
 }
 
 export function parseWrBestRecipeSummary(payload: unknown): CanonicalWrBestRecipeSummary {
@@ -243,6 +249,76 @@ export function normalizeWrBestRecipeSummary(
   };
 }
 
+function normalizeAccuracyCertification(
+  certification: CanonicalBreakoutAccuracyCertification | undefined,
+): TiberBreakoutAccuracyCertification | null {
+  if (!certification) {
+    return null;
+  }
+
+  const truePositives = certification.held_out_true_positives;
+  const falsePositives = certification.held_out_false_positives;
+  const falseNegatives = certification.held_out_false_negatives;
+  const trueNegatives = certification.held_out_true_negatives;
+  const predictedPositiveCount = truePositives + falsePositives;
+  const actualPositiveCount = truePositives + falseNegatives;
+  const evaluableCount = truePositives + falsePositives + falseNegatives + trueNegatives;
+
+  const recomputedPrecision = predictedPositiveCount > 0 ? truePositives / predictedPositiveCount : 0;
+  const recomputedBaseRate = evaluableCount > 0 ? actualPositiveCount / evaluableCount : 0;
+  const recomputedPrecisionLift = recomputedBaseRate > 0 ? recomputedPrecision / recomputedBaseRate : 0;
+  const metricsConsistent =
+    evaluableCount > 0 &&
+    predictedPositiveCount > 0 &&
+    certification.held_out_positive_events === actualPositiveCount &&
+    nearlyEqual(certification.held_out_precision, recomputedPrecision, 0.005) &&
+    nearlyEqual(certification.held_out_base_rate, recomputedBaseRate, 0.005) &&
+    nearlyEqual(certification.precision_lift, recomputedPrecisionLift, 0.02);
+
+  const consumerThresholdsPassed =
+    certification.passed === true &&
+    certification.chronological_out_of_sample === true &&
+    certification.final_holdout_untouched === true &&
+    certification.leakage_checks_passed === true &&
+    certification.calibration_passed === true &&
+    certification.challenger_beaten === true &&
+    metricsConsistent &&
+    actualPositiveCount >= 30 &&
+    recomputedPrecision >= 0.15 &&
+    recomputedPrecisionLift > 1.5 &&
+    certification.precision_lift_lower_95 > 1.0 &&
+    certification.brier_score < certification.base_rate_brier_score &&
+    certification.log_loss < certification.base_rate_log_loss;
+
+  return {
+    certificationVersion: certification.certification_version,
+    producerPassed: certification.passed,
+    chronologicalOutOfSample: certification.chronological_out_of_sample,
+    finalHoldoutUntouched: certification.final_holdout_untouched,
+    leakageChecksPassed: certification.leakage_checks_passed,
+    calibrationPassed: certification.calibration_passed,
+    challengerBeaten: certification.challenger_beaten,
+    heldOutTruePositives: truePositives,
+    heldOutFalsePositives: falsePositives,
+    heldOutFalseNegatives: falseNegatives,
+    heldOutTrueNegatives: trueNegatives,
+    heldOutPositiveEvents: certification.held_out_positive_events,
+    heldOutPrecision: certification.held_out_precision,
+    heldOutBaseRate: certification.held_out_base_rate,
+    precisionLift: certification.precision_lift,
+    precisionLiftLower95: certification.precision_lift_lower_95,
+    brierScore: certification.brier_score,
+    baseRateBrierScore: certification.base_rate_brier_score,
+    logLoss: certification.log_loss,
+    baseRateLogLoss: certification.base_rate_log_loss,
+    recomputedPrecision,
+    recomputedBaseRate,
+    recomputedPrecisionLift,
+    metricsConsistent,
+    consumerThresholdsPassed,
+  };
+}
+
 function normalizePromotion(
   payload: unknown,
   requestedTargetSeason?: number,
@@ -257,6 +333,7 @@ function normalizePromotion(
   const backtestPassed = promotion?.backtest_passed === true;
   const prescriptiveValidationPassed = promotion?.prescriptive_validation_passed === true;
   const targetMatches = requestedTargetSeason == null || manifest.outcome_season === requestedTargetSeason;
+  const accuracyCertification = normalizeAccuracyCertification(promotion?.accuracy_certification);
 
   return {
     featureSeason: manifest.feature_season,
@@ -265,11 +342,13 @@ function normalizePromotion(
     backtestPassed,
     prescriptiveValidationPassed,
     promotedAt: promotion?.promoted_at ?? null,
+    accuracyCertification,
     draftTagEligible:
       status === 'promoted' &&
       backtestPassed &&
       prescriptiveValidationPassed &&
-      targetMatches,
+      targetMatches &&
+      accuracyCertification?.consumerThresholdsPassed === true,
   };
 }
 

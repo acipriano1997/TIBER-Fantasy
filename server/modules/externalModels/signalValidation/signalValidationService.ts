@@ -68,8 +68,11 @@ export class SignalValidationService {
         throw new SignalValidationIntegrationError(
           'not_promoted',
           `Signal Validation WR breakout evidence for ${targetSeason} has not passed the explicit promotion gate. ` +
-            'Draft tags require upstream promoted status plus successful backtest and prescriptive validation.',
+            'Draft tags require promoted status, backtest and prescriptive-validation passes, plus quantitative held-out accuracy and calibration certification.',
           409,
+          {
+            promotion: lab.promotion ?? null,
+          },
         );
       }
 

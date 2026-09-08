@@ -31,14 +31,40 @@ const declared2026Artifacts = [
   },
 ];
 
+const passingAccuracyCertification = {
+  certification_version: 'breakout_accuracy_v1',
+  passed: true,
+  chronological_out_of_sample: true,
+  final_holdout_untouched: true,
+  leakage_checks_passed: true,
+  calibration_passed: true,
+  challenger_beaten: true,
+  held_out_true_positives: 12,
+  held_out_false_positives: 38,
+  held_out_false_negatives: 30,
+  held_out_true_negatives: 387,
+  held_out_positive_events: 42,
+  held_out_precision: 0.24,
+  held_out_base_rate: 0.09,
+  precision_lift: 2.67,
+  precision_lift_lower_95: 1.21,
+  brier_score: 0.071,
+  base_rate_brier_score: 0.082,
+  log_loss: 0.241,
+  base_rate_log_loss: 0.303,
+};
+
+type PromotionFixture = {
+  status: 'promoted' | 'candidate' | 'rejected';
+  backtest_passed: boolean;
+  prescriptive_validation_passed: boolean;
+  promoted_at?: string;
+  accuracy_certification?: typeof passingAccuracyCertification;
+};
+
 async function writeFixture(
   dir: string,
-  promotion?: {
-    status: 'promoted' | 'candidate' | 'rejected';
-    backtest_passed: boolean;
-    prescriptive_validation_passed: boolean;
-    promoted_at?: string;
-  },
+  promotion?: PromotionFixture,
   playerCards: string = cards,
 ) {
   await Promise.all([
@@ -56,6 +82,14 @@ async function writeFixture(
   ]);
 }
 
+const promotedAndAccurate: PromotionFixture = {
+  status: 'promoted',
+  backtest_passed: true,
+  prescriptive_validation_passed: true,
+  promoted_at: '2026-09-01T00:00:00.000Z',
+  accuracy_certification: passingAccuracyCertification,
+};
+
 describe('SignalValidationService draft tags', () => {
   let dir: string;
 
@@ -67,13 +101,8 @@ describe('SignalValidationService draft tags', () => {
     await rm(dir, { recursive: true, force: true });
   });
 
-  it('emits a probability-bearing 2026 Breakout tag only for affirmative rows after the full upstream promotion gate passes', async () => {
-    await writeFixture(dir, {
-      status: 'promoted',
-      backtest_passed: true,
-      prescriptive_validation_passed: true,
-      promoted_at: '2026-09-01T00:00:00.000Z',
-    });
+  it('emits a probability-bearing 2026 Breakout tag only after promotion plus quantitative accuracy certification', async () => {
+    await writeFixture(dir, promotedAndAccurate);
 
     const service = new SignalValidationService(new SignalValidationClient({ exportsDir: dir }));
     const result = await service.getWrBreakoutDraftTags(2026);
@@ -104,6 +133,79 @@ describe('SignalValidationService draft tags', () => {
       modelVersion: 'wr_signal_score_role_balanced_v3',
     });
     expect(result.lab.promotion?.draftTagEligible).toBe(true);
+    expect(result.lab.promotion?.accuracyCertification?.metricsConsistent).toBe(true);
+    expect(result.lab.promotion?.accuracyCertification?.consumerThresholdsPassed).toBe(true);
+  });
+
+  it('refuses an otherwise promoted model that has no accuracy certification', async () => {
+    await writeFixture(dir, {
+      status: 'promoted',
+      backtest_passed: true,
+      prescriptive_validation_passed: true,
+    });
+
+    const service = new SignalValidationService(new SignalValidationClient({ exportsDir: dir }));
+
+    await expect(service.getWrBreakoutDraftTags(2026)).rejects.toMatchObject({
+      code: 'not_promoted',
+      status: 409,
+    } satisfies Partial<SignalValidationIntegrationError>);
+  });
+
+  it('refuses an otherwise promoted model when an internally consistent held-out result misses the precision floor', async () => {
+    await writeFixture(dir, {
+      ...promotedAndAccurate,
+      accuracy_certification: {
+        ...passingAccuracyCertification,
+        held_out_true_positives: 7,
+        held_out_false_positives: 43,
+        held_out_false_negatives: 35,
+        held_out_true_negatives: 382,
+        held_out_precision: 0.14,
+        precision_lift: 1.56,
+      },
+    });
+
+    const service = new SignalValidationService(new SignalValidationClient({ exportsDir: dir }));
+
+    await expect(service.getWrBreakoutDraftTags(2026)).rejects.toMatchObject({
+      code: 'not_promoted',
+      status: 409,
+    } satisfies Partial<SignalValidationIntegrationError>);
+  });
+
+  it('refuses an otherwise promoted model when producer metrics conflict with held-out counts', async () => {
+    await writeFixture(dir, {
+      ...promotedAndAccurate,
+      accuracy_certification: {
+        ...passingAccuracyCertification,
+        precision_lift: 9.99,
+      },
+    });
+
+    const service = new SignalValidationService(new SignalValidationClient({ exportsDir: dir }));
+
+    await expect(service.getWrBreakoutDraftTags(2026)).rejects.toMatchObject({
+      code: 'not_promoted',
+      status: 409,
+    } satisfies Partial<SignalValidationIntegrationError>);
+  });
+
+  it('refuses an otherwise promoted model when the 95% precision-lift lower bound does not beat base rate', async () => {
+    await writeFixture(dir, {
+      ...promotedAndAccurate,
+      accuracy_certification: {
+        ...passingAccuracyCertification,
+        precision_lift_lower_95: 0.99,
+      },
+    });
+
+    const service = new SignalValidationService(new SignalValidationClient({ exportsDir: dir }));
+
+    await expect(service.getWrBreakoutDraftTags(2026)).rejects.toMatchObject({
+      code: 'not_promoted',
+      status: 409,
+    } satisfies Partial<SignalValidationIntegrationError>);
   });
 
   it('refuses promoted draft tags when an affirmative row lacks calibrated probability evidence', async () => {
@@ -115,15 +217,7 @@ describe('SignalValidationService draft tags', () => {
         .replace(',0.34,ros_tier_jump,0.08,0.22,0.34,0.39,0.52', ''))
       .join('\n');
 
-    await writeFixture(
-      dir,
-      {
-        status: 'promoted',
-        backtest_passed: true,
-        prescriptive_validation_passed: true,
-      },
-      cardsWithoutProbability,
-    );
+    await writeFixture(dir, promotedAndAccurate, cardsWithoutProbability);
 
     const service = new SignalValidationService(new SignalValidationClient({ exportsDir: dir }));
 
@@ -153,11 +247,7 @@ describe('SignalValidationService draft tags', () => {
           feature_season: 2025,
           outcome_season: 2026,
           artifacts: [declared2026Artifacts[0]],
-          promotion: {
-            status: 'promoted',
-            backtest_passed: true,
-            prescriptive_validation_passed: true,
-          },
+          promotion: promotedAndAccurate,
         }),
       ),
     ]);
@@ -212,11 +302,7 @@ describe('SignalValidationService draft tags', () => {
         JSON.stringify({
           feature_season: 2024,
           outcome_season: 2025,
-          promotion: {
-            status: 'promoted',
-            backtest_passed: true,
-            prescriptive_validation_passed: true,
-          },
+          promotion: promotedAndAccurate,
         }),
       ),
     ]);
