@@ -25,8 +25,8 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install pandas numpy scikit-learn
 
-      - name: Run chronological OOS breakout v1.1 development comparison
-        run: python scripts/research/run_breakout_v1_1_dev.py
+      - name: Run prospective high-confidence policy research
+        run: python scripts/research/run_breakout_v1_2_policy.py
 
       - name: Show report
-        run: cat outputs/research/breakout_v1_1_dev/report.json
+        run: cat outputs/research/breakout_v1_2_policy/report.json
