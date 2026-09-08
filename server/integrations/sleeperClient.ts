@@ -1,6 +1,17 @@
 const BASE_URL = 'https://api.sleeper.app/v1';
 const SLEEPER_REQUEST_TIMEOUT_MS = 10_000;
 
+export class SleeperApiError extends Error {
+  constructor(
+    public readonly status: number,
+    public readonly path: string,
+    public readonly responseText: string,
+  ) {
+    super(`Sleeper API error ${status}: ${responseText}`);
+    this.name = 'SleeperApiError';
+  }
+}
+
 export interface SleeperLeague {
   league_id: string;
   name: string;
@@ -138,7 +149,7 @@ async function fetchJson<T>(path: string): Promise<T> {
     const res = await fetch(`${BASE_URL}${path}`, { signal: controller.signal });
     if (!res.ok) {
       const text = await res.text();
-      throw new Error(`Sleeper API error ${res.status}: ${text}`);
+      throw new SleeperApiError(res.status, path, text);
     }
     return await res.json() as T;
   } finally {
