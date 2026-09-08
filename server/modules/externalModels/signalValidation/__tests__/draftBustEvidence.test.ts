@@ -28,6 +28,7 @@ const row = {
   provenance: [{ artifact: 'frozen-replay' }],
   freshness_context: { stale: false, status: 'fresh' },
   label_definition_version: 'draft_bust_label_v1',
+  display_eligible: true,
 };
 
 describe('readPromotedDraftBustTags', () => {
@@ -66,15 +67,25 @@ describe('readPromotedDraftBustTags', () => {
     });
   });
 
-  test('omits row-level stale, zero-probability, or validation-failed evidence instead of tagging it', async () => {
+  test('omits row-level stale, zero-probability, validation-failed, or display-ineligible evidence', async () => {
     await writeFixture([
       { ...row, player_id: 'stale', freshness_context: { stale: true } },
       { ...row, player_id: 'zero', bust_probability: 0 },
       { ...row, player_id: 'failed', backtest_passed: false },
+      { ...row, player_id: 'ordinary-profile', display_eligible: false },
     ]);
 
     const result = await readPromotedDraftBustTags(2026, { exportsDir: dir });
     expect(result.tags).toEqual([]);
+  });
+
+  test('requires an explicit upstream display-eligibility classification', async () => {
+    const { display_eligible: _displayEligible, ...withoutDisplayGate } = row;
+    await writeFixture([withoutDisplayGate]);
+    await expect(readPromotedDraftBustTags(2026, { exportsDir: dir })).rejects.toMatchObject({
+      code: 'invalid_payload',
+      status: 502,
+    });
   });
 
   test('rejects malformed probabilities rather than clipping or inventing a value', async () => {
