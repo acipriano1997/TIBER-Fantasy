@@ -1,5 +1,8 @@
 name: Gate 5 Dependency Refresh
 
+# Temporary branch-only helper. Gate 5 removes this workflow before the final
+# release PR; its only purpose is to let npm regenerate the lock graph after
+# test/type tooling was reclassified as dev-only and apply compatible audit fixes.
 on:
   push:
     branches:
@@ -33,7 +36,7 @@ jobs:
       - name: Reconcile dependency classification with lockfile
         run: npm install --package-lock-only --ignore-scripts
 
-      - name: Apply only semver-compatible audit fixes to lockfile
+      - name: Apply only semver-compatible production audit fixes to lockfile
         run: npm audit fix --package-lock-only --omit=dev --ignore-scripts
 
       - name: Report residual production audit
