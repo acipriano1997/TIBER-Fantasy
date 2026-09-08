@@ -33,6 +33,7 @@ export type EspnDraftBridgeAction = {
   actionId: string;
   requestedAt: string;
   expiresAt: string;
+  pickNumber: number;
   player: EspnDraftBridgePlayer;
   status: EspnDraftBridgeActionStatus;
   reason: string | null;
@@ -150,6 +151,7 @@ export class EspnDraftBridgeStore {
     if (this.heartbeat.autopickEnabled) throw new Error('Disable ESPN Autopick before drafting from TIBER.');
     if (this.heartbeat.draftPaused) throw new Error('The ESPN draft is paused.');
     if (this.heartbeat.enabledDraftButtons <= 0) throw new Error('ESPN has no enabled Draft buttons right now.');
+    if (this.heartbeat.currentPick === null || this.heartbeat.currentPick < 1) throw new Error('ESPN current pick could not be verified.');
     if (this.heartbeat.secondsRemaining === null || this.heartbeat.secondsRemaining < ESPN_DRAFT_MIN_SECONDS) {
       throw new Error(`Fewer than ${ESPN_DRAFT_MIN_SECONDS} readable seconds remain. Use ESPN directly for this pick.`);
     }
@@ -167,6 +169,7 @@ export class EspnDraftBridgeStore {
       actionId: randomUUID(),
       requestedAt: new Date(now).toISOString(),
       expiresAt: new Date(now + ACTION_TTL_MS).toISOString(),
+      pickNumber: this.heartbeat.currentPick,
       player: { name, team, position },
       status: 'pending',
       reason: null,
@@ -215,6 +218,14 @@ export class EspnDraftBridgeStore {
   clearResolvedAction() {
     this.expireActionIfNeeded();
     if (this.action?.status === 'pending') throw new Error('Cannot clear a pending draft action.');
+    if (this.action?.status === 'uncertain') {
+      if (!this.bridgeConnected() || !this.heartbeat) {
+        throw new Error('Reconnect the ESPN draft room before clearing an uncertain action.');
+      }
+      if (this.heartbeat.currentPick === this.action.pickNumber) {
+        throw new Error('ESPN is still on the uncertain pick. Verify or complete that pick in ESPN before rearming TIBER.');
+      }
+    }
     this.action = null;
   }
 }
