@@ -22,9 +22,18 @@ const defaultDeps: ManagementDeps = {
   classifyTeamDirection,
 };
 
+function isLoopbackAddress(value: string | undefined): boolean {
+  const address = (value ?? '').toLowerCase();
+  return address === '127.0.0.1'
+    || address === '::1'
+    || address === '::ffff:127.0.0.1';
+}
+
 function requireLocalDraftBridge(req: express.Request, res: express.Response, next: express.NextFunction) {
   const host = String(req.headers.host || '').split(':')[0].toLowerCase();
-  if (!['127.0.0.1', 'localhost', '::1', '[::1]'].includes(host)) {
+  const hostIsLocal = ['127.0.0.1', 'localhost', '::1', '[::1]'].includes(host);
+  const socketIsLocal = isLoopbackAddress(req.socket.remoteAddress);
+  if (!hostIsLocal || !socketIsLocal) {
     return res.status(403).json({
       success: false,
       error: 'ESPN draft execution is local-only. Open TIBER through localhost on the draft computer.',
