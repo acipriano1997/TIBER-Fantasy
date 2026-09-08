@@ -261,6 +261,8 @@
         || !second.onClock
         || second.autopickEnabled
         || second.draftPaused
+        || !Number.isFinite(second.secondsRemaining)
+        || second.secondsRemaining < 8
         || liveIdentity.playerId !== control.identity.playerId
         || !identityMatches(liveIdentity, target)
         || !control.button.isConnected
