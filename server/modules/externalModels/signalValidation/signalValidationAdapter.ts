@@ -24,7 +24,7 @@ const BREAKOUT_CONTEXT_KEYS = [
 ] as const;
 
 const PLAYER_ID_KEYS = ['player_id', 'gsis_id', 'player_gsis_id'] as const;
-const TEAM_KEYS = ['team', 'team_id', 'team_abbr'] as const;
+const TEAM_KEYS = ['team', 'feature_team', 'team_id', 'team_abbr'] as const;
 const BEST_RECIPE_KEYS = ['best_recipe_name', 'recipe_name', 'top_recipe_name'] as const;
 
 function pickString(record: Record<string, string | undefined>, keys: readonly string[]): string | null {
@@ -158,6 +158,7 @@ export function normalizeWrBestRecipeSummary(
 ): TiberWrBestRecipeSummary {
   const canonical = parseWrBestRecipeSummary(payload);
   const bestRecipeName = canonical.best_recipe_name ?? canonical.recipe_name ?? canonical.name;
+  const keyMetrics = canonical.key_metrics;
 
   if (!bestRecipeName) {
     throw new SignalValidationIntegrationError(
@@ -174,10 +175,14 @@ export function normalizeWrBestRecipeSummary(
     validationScore: canonical.validation_score ?? null,
     winRate: canonical.win_rate ?? null,
     hitRate: canonical.hit_rate ?? null,
-    candidateCount: canonical.candidate_count ?? null,
+    candidateCount: canonical.candidate_count ?? keyMetrics?.candidate_count ?? null,
+    breakoutCount: keyMetrics?.breakout_count ?? null,
+    precisionAt20: keyMetrics?.precision_at_20 ?? null,
+    recallAt20: keyMetrics?.recall_at_20 ?? null,
+    averageBreakoutRank: keyMetrics?.average_breakout_rank ?? null,
     summary: canonical.summary ?? null,
     generatedAt: canonical.generated_at ?? null,
-    modelVersion: canonical.model_version ?? null,
+    modelVersion: canonical.model_version ?? canonical.scoring_version ?? null,
     ...(options.includeRawCanonical ? { rawCanonical: canonical } : {}),
   };
 }

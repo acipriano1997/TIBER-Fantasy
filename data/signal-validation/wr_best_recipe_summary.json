@@ -3,16 +3,34 @@
   "schema_version": "wr_exports_v1",
   "position": "WR",
   "best_recipe_name": "role_balanced",
-  "season": 2025,
-  "generated_at": "2026-03-24T12:00:00Z",
-  "model_version": "wr_signal_score_role_balanced_v2",
-  "validation_score": 0.81,
-  "win_rate": 0.62,
-  "hit_rate": 0.58,
-  "candidate_count": 8,
-  "summary": "Promoted lane validation export for WR breakout card ingestion.",
-  "notes": [
-    "Minimal promoted artifact to verify end-to-end readiness.",
-    "Rows include full player identity and component signals for UI rendering."
-  ]
+  "recipe_family": "role",
+  "best_recipe_selection_rule": {
+    "description": "Best recipe is selected by highest precision@20, then highest recall@20, then lowest average breakout rank, then alphabetical recipe name.",
+    "primary_metric": "precision_at_20",
+    "tie_breakers": [
+      "recall_at_20",
+      "lowest_average_breakout_rank",
+      "recipe_name"
+    ]
+  },
+  "key_metrics": {
+    "candidate_count": 1122,
+    "breakout_count": 228,
+    "precision_at_10": 0.5385,
+    "precision_at_20": 0.519,
+    "precision_at_30": 0.479,
+    "recall_at_10": 0.0921,
+    "recall_at_20": 0.1798,
+    "recall_at_30": 0.25,
+    "average_breakout_rank": 88.2412,
+    "median_breakout_rank": 82.0,
+    "false_positives_in_top_20": 38,
+    "false_negatives_outside_top_30": 171
+  },
+  "scoring_version": "wr_signal_score_role_balanced_v1",
+  "generated_at": "2026-03-23T01:40:41Z",
+  "source_artifacts": {
+    "validation_dataset_path": "outputs/validation_reports/wr_validation_dataset_role_enriched.csv",
+    "comparison_summary_path": "outputs/validation_reports/wr_recipe_comparison_summary.json"
+  }
 }
