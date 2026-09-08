@@ -1,0 +1,44 @@
+name: Draft Night Provisional Breakout
+
+on:
+  push:
+    branches:
+      - feat/draft-night-provisional-breakout-badges
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install scorer dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pandas numpy scikit-learn
+
+      - name: Reproduce 2026 provisional breakout tags
+        run: python scripts/research/build_breakout_v1_4_2026_provisional.py
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install locked application dependencies
+        run: npm ci
+
+      - name: Run draft badge contract tests
+        run: >-
+          npm test --
+          client/src/lib/__tests__/breakoutDraftTags.test.ts
+          server/modules/externalModels/signalValidation/__tests__/draftNightProvisionalBreakout.test.ts

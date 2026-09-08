@@ -1,6 +1,11 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useCurrentNFLWeek } from '@/hooks/useCurrentNFLWeek';
+import { BreakoutSignalBadge } from '@/components/BreakoutSignalBadge';
+import {
+  fetchBreakoutDraftTags,
+  type BreakoutDraftTag,
+} from '@/lib/breakoutDraftTags';
 import { fetchForgeBatch } from '../api/forge';
 import AlphaRankingsLayout from '../components/AlphaRankingsLayout';
 import WRFormulaWeightsPanel from '../components/WRFormulaWeightsPanel';
@@ -70,6 +75,8 @@ export default function WRRankings() {
   }, [currentSeason]);
   const [week, setWeek] = useState<number | null>(10);
   const [weights, setWeights] = useState<WRWeights>(DEFAULT_WEIGHTS);
+  const [draftSignals, setDraftSignals] = useState<BreakoutDraftTag[]>([]);
+  const [draftSignalSource, setDraftSignalSource] = useState<'certified' | 'provisional' | null>(null);
   
   const [forgeByPlayerId, setForgeByPlayerId] = useState<Record<string, ForgeScore>>({});
   const [forgeLoading, setForgeLoading] = useState(false);
@@ -79,6 +86,30 @@ export default function WRRankings() {
     queryKey: ['/api/admin/wr-rankings-sandbox', { season }],
     queryFn: () => fetch(`/api/admin/wr-rankings-sandbox?season=${season}`).then(res => res.json()),
   });
+
+  useEffect(() => {
+    let cancelled = false;
+    const targetSeason = currentSeason;
+    setDraftSignals([]);
+    setDraftSignalSource(null);
+
+    void fetchBreakoutDraftTags(targetSeason)
+      .then((result) => {
+        if (cancelled || result.status !== 'active' || result.targetSeason !== targetSeason) return;
+        setDraftSignals(result.tags.slice().sort((a, b) =>
+          (a.candidateRank ?? Number.MAX_SAFE_INTEGER) - (b.candidateRank ?? Number.MAX_SAFE_INTEGER),
+        ));
+        setDraftSignalSource(result.source);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setDraftSignals([]);
+          setDraftSignalSource(null);
+        }
+      });
+
+    return () => { cancelled = true; };
+  }, [currentSeason]);
 
   useEffect(() => {
     const loadForge = async () => {
@@ -173,6 +204,38 @@ export default function WRRankings() {
         onWeightsChange={setWeights}
         defaultCollapsed={true}
       />
+
+      {draftSignals.length > 0 ? (
+        <section className="rounded-xl border border-amber-400/30 bg-amber-400/5 p-4" data-testid="draft-night-tier-jump-signals">
+          <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-300">Draft-night evidence</div>
+              <h2 className="mt-1 text-lg font-semibold text-white">2026 WR tier-jump signals</h2>
+              <p className="mt-1 max-w-3xl text-xs leading-relaxed text-slate-400">
+                Keep this panel open beside the ESPN draft room. Percentages are frozen model probabilities of moving into a better WR PPG tier in 2026; they are evidence, not automatic pick instructions.
+              </p>
+            </div>
+            <span className={`rounded-full border px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${
+              draftSignalSource === 'certified'
+                ? 'border-emerald-400/40 bg-emerald-400/10 text-emerald-300'
+                : 'border-dashed border-amber-300/50 bg-amber-400/10 text-amber-200'
+            }`}>
+              {draftSignalSource === 'certified' ? 'Certified' : 'Provisional research'}
+            </span>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+            {draftSignals.map((tag) => (
+              <div key={`${tag.playerId ?? tag.playerName}-${tag.targetSeason}`} className="flex min-w-0 items-center justify-between gap-3 rounded-lg border border-slate-700/70 bg-slate-900/50 px-3 py-2">
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-medium text-white">{tag.playerName}</div>
+                  <div className="text-[11px] text-slate-500">{tag.team ?? 'Team unavailable'} · signal #{tag.candidateRank ?? '—'}</div>
+                </div>
+                <BreakoutSignalBadge tag={tag} />
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <ForgeRankingsTable
         position="WR"
