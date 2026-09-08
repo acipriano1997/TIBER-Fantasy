@@ -2,6 +2,7 @@ export type EspnDraftBridgeAction = {
   actionId: string;
   requestedAt: string;
   expiresAt: string;
+  pickNumber: number;
   player: { name: string; team: string | null; position: string | null };
   status: 'pending' | 'confirmed' | 'rejected' | 'uncertain' | 'expired';
   reason: string | null;
