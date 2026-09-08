@@ -54,15 +54,61 @@ describe('ESPN draft bridge fail-closed state machine', () => {
       .toThrow(/current pick could not be verified/i);
   });
 
-  test('binds every explicit request to the current ESPN pick and blocks concurrent requests', () => {
+  test('does not report ready when the clock is safe but the ESPN pick is unreadable', () => {
+    store.ingestHeartbeat(heartbeat({ currentPick: null, secondsRemaining: 35 }));
+    expect(store.getStatus()).toMatchObject({
+      connected: true,
+      readyToDraft: false,
+      page: { currentPick: null, secondsRemaining: 35 },
+    });
+  });
+
+  test('binds every explicit request to the exact ESPN tab and current pick and blocks concurrent requests', () => {
     store.ingestHeartbeat(heartbeat({ currentPick: 31 }));
     const action = store.requestPick({ name: 'Player One', team: 'DAL', position: 'WR' });
+    expect(action.pageInstanceId).toBe('page-1');
     expect(action.pickNumber).toBe(31);
     expect(action.status).toBe('pending');
     expect(() => store.requestPick({ name: 'Player Two', team: 'NYG', position: 'WR' }))
       .toThrow(/already pending/i);
     expect(store.nextAction('other-page')).toBeNull();
     expect(store.nextAction('page-1')?.actionId).toBe(action.actionId);
+  });
+
+  test('a second ESPN tab cannot inherit or resolve an action armed by the first tab', () => {
+    store.ingestHeartbeat(heartbeat({ pageInstanceId: 'page-1', currentPick: 31 }));
+    const action = store.requestPick({ name: 'Player One', team: 'DAL', position: 'WR' });
+
+    store.ingestHeartbeat(heartbeat({ pageInstanceId: 'page-2', currentPick: 31 }));
+    expect(store.nextAction('page-2')).toBeNull();
+    expect(store.nextAction('page-1')?.actionId).toBe(action.actionId);
+    expect(() => store.resolveAction({
+      pageInstanceId: 'page-2',
+      actionId: action.actionId,
+      status: 'confirmed',
+    })).toThrow(/does not match the draft action/i);
+
+    expect(store.resolveAction({
+      pageInstanceId: 'page-1',
+      actionId: action.actionId,
+      status: 'rejected',
+      reason: 'Bound tab rejected safely.',
+    })).toMatchObject({ status: 'rejected', pageInstanceId: 'page-1' });
+  });
+
+  test('expires a pending action immediately when its bound ESPN tab advances to a new pick', () => {
+    store.ingestHeartbeat(heartbeat({ pageInstanceId: 'page-1', currentPick: 31 }));
+    const action = store.requestPick({ name: 'Player One', team: 'DAL', position: 'WR' });
+    expect(action.status).toBe('pending');
+
+    store.ingestHeartbeat(heartbeat({ pageInstanceId: 'page-1', currentPick: 32 }));
+    expect(store.getStatus().activeAction).toMatchObject({
+      actionId: action.actionId,
+      pageInstanceId: 'page-1',
+      pickNumber: 31,
+      status: 'expired',
+    });
+    expect(store.nextAction('page-1')).toBeNull();
   });
 
   test('rejects a player already observed in ESPN draft history', () => {
@@ -74,7 +120,7 @@ describe('ESPN draft bridge fail-closed state machine', () => {
       .toThrow(/already appears in ESPN draft history/i);
   });
 
-  test('locks an uncertain click until ESPN has advanced beyond that exact pick', () => {
+  test('locks an uncertain click until the same ESPN tab has advanced beyond that exact pick', () => {
     store.ingestHeartbeat(heartbeat({ currentPick: 44 }));
     const action = store.requestPick({ name: 'Player One', team: 'DAL', position: 'WR' });
     store.resolveAction({
@@ -89,7 +135,10 @@ describe('ESPN draft bridge fail-closed state machine', () => {
       .toThrow(/uncertain/i);
     expect(() => store.clearResolvedAction()).toThrow(/still on the uncertain pick/i);
 
-    store.ingestHeartbeat(heartbeat({ currentPick: 45 }));
+    store.ingestHeartbeat(heartbeat({ pageInstanceId: 'page-2', currentPick: 45 }));
+    expect(() => store.clearResolvedAction()).toThrow(/owns the uncertain action/i);
+
+    store.ingestHeartbeat(heartbeat({ pageInstanceId: 'page-1', currentPick: 45 }));
     expect(() => store.clearResolvedAction()).not.toThrow();
     expect(store.getStatus().activeAction).toBeNull();
   });
