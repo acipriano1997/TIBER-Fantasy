@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {
+  COMMAND_CENTER_V1_RELEASE_BRANCH,
   COMMAND_CENTER_V1_RELEASE_CANDIDATE_BASE_SHA,
   COMMAND_CENTER_V1_RELEASE_NONBLOCKING_DEBT,
   COMMAND_CENTER_V1_RELEASE_PROHIBITIONS,
@@ -34,7 +35,9 @@ describe('Command Center v1 Gate 5 final personal release certification', () => 
     expect(commandCenterV1TerminalStatus()).toBe('command_center_v1_certified_personal_release');
   });
 
-  test('pins the frozen Gate 4 candidate base and explicit rollback points', () => {
+  test('pins the frozen release branch, Gate 4 candidate base, and explicit rollback points', () => {
+    expect(COMMAND_CENTER_V1_RELEASE_BRANCH).toBe('release/command-center-v1-personal');
+    expect(COMMAND_CENTER_V1_RUNTIME_BINDING.releaseBranch).toBe(COMMAND_CENTER_V1_RELEASE_BRANCH);
     expect(COMMAND_CENTER_V1_RELEASE_CANDIDATE_BASE_SHA).toMatch(/^[0-9a-f]{40}$/);
     expect(COMMAND_CENTER_V1_RELEASE_CANDIDATE_BASE_SHA).toBe(COMMAND_CENTER_V1_ROLLBACK.runtimeEquivalentGate4Sha);
     expect(COMMAND_CENTER_V1_ROLLBACK.preMobileGate3Sha).toMatch(/^[0-9a-f]{40}$/);
@@ -68,8 +71,9 @@ describe('Command Center v1 Gate 5 final personal release certification', () => 
     }
   });
 
-  test('binds one personal runtime, explicit readiness, PWA paths, and human-only writes', () => {
+  test('binds one personal runtime, release branch, explicit readiness, PWA paths, and human-only writes', () => {
     expect(COMMAND_CENTER_V1_RUNTIME_BINDING.audience).toBe('personal_operator_only');
+    expect(COMMAND_CENTER_V1_RUNTIME_BINDING.releaseBranch).toBe('release/command-center-v1-personal');
     expect(COMMAND_CENTER_V1_RUNTIME_BINDING.buildCommand).toBe('sh build.sh');
     expect(COMMAND_CENTER_V1_RUNTIME_BINDING.startCommand).toBe('node dist/index.mjs');
     expect(COMMAND_CENTER_V1_RUNTIME_BINDING.runtimeProfile).toBe('full');
@@ -101,6 +105,7 @@ describe('Command Center v1 Gate 5 final personal release certification', () => 
 
   test('final workflow reruns security, scope freeze, release contracts, exact build, desktop browser, and mobile browser certification', () => {
     const workflow = read('.github/workflows/command-center-gate5-release.yml');
+    expect(workflow).toContain('release/command-center-v1-personal');
     expect(workflow).toContain('npm audit --omit=dev --audit-level=high');
     expect(workflow).toContain('git merge-base --is-ancestor');
     expect(workflow).toContain('commandCenterV1ReleaseCertification.test.ts');
@@ -112,10 +117,11 @@ describe('Command Center v1 Gate 5 final personal release certification', () => 
     expect(workflow).toContain('/api/health/db');
   });
 
-  test('release document contains the terminal states, runtime binding, debt policy, and rollback SHAs', () => {
+  test('release document contains the terminal states, release branch, runtime binding, debt policy, and rollback SHAs', () => {
     const doc = read('docs/command-center-v1/release-certification.md');
     expect(doc).toContain('command_center_v1_certified_personal_release');
     expect(doc).toContain('command_center_v1_blocked_with_explicit_gate_failures');
+    expect(doc).toContain(COMMAND_CENTER_V1_RELEASE_BRANCH);
     expect(doc).toContain(COMMAND_CENTER_V1_RELEASE_CANDIDATE_BASE_SHA);
     expect(doc).toContain(COMMAND_CENTER_V1_ROLLBACK.preMobileGate3Sha);
     expect(doc).toContain('No P0 or P1 debt is accepted');
