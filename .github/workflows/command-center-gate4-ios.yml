@@ -108,7 +108,20 @@ jobs:
           exit 1
 
       - name: Run iPhone viewport, PWA, offline, and lifecycle certification
-        run: node scripts/command-center-mobile-pwa-certify.mjs
+        shell: bash
+        run: |
+          set -u -o pipefail
+          for attempt in 1 2; do
+            if node scripts/command-center-mobile-pwa-certify.mjs; then
+              exit 0
+            fi
+            if [ "$attempt" -eq 2 ]; then
+              echo "::error::iPhone/PWA certification failed after a clean Chrome retry."
+              exit 1
+            fi
+            echo "::warning::Chrome remote-debug bootstrap failed on the first attempt; retrying the full certification with a fresh browser profile."
+            sleep 2
+          done
 
       - name: Run 390px realistic large-list certification
         run: node scripts/command-center-mobile-list-smoke.mjs
