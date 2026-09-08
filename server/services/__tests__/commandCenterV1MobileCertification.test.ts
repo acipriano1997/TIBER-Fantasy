@@ -39,11 +39,17 @@ describe('Command Center v1 Gate 4 personal iPhone/PWA certification', () => {
     expect(manifest.icons.some((icon: any) => icon.sizes === '512x512')).toBe(true);
   });
 
-  test('keeps private/live API data network-only in the service worker', () => {
+  test('keeps private/live API traffic outside the service-worker response pipeline', () => {
     const sw = readRepoFile('client/public/sw.js');
-    expect(sw).toContain("url.pathname.toLowerCase().startsWith('/api/')");
-    expect(sw).toContain('apiNetworkOnly(request)');
-    expect(sw).toContain("fetch(request, { cache: 'no-store' })");
+    const marker = "url.pathname.toLowerCase().startsWith('/api/')";
+    const apiStart = sw.indexOf(marker);
+    const documentStart = sw.indexOf("if (request.destination === 'document')", apiStart);
+    expect(apiStart).toBeGreaterThanOrEqual(0);
+    expect(documentStart).toBeGreaterThan(apiStart);
+    const apiBranch = sw.slice(apiStart, documentStart);
+    expect(apiBranch).toContain('return;');
+    expect(apiBranch).not.toContain('respondWith');
+    expect(apiBranch).not.toContain('cache.put');
     expect(sw).toContain('self.skipWaiting()');
     expect(sw).toContain('self.clients.claim()');
     expect(sw).toContain('caches.delete(name)');
@@ -72,16 +78,17 @@ describe('Command Center v1 Gate 4 personal iPhone/PWA certification', () => {
     expect(layout).toContain('tiber-sidebar-mobile');
   });
 
-  test('mobile PWA browser probe covers all three target widths, offline privacy, lifecycle recovery, and 200 percent scale', () => {
-    const smoke = readRepoFile('scripts/command-center-mobile-pwa-smoke.mjs');
+  test('mobile PWA certifier covers target widths, API bypass privacy, offline failure, lifecycle recovery, and 200 percent scale', () => {
+    const smoke = readRepoFile('scripts/command-center-mobile-pwa-certify.mjs');
     expect(smoke).toContain('const WIDTHS = [375, 390, 430]');
     expect(smoke).toContain("'/command-center/weekly'");
     expect(smoke).toContain("'/management'");
     expect(smoke).toContain("'/draft-review'");
     expect(smoke).toContain("'/records'");
-    expect(smoke).toContain("offline: true");
-    expect(smoke).toContain("fetch('/api/health')");
-    expect(smoke).toContain("Page.setWebLifecycleState");
+    expect(smoke).toContain('service_worker_bypass');
+    expect(smoke).toContain('gate4_offline_probe');
+    expect(smoke).toContain('offline: true');
+    expect(smoke).toContain('Page.setWebLifecycleState');
     expect(smoke).toContain('pageScaleFactor: 2');
     expect(smoke).toContain("startsWith('/api/')");
   });
