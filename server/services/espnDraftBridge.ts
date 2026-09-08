@@ -13,6 +13,7 @@ export type EspnDraftBridgeHeartbeat = {
   rosterCount: number;
   enabledDraftButtons: number;
   availablePlayerCount: number;
+  draftedPlayerNames: string[];
   urlPath: string;
 };
 
@@ -58,6 +59,20 @@ function cleanNullableString(value: unknown, max = MAX_STRING): string | null {
   return cleaned || null;
 }
 
+function cleanNameList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const raw of value.slice(0, 300)) {
+    const name = cleanString(raw, 100);
+    const key = name.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (!name || !key || seen.has(key)) continue;
+    seen.add(key);
+    result.push(name);
+  }
+  return result;
+}
+
 function finiteInt(value: unknown): number | null {
   if (value === null || value === undefined || value === '') return null;
   const number = Number(value);
@@ -87,6 +102,7 @@ export class EspnDraftBridgeStore {
       rosterCount: finiteInt(raw.rosterCount) ?? 0,
       enabledDraftButtons: finiteInt(raw.enabledDraftButtons) ?? 0,
       availablePlayerCount: finiteInt(raw.availablePlayerCount) ?? 0,
+      draftedPlayerNames: cleanNameList(raw.draftedPlayerNames),
       urlPath: cleanString(raw.urlPath, 240),
       receivedAtMs: this.now(),
     };
@@ -136,6 +152,7 @@ export class EspnDraftBridgeStore {
         rosterCount: heartbeat.rosterCount,
         enabledDraftButtons: heartbeat.enabledDraftButtons,
         availablePlayerCount: heartbeat.availablePlayerCount,
+        draftedPlayerNames: heartbeat.draftedPlayerNames,
         urlPath: heartbeat.urlPath,
       } : null,
       activeAction: this.action,
@@ -163,6 +180,11 @@ export class EspnDraftBridgeStore {
     const position = cleanNullableString(raw.position, 12);
     if (!name) throw new Error('Player name is required.');
     if (!position) throw new Error('Player position is required.');
+
+    const drafted = new Set(this.heartbeat.draftedPlayerNames.map((value) => value.toLowerCase().replace(/[^a-z0-9]/g, '')));
+    if (drafted.has(name.toLowerCase().replace(/[^a-z0-9]/g, ''))) {
+      throw new Error(`${name} already appears in ESPN draft history.`);
+    }
 
     const now = this.now();
     this.action = {
