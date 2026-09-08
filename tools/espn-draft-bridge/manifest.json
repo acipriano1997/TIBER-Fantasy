@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "TIBER ESPN Draft Bridge",
+  "version": "1.0.0",
+  "description": "Local-only guarded bridge from TIBER Command Center to ESPN's native Draft button.",
+  "permissions": ["storage"],
+  "host_permissions": [
+    "https://fantasy.espn.com/*",
+    "http://127.0.0.1:5000/*",
+    "http://localhost:5000/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://fantasy.espn.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_title": "TIBER ESPN Draft Bridge"
+  }
+}
