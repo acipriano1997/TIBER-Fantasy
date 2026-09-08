@@ -5,7 +5,9 @@ on:
     paths:
       - 'server/sleeperRoutes.ts'
       - 'server/services/sleeperSyncService.ts'
+      - 'server/services/sleeperScoringCoverageAudit.ts'
       - 'server/services/__tests__/sleeperLeagueContextPreflight.test.ts'
+      - 'server/services/__tests__/sleeperScoringCoverageAudit.test.ts'
       - 'server/services/sleeperSyncV2/**'
       - 'server/routes/sleeperSyncV2Routes.ts'
       - 'server/routes/__tests__/sleeperLivePortfolioPreflight.test.ts'
@@ -28,7 +30,9 @@ on:
     paths:
       - 'server/sleeperRoutes.ts'
       - 'server/services/sleeperSyncService.ts'
+      - 'server/services/sleeperScoringCoverageAudit.ts'
       - 'server/services/__tests__/sleeperLeagueContextPreflight.test.ts'
+      - 'server/services/__tests__/sleeperScoringCoverageAudit.test.ts'
       - 'server/services/sleeperSyncV2/**'
       - 'server/routes/sleeperSyncV2Routes.ts'
       - 'server/routes/__tests__/sleeperLivePortfolioPreflight.test.ts'
@@ -100,7 +104,7 @@ jobs:
           typecheck_status=$?
           set -e
 
-          sleeper_pattern='^(server/(index\.ts|routes/(healthRoutes|sleeperUsageTruthBoundary|sleeperSyncV2Routes)\.ts|routes/__tests__/(healthRoutes|sleeperUsageTruthBoundary|sleeperLivePortfolioPreflight)\.test\.ts|integrations/sleeperClient\.ts|services/sleeperSyncService\.ts|services/__tests__/sleeperLeagueContextPreflight\.test\.ts|services/sleeperSyncV2/.*\.ts|sleeperRoutes\.ts|sleeperAPI\.ts|config/season\.ts))\('
+          sleeper_pattern='^(server/(index\.ts|routes/(healthRoutes|sleeperUsageTruthBoundary|sleeperSyncV2Routes)\.ts|routes/__tests__/(healthRoutes|sleeperUsageTruthBoundary|sleeperLivePortfolioPreflight)\.test\.ts|integrations/sleeperClient\.ts|services/(sleeperSyncService|sleeperScoringCoverageAudit)\.ts|services/__tests__/(sleeperLeagueContextPreflight|sleeperScoringCoverageAudit)\.test\.ts|services/sleeperSyncV2/.*\.ts|sleeperRoutes\.ts|sleeperAPI\.ts|config/season\.ts))\('
           if grep -E "$sleeper_pattern" /tmp/tiber-typecheck.log; then
             echo "::error::Sleeper/health CI delta contains TypeScript errors."
             exit 1
@@ -120,6 +124,7 @@ jobs:
           server/routes/__tests__/sleeperUsageTruthBoundary.test.ts
           server/routes/__tests__/sleeperLivePortfolioPreflight.test.ts
           server/services/__tests__/sleeperLeagueContextPreflight.test.ts
+          server/services/__tests__/sleeperScoringCoverageAudit.test.ts
           server/services/sleeperSyncV2/__tests__/schedulerTargeting.test.ts
           server/config/__tests__/season.test.ts
           server/services/__tests__/leagueDashboardTruthBoundary.test.ts
