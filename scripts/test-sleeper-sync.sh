@@ -79,11 +79,11 @@ echo "$portfolio_body" | jq -e \
       (.scoringCoverage.coefficientMismatches | type == "array") and
       (.scoringCoverage.invalidKeys | type == "array")
     ) and
-    (.data.summary | type == "object") and
-    (.data.summary.greenLeagueCount | type == "number") and
-    (.data.summary.redLeagueCount | type == "number") and
-    (.data.summary.redLeagueIds | type == "array") and
-    (.data.summary.productionAuthorityUnlocked | type == "boolean") and
+    (.data.scoringCertification | type == "object") and
+    (.data.scoringCertification.greenLeagueCount | type == "number") and
+    (.data.scoringCertification.redLeagueCount | type == "number") and
+    (.data.scoringCertification.redLeagueIds | type == "array") and
+    (.data.scoringCertification.productionAuthorityUnlocked | type == "boolean") and
     .data.provenance.source == "sleeper" and
     .data.provenance.mode == "live" and
     .data.provenance.complete == true and
@@ -115,7 +115,7 @@ echo "$portfolio_body" | jq '{
   userId: .data.userId,
   season: .data.season,
   count: .data.count,
-  summary: .data.summary,
+  scoringCertification: .data.scoringCertification,
   provenance: .data.provenance,
   leagues: [.data.leagues[] | {
     leagueId,
@@ -137,14 +137,14 @@ echo "=== END LIVE SLEEPER PORTFOLIO CERTIFICATION EVIDENCE ==="
 # real portfolio but any league cannot be scored exactly by the promoted
 # Forecast profile, fail closed and print only the concrete scoring blocker(s).
 if ! echo "$portfolio_body" | jq -e '
-  .data.summary.productionAuthorityUnlocked == true and
-  .data.summary.redLeagueCount == 0 and
+  .data.scoringCertification.productionAuthorityUnlocked == true and
+  .data.scoringCertification.redLeagueCount == 0 and
   all(.data.leagues[]; .scoringCoverage.status == "GREEN")
 ' >/dev/null; then
   scoring_blockers=$(echo "$portfolio_body" | jq '{
-    productionAuthorityUnlocked: .data.summary.productionAuthorityUnlocked,
-    redLeagueCount: .data.summary.redLeagueCount,
-    redLeagueIds: .data.summary.redLeagueIds,
+    productionAuthorityUnlocked: .data.scoringCertification.productionAuthorityUnlocked,
+    redLeagueCount: .data.scoringCertification.redLeagueCount,
+    redLeagueIds: .data.scoringCertification.redLeagueIds,
     blockers: [.data.leagues[] | select(.scoringCoverage.status == "RED") | {
       leagueId,
       name,
