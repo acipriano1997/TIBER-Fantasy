@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Sleeper production-preflight smoke against the mounted V2 API surface.
-# Usage: ./scripts/test-sleeper-sync.sh [BASE_URL] [USERNAME] [USER_ID] [LEAGUE_ID]
+# Usage: ./scripts/test-sleeper-sync.sh [BASE_URL] [USERNAME] [EXPECTED_USER_ID] [EXPECTED_LEAGUE_ID]
 set -euo pipefail
 
 BASE_URL=${1:-"http://127.0.0.1:5000"}
 TEST_USERNAME=${2:?"Sleeper username is required"}
-TEST_USER_ID=${3:?"Sleeper immutable user ID is required"}
-TEST_LEAGUE_ID=${4:?"At least one expected 2026 Sleeper league ID is required"}
+TEST_USER_ID=${3:-}
+TEST_LEAGUE_ID=${4:-}
 TEST_SEASON=${SLEEPER_SEASON:-2026}
 
 CURL_OPTS=( -sS --max-time 15 --connect-timeout 5 )
@@ -42,12 +42,13 @@ request_live_portfolio() {
 echo "Sleeper production-preflight live smoke"
 echo "Base URL: $BASE_URL"
 echo "Username: $TEST_USERNAME"
-echo "Expected immutable user ID: $TEST_USER_ID"
-echo "Expected league ID: $TEST_LEAGUE_ID"
+echo "Expected immutable user ID: ${TEST_USER_ID:-<discover-live>}"
+echo "Expected league ID: ${TEST_LEAGUE_ID:-<discover-live>}"
 echo "Season: $TEST_SEASON"
 
 # 1. The active V2 route must resolve the configured username using live
-# Sleeper data and preserve the immutable user identity plus raw league rules.
+# Sleeper data and preserve immutable identity, raw league rules, per-league
+# scoring coverage, and explicit provenance.
 mapfile -t portfolio_response < <(request_live_portfolio "$TEST_USERNAME" "$TEST_SEASON")
 portfolio_status=${portfolio_response[0]:-000}
 portfolio_body=$(printf '%s\n' "${portfolio_response[@]:1}")
@@ -57,33 +58,108 @@ portfolio_body=$(printf '%s\n' "${portfolio_response[@]:1}")
   "$portfolio_body"
 
 echo "$portfolio_body" | jq -e \
-  --arg uid "$TEST_USER_ID" \
-  --arg league "$TEST_LEAGUE_ID" \
   --argjson season "$TEST_SEASON" '
     .success == true and
-    .data.userId == $uid and
+    (.data.userId | type == "string") and
+    (.data.userId | length > 0) and
     .data.season == $season and
     (.data.count | type == "number") and
     .data.count > 0 and
     (.data.leagues | type == "array") and
-    any(.data.leagues[]; .leagueId == $league) and
+    (.data.leagues | length == .data.count) and
     all(.data.leagues[];
+      (.leagueId | type == "string") and
       (.scoringSettings | type == "object") and
       (.rosterPositions | type == "array") and
-      (.settings | type == "object")
+      (.settings | type == "object") and
+      (.scoringCoverage | type == "object") and
+      (.scoringCoverage.status == "GREEN" or .scoringCoverage.status == "RED") and
+      (.scoringCoverage.coveragePct | type == "number") and
+      (.scoringCoverage.unsupportedKeys | type == "array") and
+      (.scoringCoverage.coefficientMismatches | type == "array") and
+      (.scoringCoverage.invalidKeys | type == "array")
     ) and
+    (.data.summary | type == "object") and
+    (.data.summary.greenLeagueCount | type == "number") and
+    (.data.summary.redLeagueCount | type == "number") and
+    (.data.summary.redLeagueIds | type == "array") and
+    (.data.summary.productionAuthorityUnlocked | type == "boolean") and
     .data.provenance.source == "sleeper" and
     .data.provenance.mode == "live" and
     .data.provenance.complete == true and
     .data.provenance.syntheticFallbackAllowed == false and
     (.data.provenance.fetchedAt | type == "string")
   ' >/dev/null || fail \
-    "Live portfolio response violated immutable-ID/raw-rule/provenance contract" \
+    "Live portfolio response violated identity/raw-rule/scoring/provenance contract" \
     "$portfolio_body"
 
-echo "PASS: live portfolio resolved and expected league is present."
+resolved_user_id=$(echo "$portfolio_body" | jq -r '.data.userId')
+if [[ -n "$TEST_USER_ID" && "$resolved_user_id" != "$TEST_USER_ID" ]]; then
+  fail "Live portfolio resolved an unexpected immutable Sleeper user ID" "$portfolio_body"
+fi
 
-# 2. Unknown users must fail closed. No stored or synthetic portfolio is an
+if [[ -n "$TEST_LEAGUE_ID" ]]; then
+  echo "$portfolio_body" | jq -e --arg league "$TEST_LEAGUE_ID" '
+    any(.data.leagues[]; .leagueId == $league)
+  ' >/dev/null || fail "Expected 2026 Sleeper league was not present in the live portfolio" "$portfolio_body"
+fi
+
+echo "PASS: live portfolio resolved with immutable identity and complete per-league rules/provenance."
+
+# Persist the certification evidence in the job log without flattening league
+# scoring. This is intentionally read-only evidence from the live response.
+echo "=== LIVE SLEEPER PORTFOLIO CERTIFICATION EVIDENCE ==="
+echo "$portfolio_body" | jq '{
+  username: .data.username,
+  displayName: .data.displayName,
+  userId: .data.userId,
+  season: .data.season,
+  count: .data.count,
+  summary: .data.summary,
+  provenance: .data.provenance,
+  leagues: [.data.leagues[] | {
+    leagueId,
+    name,
+    season,
+    status,
+    totalRosters,
+    rosterPositions,
+    scoringSettings,
+    scoringCoverage,
+    settings,
+    draftId,
+    previousLeagueId
+  }]
+}'
+echo "=== END LIVE SLEEPER PORTFOLIO CERTIFICATION EVIDENCE ==="
+
+# 2. Recommendation authority is a zero-red-league gate. If the route found a
+# real portfolio but any league cannot be scored exactly by the promoted
+# Forecast profile, fail closed and print only the concrete scoring blocker(s).
+if ! echo "$portfolio_body" | jq -e '
+  .data.summary.productionAuthorityUnlocked == true and
+  .data.summary.redLeagueCount == 0 and
+  all(.data.leagues[]; .scoringCoverage.status == "GREEN")
+' >/dev/null; then
+  scoring_blockers=$(echo "$portfolio_body" | jq '{
+    productionAuthorityUnlocked: .data.summary.productionAuthorityUnlocked,
+    redLeagueCount: .data.summary.redLeagueCount,
+    redLeagueIds: .data.summary.redLeagueIds,
+    blockers: [.data.leagues[] | select(.scoringCoverage.status == "RED") | {
+      leagueId,
+      name,
+      coveragePct: .scoringCoverage.coveragePct,
+      unsupportedKeys: .scoringCoverage.unsupportedKeys,
+      coefficientMismatches: .scoringCoverage.coefficientMismatches,
+      invalidKeys: .scoringCoverage.invalidKeys
+    }]
+  }')
+  fail "Live portfolio is valid, but per-league scoring coverage still blocks recommendation authority" "$scoring_blockers"
+fi
+
+echo "PASS: every live 2026 league is GREEN; recommendation authority is unlocked by the live-portfolio scoring gate."
+
+# 3. Unknown users must fail closed. No stored or synthetic portfolio is an
 # acceptable fallback for production certification.
 BAD_USERNAME="tiber_preflight_missing_user_9f3c2d1a"
 mapfile -t missing_response < <(request_live_portfolio "$BAD_USERNAME" "$TEST_SEASON")
@@ -100,7 +176,7 @@ echo "$missing_body" | jq -e '
 
 echo "PASS: unknown user fails closed with typed 404."
 
-# 3. Malformed input must be rejected before upstream access.
+# 4. Malformed input must be rejected before upstream access.
 malformed_response=$(curl "${CURL_OPTS[@]}" -G -w $'\n%{http_code}' \
   --data-urlencode "username= " \
   --data-urlencode "season=not-a-season" \
