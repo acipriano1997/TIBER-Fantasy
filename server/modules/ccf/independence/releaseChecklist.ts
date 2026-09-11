@@ -1,8 +1,8 @@
+import type { CCFTiberCapabilityMigrationRecord } from "./tiberCapabilityMigration";
 import {
-  CCF_TIBER_CAPABILITY_MIGRATION_V0,
-  capabilityMigrationBlockers,
-  type CCFTiberCapabilityMigrationRecord,
-} from "./tiberCapabilityMigration";
+  CCF_ALL_TIBER_CAPABILITY_MIGRATION_V0,
+  allTiberCapabilityMigrationBlockers,
+} from "./allTiberCapabilityMigration";
 import {
   CCF_WEEKLY_DEPENDENCY_CENSUS_V0,
   blockedCriticalDependencies,
@@ -67,7 +67,7 @@ function dependencyState(record: CCFWeeklyDependencyRecord): CCFReleaseChecklist
 }
 
 export function buildCCFUniversalReleaseChecklist(): CCFUniversalReleaseChecklist {
-  const capabilities = CCF_TIBER_CAPABILITY_MIGRATION_V0.map((record) => ({
+  const capabilities = CCF_ALL_TIBER_CAPABILITY_MIGRATION_V0.map((record) => ({
     kind: "capability" as const,
     id: record.id,
     label: record.sourceCapability,
@@ -90,7 +90,7 @@ export function buildCCFUniversalReleaseChecklist(): CCFUniversalReleaseChecklis
     note: record.note,
   }));
 
-  const capabilityBlockers = capabilityMigrationBlockers().length;
+  const capabilityBlockers = allTiberCapabilityMigrationBlockers().length;
   const criticalDependencyBlockers = blockedCriticalDependencies().length;
   const scaffoldedButUncertified = CCF_NATIVE_IMPLEMENTATION_EVIDENCE_V0.filter(
     (record) => record.maturity !== "certified",
