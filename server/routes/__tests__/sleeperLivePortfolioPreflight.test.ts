@@ -63,7 +63,7 @@ describe('Sleeper live portfolio production preflight', () => {
     mockGetUserLeagues.mockReset();
   });
 
-  it('resolves immutable user identity and marks incompatible live scoring leagues RED', async () => {
+  it('preserves aggregate RED while allowing only exact leagues to unlock recommendation authority', async () => {
     mockGetUser.mockResolvedValue({
       user_id: 'user-123',
       username: 'Cippy97',
@@ -72,7 +72,7 @@ describe('Sleeper live portfolio production preflight', () => {
     mockGetUserLeagues.mockResolvedValue([
       {
         league_id: 'league-1',
-        name: 'League One',
+        name: 'Six Point Passing TD',
         season: '2026',
         status: 'in_season',
         total_rosters: 12,
@@ -84,9 +84,9 @@ describe('Sleeper live portfolio production preflight', () => {
       },
       {
         league_id: 'league-2',
-        name: 'League Two',
+        name: 'Exact Forecast Scoring',
         season: '2026',
-        scoring_settings: { pass_td: 4, rec: 0.5 },
+        scoring_settings: { pass_td: 4, rec: 1, rush_yd: 0.1 },
         roster_positions: ['QB', 'RB', 'WR', 'TE', 'SUPER_FLEX', 'BN'],
         settings: { leg: 1 },
       },
@@ -107,19 +107,21 @@ describe('Sleeper live portfolio production preflight', () => {
     expect(res.body.data.leagues[0].scoringCoverage).toMatchObject({
       status: 'RED',
       authority: 'TIBER-Forecast',
+      recommendationAuthorityUnlocked: false,
       coefficientMismatches: ['pass_td'],
     });
     expect(res.body.data.leagues[1].scoringCoverage).toMatchObject({
-      status: 'RED',
-      coefficientMismatches: ['rec'],
+      status: 'GREEN',
+      recommendationAuthorityUnlocked: true,
+      coefficientMismatches: [],
     });
     expect(res.body.data.scoringCertification).toEqual({
       status: 'RED',
       profileId: 'tiber_forecast_xfpg_ppr_v1',
       authority: 'TIBER-Forecast',
-      greenLeagueCount: 0,
-      redLeagueCount: 2,
-      redLeagueIds: ['league-1', 'league-2'],
+      greenLeagueCount: 1,
+      redLeagueCount: 1,
+      redLeagueIds: ['league-1'],
       productionAuthorityUnlocked: false,
     });
     expect(res.body.data.leagues[0].rosterPositions).toContain('FLEX');
@@ -133,7 +135,7 @@ describe('Sleeper live portfolio production preflight', () => {
     expect(mockGetUserLeagues).toHaveBeenCalledWith('user-123', '2026');
   });
 
-  it('unlocks scoring authority only when every nonzero league key exactly matches Forecast', async () => {
+  it('unlocks aggregate production authority only when every nonzero league key exactly matches Forecast', async () => {
     mockGetUser.mockResolvedValue({
       user_id: 'user-123',
       username: 'Cippy97',
@@ -168,6 +170,7 @@ describe('Sleeper live portfolio production preflight', () => {
     expect(res.status).toBe(200);
     expect(res.body.data.leagues[0].scoringCoverage).toMatchObject({
       status: 'GREEN',
+      recommendationAuthorityUnlocked: true,
       nonzeroKeyCount: 8,
       coveredKeyCount: 8,
       coveragePct: 100,
