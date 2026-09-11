@@ -6,10 +6,12 @@ export type CCFProducerFamily =
   | "ccf_native_fact"
   | "ccf_native_derived"
   | "ccf_native_model"
+  | "legacy_internal_heuristic"
   | "tiber_model"
   | "external_consensus"
   | "external_projection"
-  | "challenger_only";
+  | "challenger_only"
+  | "unknown";
 
 export type CCFEvidenceKind =
   | "observed"
@@ -82,6 +84,13 @@ export class CCFIndependenceError extends Error {
   }
 }
 
+/**
+ * Native authority is intentionally narrower than "code that lives in this repo".
+ * Only explicitly CCF-owned, provenance-aware producer families may influence a
+ * CCF_NATIVE result. Legacy heuristics, unknown producers, TIBER outputs, and
+ * external consensus/projections remain blocked even when they are locally
+ * accessible.
+ */
 const NATIVE_PRODUCER_FAMILIES = new Set<CCFProducerFamily>([
   "ccf_native_fact",
   "ccf_native_derived",
