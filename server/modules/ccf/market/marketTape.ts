@@ -1,191 +1,162 @@
 import {
-  americanOddsToDecimal,
-  removeTwoWayVig,
-} from "./marketMath";
-import type { TwoWayMarketSnapshot } from "./marketEvidence";
+  CCFMarketEvidenceError,
+  decimalOddsFromOdds,
+  normalizeBookMarketSnapshot,
+  type CCFBookQuote,
+} from "./marketEvidence";
 
-export interface MarketTapeInput {
-  /** Stable normalized series identity supplied by the provider-normalization layer. */
-  marketSeriesId: string;
-  snapshots: readonly TwoWayMarketSnapshot[];
-  selectedOutcomeId: string;
-  /** Explicit frozen decision/reference time. */
-  asOf: Date;
+export interface CCFMarketTapeInput {
+  marketId: string;
+  selectionId: string;
+  quotes: readonly CCFBookQuote[];
+  /** Frozen decision/reference time. */
+  asOf: string;
   maxAgeMinutes: number;
 }
 
-export interface MarketTapeBookQuote {
-  sportsbook: string;
-  provider: string;
-  source: string;
-  snapshotId: string;
-  marketId: string;
-  observedAt: string;
+export interface CCFMarketTapeQuote {
+  bookmaker: string;
+  quoteId: string;
+  capturedAt: string;
   knownAt: string;
   ageMinutes: number;
-  knownAgeMinutes: number;
   line: number | null;
-  americanOdds: number;
+  oddsFormat: CCFBookQuote["oddsFormat"];
+  odds: number;
   decimalOdds: number;
-  noVigProbability: number;
-  hold: number;
+  rawImpliedProbability: number;
+  fairProbability: number;
+  overround: number;
   stale: boolean;
 }
 
-export interface MarketTapeSummary {
-  marketSeriesId: string;
-  selectedOutcomeId: string;
+export interface CCFBookMarketTape {
+  bookmaker: string;
+  observations: number;
+  open: CCFMarketTapeQuote;
+  current: CCFMarketTapeQuote;
+  lineDelta: number | null;
+  fairProbabilityDelta: number;
+}
+
+export interface CCFMarketTapeSummary {
+  marketId: string;
+  selectionId: string;
   asOf: string;
   state: "usable" | "partial" | "unavailable";
-  latestBySportsbook: MarketTapeBookQuote[];
-  bestUsableQuote: MarketTapeBookQuote | null;
-  noVigProbabilityRange: {
-    min: number;
-    max: number;
-    spread: number;
-  } | null;
-  lineRange: {
-    min: number;
-    max: number;
-    spread: number;
-  } | null;
+  books: CCFBookMarketTape[];
+  bestUsableQuote: CCFMarketTapeQuote | null;
+  currentFairProbabilityRange: { min: number; max: number; spread: number } | null;
+  currentLineRange: { min: number; max: number; spread: number } | null;
   invalidSnapshotCount: number;
-  staleSportsbookCount: number;
-  ruleId: "ccf-market-tape.v1";
+  staleBookCount: number;
+  ruleId: "ccf-market-tape-v1";
 }
 
-function hasText(value: string): boolean {
-  return value.trim().length > 0;
+function parseTime(label: string, value: string): number {
+  const parsed = Date.parse(value);
+  if (!Number.isFinite(parsed)) {
+    throw new CCFMarketEvidenceError(`${label} must be a valid timestamp`);
+  }
+  return parsed;
 }
 
-function parseSnapshot(
-  snapshot: TwoWayMarketSnapshot,
-  selectedOutcomeId: string,
-  maxAgeMinutes: number,
-  asOf: Date,
-): MarketTapeBookQuote | null {
-  if (
-    !hasText(snapshot.snapshotId) ||
-    !hasText(snapshot.marketId) ||
-    !hasText(snapshot.targetId) ||
-    !hasText(snapshot.provider) ||
-    !hasText(snapshot.sportsbook) ||
-    !hasText(snapshot.source)
-  ) {
-    return null;
-  }
-
-  if (
-    snapshot.marketKind !== "moneyline" &&
-    (snapshot.line == null || !Number.isFinite(snapshot.line))
-  ) {
-    return null;
-  }
-  if (snapshot.line != null && !Number.isFinite(snapshot.line)) return null;
-
-  const observedAtMs = Date.parse(snapshot.observedAt);
-  const knownAtMs = Date.parse(snapshot.knownAt);
-  const asOfMs = asOf.getTime();
-  if (!Number.isFinite(observedAtMs) || !Number.isFinite(knownAtMs) || !Number.isFinite(asOfMs)) {
-    return null;
-  }
-  if (observedAtMs > asOfMs || knownAtMs > asOfMs || knownAtMs < observedAtMs) {
-    return null;
-  }
-
-  const ageMinutes = (asOfMs - observedAtMs) / 60_000;
-  const knownAgeMinutes = (asOfMs - knownAtMs) / 60_000;
-  const [first, second] = snapshot.outcomes;
-  if (
-    !first?.outcomeId.trim() ||
-    !second?.outcomeId.trim() ||
-    first.outcomeId === second.outcomeId
-  ) {
-    return null;
-  }
-
-  const selectedIndex = first.outcomeId === selectedOutcomeId
-    ? 0
-    : second.outcomeId === selectedOutcomeId
-      ? 1
-      : -1;
-  if (selectedIndex < 0) return null;
-
-  try {
-    const noVig = removeTwoWayVig(first.americanOdds, second.americanOdds);
-    const selected = selectedIndex === 0 ? first : second;
-    const noVigProbability = selectedIndex === 0
-      ? noVig.firstNoVigProbability
-      : noVig.secondNoVigProbability;
-
-    return {
-      sportsbook: snapshot.sportsbook,
-      provider: snapshot.provider,
-      source: snapshot.source,
-      snapshotId: snapshot.snapshotId,
-      marketId: snapshot.marketId,
-      observedAt: snapshot.observedAt,
-      knownAt: snapshot.knownAt,
-      ageMinutes,
-      knownAgeMinutes,
-      line: snapshot.line ?? null,
-      americanOdds: selected.americanOdds,
-      decimalOdds: americanOddsToDecimal(selected.americanOdds),
-      noVigProbability,
-      hold: noVig.hold,
-      stale: ageMinutes > maxAgeMinutes,
-    };
-  } catch {
-    return null;
-  }
+function snapshotKey(quote: CCFBookQuote): string {
+  return `${quote.bookmaker}\u0000${quote.marketId}\u0000${quote.capturedAt}`;
 }
 
-export function summarizeMarketTape(input: MarketTapeInput): MarketTapeSummary {
-  if (!input.marketSeriesId.trim()) throw new Error("marketSeriesId is required");
-  if (!input.selectedOutcomeId.trim()) throw new Error("selectedOutcomeId is required");
+export function summarizeCCFMarketTape(input: CCFMarketTapeInput): CCFMarketTapeSummary {
+  if (!input.marketId.trim()) throw new CCFMarketEvidenceError("marketId is required");
+  if (!input.selectionId.trim()) throw new CCFMarketEvidenceError("selectionId is required");
   if (!Number.isFinite(input.maxAgeMinutes) || input.maxAgeMinutes < 0) {
-    throw new Error("maxAgeMinutes must be a non-negative finite number");
-  }
-  if (!Number.isFinite(input.asOf.getTime())) {
-    throw new Error("asOf must be a valid Date");
+    throw new CCFMarketEvidenceError("maxAgeMinutes must be a non-negative finite number");
   }
 
-  const latestBySportsbook = new Map<string, MarketTapeBookQuote>();
+  const asOfMs = parseTime("asOf", input.asOf);
+  const grouped = new Map<string, CCFBookQuote[]>();
+  for (const quote of input.quotes) {
+    if (quote.marketId !== input.marketId) continue;
+    const key = snapshotKey(quote);
+    const group = grouped.get(key) ?? [];
+    group.push(quote);
+    grouped.set(key, group);
+  }
+
+  const observationsByBook = new Map<string, CCFMarketTapeQuote[]>();
   let invalidSnapshotCount = 0;
 
-  for (const snapshot of input.snapshots) {
-    const quote = parseSnapshot(snapshot, input.selectedOutcomeId, input.maxAgeMinutes, input.asOf);
-    if (!quote) {
-      invalidSnapshotCount += 1;
-      continue;
-    }
+  for (const quotes of grouped.values()) {
+    try {
+      const normalized = normalizeBookMarketSnapshot(quotes);
+      const normalizedSelection = normalized.selections.find(
+        (selection) => selection.selectionId === input.selectionId,
+      );
+      const rawQuote = quotes.find(
+        (quote) => quote.selection.selectionId === input.selectionId,
+      );
+      if (!normalizedSelection || !rawQuote) {
+        invalidSnapshotCount += 1;
+        continue;
+      }
 
-    const previous = latestBySportsbook.get(quote.sportsbook);
-    if (
-      !previous ||
-      Date.parse(quote.observedAt) > Date.parse(previous.observedAt) ||
-      (
-        Date.parse(quote.observedAt) === Date.parse(previous.observedAt) &&
-        Date.parse(quote.knownAt) > Date.parse(previous.knownAt)
-      )
-    ) {
-      latestBySportsbook.set(quote.sportsbook, quote);
+      const knownAtMs = parseTime(`${rawQuote.quoteId}.knownAt`, rawQuote.knownAt);
+      if (knownAtMs > asOfMs) {
+        invalidSnapshotCount += 1;
+        continue;
+      }
+      const ageMinutes = (asOfMs - knownAtMs) / 60_000;
+      const observation: CCFMarketTapeQuote = {
+        bookmaker: rawQuote.bookmaker,
+        quoteId: rawQuote.quoteId,
+        capturedAt: rawQuote.capturedAt,
+        knownAt: rawQuote.knownAt,
+        ageMinutes,
+        line: rawQuote.selection.line,
+        oddsFormat: rawQuote.oddsFormat,
+        odds: rawQuote.odds,
+        decimalOdds: decimalOddsFromOdds(rawQuote.oddsFormat, rawQuote.odds),
+        rawImpliedProbability: normalizedSelection.rawImpliedProbability,
+        fairProbability: normalizedSelection.fairProbability,
+        overround: normalized.overround,
+        stale: ageMinutes > input.maxAgeMinutes,
+      };
+
+      const history = observationsByBook.get(rawQuote.bookmaker) ?? [];
+      history.push(observation);
+      observationsByBook.set(rawQuote.bookmaker, history);
+    } catch {
+      invalidSnapshotCount += 1;
     }
   }
 
-  const latest = [...latestBySportsbook.values()].sort((left, right) =>
-    left.sportsbook.localeCompare(right.sportsbook),
-  );
-  const usable = latest.filter((quote) => !quote.stale);
-  const staleSportsbookCount = latest.length - usable.length;
+  const books: CCFBookMarketTape[] = [];
+  for (const [bookmaker, history] of observationsByBook.entries()) {
+    history.sort((left, right) => parseTime("knownAt", left.knownAt) - parseTime("knownAt", right.knownAt));
+    const open = history[0];
+    const current = history[history.length - 1];
+    books.push({
+      bookmaker,
+      observations: history.length,
+      open,
+      current,
+      lineDelta:
+        open.line == null || current.line == null
+          ? null
+          : current.line - open.line,
+      fairProbabilityDelta: current.fairProbability - open.fairProbability,
+    });
+  }
+  books.sort((left, right) => left.bookmaker.localeCompare(right.bookmaker));
 
-  const bestUsableQuote = usable.reduce<MarketTapeBookQuote | null>((best, quote) => {
+  const usableCurrent = books.map((book) => book.current).filter((quote) => !quote.stale);
+  const staleBookCount = books.length - usableCurrent.length;
+  const bestUsableQuote = usableCurrent.reduce<CCFMarketTapeQuote | null>((best, quote) => {
     if (!best || quote.decimalOdds > best.decimalOdds) return quote;
     return best;
   }, null);
 
-  const probabilities = usable.map((quote) => quote.noVigProbability);
-  const noVigProbabilityRange = probabilities.length > 0
+  const probabilities = usableCurrent.map((quote) => quote.fairProbability);
+  const currentFairProbabilityRange = probabilities.length > 0
     ? {
         min: Math.min(...probabilities),
         max: Math.max(...probabilities),
@@ -193,10 +164,10 @@ export function summarizeMarketTape(input: MarketTapeInput): MarketTapeSummary {
       }
     : null;
 
-  const lines = usable
+  const lines = usableCurrent
     .map((quote) => quote.line)
     .filter((line): line is number => line != null && Number.isFinite(line));
-  const lineRange = lines.length > 0
+  const currentLineRange = lines.length > 0
     ? {
         min: Math.min(...lines),
         max: Math.max(...lines),
@@ -204,23 +175,23 @@ export function summarizeMarketTape(input: MarketTapeInput): MarketTapeSummary {
       }
     : null;
 
-  const state = usable.length === 0
+  const state = usableCurrent.length === 0
     ? "unavailable"
-    : invalidSnapshotCount > 0 || staleSportsbookCount > 0
+    : invalidSnapshotCount > 0 || staleBookCount > 0
       ? "partial"
       : "usable";
 
   return {
-    marketSeriesId: input.marketSeriesId,
-    selectedOutcomeId: input.selectedOutcomeId,
-    asOf: input.asOf.toISOString(),
+    marketId: input.marketId,
+    selectionId: input.selectionId,
+    asOf: input.asOf,
     state,
-    latestBySportsbook: latest,
+    books,
     bestUsableQuote,
-    noVigProbabilityRange,
-    lineRange,
+    currentFairProbabilityRange,
+    currentLineRange,
     invalidSnapshotCount,
-    staleSportsbookCount,
-    ruleId: "ccf-market-tape.v1",
+    staleBookCount,
+    ruleId: "ccf-market-tape-v1",
   };
 }
