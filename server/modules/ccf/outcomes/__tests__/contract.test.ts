@@ -104,6 +104,39 @@ describe("CCFPlayerOutcome contract", () => {
     expect(() => assertCCFNativeIndependence(outcome)).toThrow(CCFIndependenceError);
   });
 
+  it("rejects a critical legacy internal heuristic in CCF_NATIVE", () => {
+    const outcome = makeOutcome({
+      criticalFeatureProvenance: [
+        {
+          feature: "epa_projection_proxy",
+          producerFamily: "legacy_internal_heuristic",
+          critical: true,
+          evidenceKind: "derived",
+          sourceRef: "start-sit-mapEPAToProjection",
+          knownAt: "2026-09-10T20:00:00Z",
+        },
+      ],
+    });
+
+    expect(() => assertCCFNativeIndependence(outcome)).toThrow(CCFIndependenceError);
+  });
+
+  it("rejects an unknown critical producer in CCF_NATIVE", () => {
+    const outcome = makeOutcome({
+      criticalFeatureProvenance: [
+        {
+          feature: "unclassified_signal",
+          producerFamily: "unknown",
+          critical: true,
+          evidenceKind: "inferred",
+          knownAt: "2026-09-10T20:00:00Z",
+        },
+      ],
+    });
+
+    expect(() => assertCCFNativeIndependence(outcome)).toThrow(CCFIndependenceError);
+  });
+
   it("allows noncritical challenger evidence to travel with a native result", () => {
     const outcome = makeOutcome({
       criticalFeatureProvenance: [
