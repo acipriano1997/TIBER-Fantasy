@@ -1,0 +1,69 @@
+name: CCF Independence
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ccf-independence-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ccf-independence:
+    name: Native authority and source integrity
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Reject CCF TypeScript regressions
+        shell: bash
+        run: |
+          set +e
+          npm run typecheck > /tmp/ccf-typecheck.log 2>&1
+          typecheck_status=$?
+          set -e
+
+          if grep -E '^server/modules/ccf/' /tmp/ccf-typecheck.log; then
+            echo "::error::CCF independence code contains TypeScript errors."
+            grep -E '^server/modules/ccf/' /tmp/ccf-typecheck.log
+            exit 1
+          fi
+
+          if [ "$typecheck_status" -ne 0 ]; then
+            error_count=$(grep -c 'error TS' /tmp/ccf-typecheck.log || true)
+            echo "::warning::Repository-wide typecheck still has ${error_count} errors outside server/modules/ccf; treated as baseline debt for this focused gate."
+          else
+            echo "Repository-wide typecheck is clean."
+          fi
+
+      - name: Run CCF independence tests
+        run: >-
+          npm test --
+          server/modules/ccf/outcomes/__tests__/contract.test.ts
+          server/modules/ccf/outcomes/__tests__/fixtureEngine.test.ts
+          server/modules/ccf/independence/__tests__/weeklyDependencyCensus.test.ts
+          server/modules/ccf/independence/__tests__/certifyNativeOutcome.test.ts
+          server/modules/ccf/features/__tests__/weeklyFeatureEvidence.test.ts
+          server/modules/ccf/scoring/__tests__/scoringRules.test.ts
+          server/modules/ccf/sources/__tests__/nflverseWeeklyPlayerStats.test.ts
+          server/modules/ccf/sources/__tests__/sourceSnapshot.test.ts
+
+      - name: Build application
+        run: sh build.sh
