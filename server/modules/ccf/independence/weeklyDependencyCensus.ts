@@ -1,9 +1,9 @@
 import type { CCFProducerFamily } from "../outcomes/contract";
+import type { CCFTiberCapabilityMigrationRecord } from "./tiberCapabilityMigration";
 import {
-  CCF_TIBER_CAPABILITY_MIGRATION_V0,
-  canClaimTiberCapabilityMigrationComplete,
-  type CCFTiberCapabilityMigrationRecord,
-} from "./tiberCapabilityMigration";
+  CCF_ALL_TIBER_CAPABILITY_MIGRATION_V0,
+  canClaimAllTiberCapabilityMigrationComplete,
+} from "./allTiberCapabilityMigration";
 
 export type CCFDependencyStatus =
   | "eligible_native"
@@ -186,10 +186,10 @@ export function blockedCriticalDependencies(
 
 export function canClaimCCFPrimary(
   census: readonly CCFWeeklyDependencyRecord[] = CCF_WEEKLY_DEPENDENCY_CENSUS_V0,
-  migrationRegistry: readonly CCFTiberCapabilityMigrationRecord[] = CCF_TIBER_CAPABILITY_MIGRATION_V0,
+  migrationRegistry: readonly CCFTiberCapabilityMigrationRecord[] = CCF_ALL_TIBER_CAPABILITY_MIGRATION_V0,
 ): boolean {
   return (
     blockedCriticalDependencies(census).length === 0 &&
-    canClaimTiberCapabilityMigrationComplete(migrationRegistry)
+    canClaimAllTiberCapabilityMigrationComplete(migrationRegistry)
   );
 }
