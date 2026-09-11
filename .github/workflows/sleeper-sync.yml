@@ -5,7 +5,13 @@ on:
     paths:
       - 'server/sleeperRoutes.ts'
       - 'server/services/sleeperSyncService.ts'
+      - 'server/services/sleeperScoringCoverageAudit.ts'
+      - 'server/services/__tests__/sleeperLeagueContextPreflight.test.ts'
+      - 'server/services/__tests__/sleeperScoringCoverageAudit.test.ts'
       - 'server/services/sleeperSyncV2/**'
+      - 'server/routes/sleeperSyncV2Routes.ts'
+      - 'server/routes/__tests__/sleeperLivePortfolioPreflight.test.ts'
+      - 'server/integrations/sleeperClient.ts'
       - 'server/sleeperAPI.ts'
       - 'server/config/season.ts'
       - 'server/index.ts'
@@ -24,7 +30,13 @@ on:
     paths:
       - 'server/sleeperRoutes.ts'
       - 'server/services/sleeperSyncService.ts'
+      - 'server/services/sleeperScoringCoverageAudit.ts'
+      - 'server/services/__tests__/sleeperLeagueContextPreflight.test.ts'
+      - 'server/services/__tests__/sleeperScoringCoverageAudit.test.ts'
       - 'server/services/sleeperSyncV2/**'
+      - 'server/routes/sleeperSyncV2Routes.ts'
+      - 'server/routes/__tests__/sleeperLivePortfolioPreflight.test.ts'
+      - 'server/integrations/sleeperClient.ts'
       - 'server/sleeperAPI.ts'
       - 'server/config/season.ts'
       - 'server/index.ts'
@@ -67,7 +79,11 @@ jobs:
       DATABASE_URL: 'postgresql://tiber:tiber@127.0.0.1:5432/tiber_sleeper_ci'
       NODE_ENV: 'test'
       PORT: '5000'
-      SLEEPER_USERNAME: ${{ secrets.SLEEPER_USERNAME }}
+      SLEEPER_SEASON: '2026'
+      # Cippy97 is the explicit 2026 production-preflight identity. The
+      # repository secrets remain optional stronger immutable-ID/league pins;
+      # the public username is sufficient to execute live discovery evidence.
+      SLEEPER_USERNAME: ${{ secrets.SLEEPER_USERNAME || 'Cippy97' }}
       SLEEPER_USER_ID: ${{ secrets.SLEEPER_USER_ID }}
       SLEEPER_LEAGUE_ID: ${{ secrets.SLEEPER_LEAGUE_ID }}
 
@@ -92,7 +108,7 @@ jobs:
           typecheck_status=$?
           set -e
 
-          sleeper_pattern='^(server/(index\.ts|routes/(healthRoutes|sleeperUsageTruthBoundary)\.ts|routes/__tests__/(healthRoutes|sleeperUsageTruthBoundary)\.test\.ts|services/sleeperSyncService\.ts|services/sleeperSyncV2/.*\.ts|sleeperRoutes\.ts|sleeperAPI\.ts|config/season\.ts))\('
+          sleeper_pattern='^(server/(index\.ts|routes/(healthRoutes|sleeperUsageTruthBoundary|sleeperSyncV2Routes)\.ts|routes/__tests__/(healthRoutes|sleeperUsageTruthBoundary|sleeperLivePortfolioPreflight)\.test\.ts|integrations/sleeperClient\.ts|services/(sleeperSyncService|sleeperScoringCoverageAudit)\.ts|services/__tests__/(sleeperLeagueContextPreflight|sleeperScoringCoverageAudit)\.test\.ts|services/sleeperSyncV2/.*\.ts|sleeperRoutes\.ts|sleeperAPI\.ts|config/season\.ts))\('
           if grep -E "$sleeper_pattern" /tmp/tiber-typecheck.log; then
             echo "::error::Sleeper/health CI delta contains TypeScript errors."
             exit 1
@@ -110,6 +126,9 @@ jobs:
           npm test --
           server/routes/__tests__/healthRoutes.test.ts
           server/routes/__tests__/sleeperUsageTruthBoundary.test.ts
+          server/routes/__tests__/sleeperLivePortfolioPreflight.test.ts
+          server/services/__tests__/sleeperLeagueContextPreflight.test.ts
+          server/services/__tests__/sleeperScoringCoverageAudit.test.ts
           server/services/sleeperSyncV2/__tests__/schedulerTargeting.test.ts
           server/config/__tests__/season.test.ts
           server/services/__tests__/leagueDashboardTruthBoundary.test.ts
@@ -117,7 +136,7 @@ jobs:
       - name: Build release artifact
         run: sh build.sh
 
-      - name: Smoke release runtime and optional live Sleeper integration
+      - name: Smoke release runtime and certify live Sleeper portfolio
         shell: bash
         run: |
           set -euo pipefail
@@ -144,13 +163,17 @@ jobs:
           echo "API liveness: $(cat /tmp/api-health.json)"
           echo "DB readiness: $(cat /tmp/db-health.json)"
 
-          if [ -z "${SLEEPER_USERNAME:-}" ] || [ -z "${SLEEPER_USER_ID:-}" ] || [ -z "${SLEEPER_LEAGUE_ID:-}" ]; then
-            echo "::notice::Sleeper credentials are not configured; external live smoke skipped. Focused tests, release build, API liveness, and DB readiness still passed."
-            exit 0
+          if [ -z "${SLEEPER_USERNAME:-}" ]; then
+            echo "::error::A Sleeper username is required for the production live-portfolio certification gate."
+            exit 1
           fi
 
           chmod +x ./scripts/test-sleeper-sync.sh
-          ./scripts/test-sleeper-sync.sh "$APP_BASE_URL" "$SLEEPER_USERNAME" "$SLEEPER_USER_ID" "$SLEEPER_LEAGUE_ID"
+          ./scripts/test-sleeper-sync.sh \
+            "$APP_BASE_URL" \
+            "$SLEEPER_USERNAME" \
+            "${SLEEPER_USER_ID:-}" \
+            "${SLEEPER_LEAGUE_ID:-}"
 
           kill "$server_pid" 2>/dev/null || true
           wait "$server_pid" 2>/dev/null || true
