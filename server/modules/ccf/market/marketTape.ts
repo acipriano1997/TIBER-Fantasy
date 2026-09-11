@@ -18,6 +18,7 @@ export interface CCFMarketTapeQuote {
   bookmaker: string;
   quoteId: string;
   capturedAt: string;
+  /** Latest knownAt across all constituent selections used for de-vigging. */
   knownAt: string;
   ageMinutes: number;
   line: number | null;
@@ -27,6 +28,10 @@ export interface CCFMarketTapeQuote {
   rawImpliedProbability: number;
   fairProbability: number;
   overround: number;
+  sourceLocator: string | null;
+  rawTraceRef: string;
+  /** Every raw trace that contributed to the normalized fair probability. */
+  snapshotRawTraceRefs: string[];
   stale: boolean;
 }
 
@@ -89,13 +94,20 @@ export function summarizeCCFMarketTape(input: CCFMarketTapeInput): CCFMarketTape
     try {
       // Vig removal uses the entire mutually-exclusive snapshot, so every quote
       // participating in normalization must itself be point-in-time eligible.
+      const knownTimes: number[] = [];
       for (const quote of quotes) {
         const capturedAtMs = parseTime(`${quote.quoteId}.capturedAt`, quote.capturedAt);
         const retrievedAtMs = parseTime(`${quote.quoteId}.retrievedAt`, quote.retrievedAt);
         const knownAtMs = parseTime(`${quote.quoteId}.knownAt`, quote.knownAt);
-        if (capturedAtMs > knownAtMs || retrievedAtMs > knownAtMs || knownAtMs > asOfMs) {
+        if (
+          retrievedAtMs < capturedAtMs ||
+          capturedAtMs > knownAtMs ||
+          retrievedAtMs > knownAtMs ||
+          knownAtMs > asOfMs
+        ) {
           throw new CCFMarketEvidenceError("market snapshot contains point-in-time ineligible quote");
         }
+        knownTimes.push(knownAtMs);
       }
 
       const normalized = normalizeBookMarketSnapshot(quotes);
@@ -110,13 +122,14 @@ export function summarizeCCFMarketTape(input: CCFMarketTapeInput): CCFMarketTape
         continue;
       }
 
-      const knownAtMs = parseTime(`${rawQuote.quoteId}.knownAt`, rawQuote.knownAt);
-      const ageMinutes = (asOfMs - knownAtMs) / 60_000;
+      const capturedAtMs = parseTime(`${rawQuote.quoteId}.capturedAt`, rawQuote.capturedAt);
+      const snapshotKnownAtMs = Math.max(...knownTimes);
+      const ageMinutes = (asOfMs - capturedAtMs) / 60_000;
       const observation: CCFMarketTapeQuote = {
         bookmaker: rawQuote.bookmaker,
         quoteId: rawQuote.quoteId,
         capturedAt: rawQuote.capturedAt,
-        knownAt: rawQuote.knownAt,
+        knownAt: new Date(snapshotKnownAtMs).toISOString(),
         ageMinutes,
         line: rawQuote.selection.line,
         oddsFormat: rawQuote.oddsFormat,
@@ -125,6 +138,9 @@ export function summarizeCCFMarketTape(input: CCFMarketTapeInput): CCFMarketTape
         rawImpliedProbability: normalizedSelection.rawImpliedProbability,
         fairProbability: normalizedSelection.fairProbability,
         overround: normalized.overround,
+        sourceLocator: rawQuote.sourceLocator,
+        rawTraceRef: rawQuote.rawTraceRef,
+        snapshotRawTraceRefs: quotes.map((quote) => quote.rawTraceRef).sort(),
         stale: ageMinutes > input.maxAgeMinutes,
       };
 
