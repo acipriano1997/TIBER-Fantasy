@@ -90,7 +90,7 @@ export function summarizeCCFMarketTape(input: CCFMarketTapeInput): CCFMarketTape
   const observationsByBook = new Map<string, CCFMarketTapeQuote[]>();
   let invalidSnapshotCount = 0;
 
-  for (const quotes of grouped.values()) {
+  for (const quotes of Array.from(grouped.values())) {
     try {
       // Vig removal uses the entire mutually-exclusive snapshot, so every quote
       // participating in normalization must itself be point-in-time eligible.
@@ -115,7 +115,7 @@ export function summarizeCCFMarketTape(input: CCFMarketTapeInput): CCFMarketTape
         (selection) => selection.selectionId === input.selectionId,
       );
       const rawQuote = quotes.find(
-        (quote) => quote.selection.selectionId === input.selectionId,
+        (quote: CCFBookQuote) => quote.selection.selectionId === input.selectionId,
       );
       if (!normalizedSelection || !rawQuote) {
         invalidSnapshotCount += 1;
@@ -140,7 +140,7 @@ export function summarizeCCFMarketTape(input: CCFMarketTapeInput): CCFMarketTape
         overround: normalized.overround,
         sourceLocator: rawQuote.sourceLocator,
         rawTraceRef: rawQuote.rawTraceRef,
-        snapshotRawTraceRefs: quotes.map((quote) => quote.rawTraceRef).sort(),
+        snapshotRawTraceRefs: quotes.map((quote: CCFBookQuote) => quote.rawTraceRef).sort(),
         stale: ageMinutes > input.maxAgeMinutes,
       };
 
@@ -153,8 +153,11 @@ export function summarizeCCFMarketTape(input: CCFMarketTapeInput): CCFMarketTape
   }
 
   const books: CCFBookMarketTape[] = [];
-  for (const [bookmaker, history] of observationsByBook.entries()) {
-    history.sort((left, right) => parseTime("knownAt", left.knownAt) - parseTime("knownAt", right.knownAt));
+  for (const [bookmaker, history] of Array.from(observationsByBook.entries())) {
+    history.sort(
+      (left: CCFMarketTapeQuote, right: CCFMarketTapeQuote) =>
+        parseTime("knownAt", left.knownAt) - parseTime("knownAt", right.knownAt),
+    );
     const open = history[0];
     const current = history[history.length - 1];
     books.push({
