@@ -5,6 +5,10 @@ on:
     paths:
       - 'server/modules/ccf/market/**'
       - 'docs/architecture/CCF_MARKET_INTELLIGENCE_V0.md'
+      - 'docs/BEAT_VEGAS.md'
+      - 'client/src/pages/BeatVegasLab.tsx'
+      - 'client/src/App.tsx'
+      - 'client/src/components/TiberLayout.tsx'
       - '.github/workflows/ccf-market-intelligence.yml'
       - '.github/workflows/ccf-independence.yml'
   workflow_dispatch:
@@ -14,7 +18,7 @@ permissions:
 
 jobs:
   market-intelligence:
-    name: Market evidence contract and normalization
+    name: Market evidence and Beat Vegas foundation
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -51,5 +55,8 @@ jobs:
             echo "Repository-wide typecheck is clean."
           fi
 
-      - name: Run focused market evidence tests
-        run: npm test -- server/modules/ccf/market/__tests__/marketEvidence.test.ts
+      - name: Run focused market evidence and Beat Vegas tests
+        run: npm test -- server/modules/ccf/market/__tests__/marketEvidence.test.ts server/modules/ccf/market/__tests__/beatVegasFoundation.test.ts
+
+      - name: Build application
+        run: npm run build
