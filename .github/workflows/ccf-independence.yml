@@ -59,6 +59,7 @@ jobs:
           server/modules/ccf/outcomes/__tests__/contract.test.ts
           server/modules/ccf/outcomes/__tests__/fixtureEngine.test.ts
           server/modules/ccf/independence/__tests__/weeklyDependencyCensus.test.ts
+          server/modules/ccf/independence/__tests__/tiberCapabilityMigration.test.ts
           server/modules/ccf/independence/__tests__/certifyNativeOutcome.test.ts
           server/modules/ccf/features/__tests__/weeklyFeatureEvidence.test.ts
           server/modules/ccf/scoring/__tests__/scoringRules.test.ts
