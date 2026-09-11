@@ -87,6 +87,17 @@ export function summarizeCCFMarketTape(input: CCFMarketTapeInput): CCFMarketTape
 
   for (const quotes of grouped.values()) {
     try {
+      // Vig removal uses the entire mutually-exclusive snapshot, so every quote
+      // participating in normalization must itself be point-in-time eligible.
+      for (const quote of quotes) {
+        const capturedAtMs = parseTime(`${quote.quoteId}.capturedAt`, quote.capturedAt);
+        const retrievedAtMs = parseTime(`${quote.quoteId}.retrievedAt`, quote.retrievedAt);
+        const knownAtMs = parseTime(`${quote.quoteId}.knownAt`, quote.knownAt);
+        if (capturedAtMs > knownAtMs || retrievedAtMs > knownAtMs || knownAtMs > asOfMs) {
+          throw new CCFMarketEvidenceError("market snapshot contains point-in-time ineligible quote");
+        }
+      }
+
       const normalized = normalizeBookMarketSnapshot(quotes);
       const normalizedSelection = normalized.selections.find(
         (selection) => selection.selectionId === input.selectionId,
@@ -100,10 +111,6 @@ export function summarizeCCFMarketTape(input: CCFMarketTapeInput): CCFMarketTape
       }
 
       const knownAtMs = parseTime(`${rawQuote.quoteId}.knownAt`, rawQuote.knownAt);
-      if (knownAtMs > asOfMs) {
-        invalidSnapshotCount += 1;
-        continue;
-      }
       const ageMinutes = (asOfMs - knownAtMs) / 60_000;
       const observation: CCFMarketTapeQuote = {
         bookmaker: rawQuote.bookmaker,
