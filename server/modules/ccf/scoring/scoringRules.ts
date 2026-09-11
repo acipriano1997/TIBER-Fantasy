@@ -159,9 +159,9 @@ function scoreBonuses(statLine: CCFFantasyStatLine, rules: CCFLeagueScoringRules
     }
   }
 
-  for (const bonus of highestOnlyGroups.values()) {
+  highestOnlyGroups.forEach((bonus) => {
     score += bonus.points;
-  }
+  });
 
   return score;
 }
