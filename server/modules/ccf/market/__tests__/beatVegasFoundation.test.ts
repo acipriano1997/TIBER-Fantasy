@@ -28,6 +28,7 @@ function quote(input: {
     marketId: "player-123:receiving-yards",
     marketKind: "player_prop",
     marketScope: "player",
+    expectedSelectionCount: 2,
     selection: {
       selectionId: input.selectionId,
       label: input.selectionId,
