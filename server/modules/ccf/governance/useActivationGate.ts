@@ -48,7 +48,7 @@ export function evaluateCCFSourceUseActivation(
   if (!request.sourceId.trim()) throw new Error("sourceId is required");
   if (!request.useId.trim()) throw new Error("useId is required");
 
-  const required = [...new Set(request.requiredGates)];
+  const required = Array.from(new Set(request.requiredGates));
   const byGate = new Map<CCFUseReadinessGateId, CCFUseReadinessGateResult>();
   for (const result of request.gateResults) {
     if (byGate.has(result.gateId)) {
