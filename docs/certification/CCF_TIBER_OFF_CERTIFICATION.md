@@ -26,6 +26,7 @@ For every certified decision surface:
 - disabling TIBER does not cause an exception, empty result, zero-filled projection, or hidden substitution of another external projection;
 - every recommendation-critical value identifies a CCF-owned producer or a source-backed fact contract;
 - no TIBER grade, projection, tier, value, probability, or derived feature is required to produce the native result;
+- no legacy in-repo heuristic or unclassified producer is treated as native authority merely because it is locally available;
 - temporal eligibility remains frozen at `known_at <= as_of`;
 - missing native evidence widens uncertainty or produces an explicit abstention rather than fabricated precision;
 - recommendation ordering is deterministic for an identical frozen fixture and model version;
@@ -37,16 +38,26 @@ Any violation is a certification failure.
 
 ## Hidden-dependency checks
 
-Instrumentation must record the producer family for every recommendation-critical input. The run fails if any native result depends on a producer classified as:
+Instrumentation must record the producer family for every recommendation-critical input.
 
+The only producer families eligible to influence a `CCF_NATIVE` result are:
+
+- `ccf_native_fact`
+- `ccf_native_derived`
+- `ccf_native_model`
+
+The run fails if any recommendation-critical native result depends on a producer classified as:
+
+- `legacy_internal_heuristic`
 - `tiber_model`
-- `tiber_grade`
-- `tiber_projection`
-- `tiber_value`
 - `external_consensus`
 - `external_projection`
+- `challenger_only`
+- `unknown`
 
-Source-backed raw facts may be eligible only when represented through a CCF evidence contract with source-level provenance. The fact's retrieval path is not itself model authority.
+Older aliases such as TIBER grade/projection/value families must be normalized to `tiber_model` for enforcement rather than creating loopholes in the producer taxonomy.
+
+Source-backed raw facts may be eligible only when represented through a CCF evidence contract with source-level provenance. The fact's retrieval path is not itself model authority. `pending_verification` facts are not eligible native authority until their source, temporal, and identity contracts are verified.
 
 ## Required fixture coverage
 
