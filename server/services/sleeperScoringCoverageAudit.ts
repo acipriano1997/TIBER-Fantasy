@@ -26,6 +26,7 @@ export interface SleeperScoringCoverageAudit {
   status: ScoringCoverageStatus;
   profileId: 'tiber_forecast_xfpg_ppr_v1';
   authority: 'TIBER-Forecast';
+  recommendationAuthorityUnlocked: boolean;
   nonzeroKeyCount: number;
   coveredKeyCount: number;
   coveragePct: number;
@@ -111,6 +112,11 @@ const coefficientsEqual = (actual: number, expected: number): boolean =>
  * Forecast scoring profile. Missing/unsupported/ambiguous evidence fails
  * closed. Zero-valued settings do not affect scoring and are intentionally
  * excluded from the certification denominator.
+ *
+ * Recommendation authority is deliberately scoped to this league. A mixed
+ * portfolio may therefore contain GREEN leagues that are eligible for
+ * recommendation consumption while RED leagues remain fail-closed. Portfolio
+ * aggregate certification is still computed separately by the route.
  */
 export function auditSleeperScoringCoverage(
   scoringSettings: Record<string, unknown> | null | undefined,
@@ -134,8 +140,6 @@ export function auditSleeperScoringCoverage(
       continue;
     }
 
-    // A zero coefficient contributes no points, so it is not part of the
-    // nonzero scoring-coverage denominator.
     if (numericValue === 0) continue;
 
     const capability = FORECAST_XFPG_SCORING_CAPABILITIES[key];
@@ -182,11 +186,13 @@ export function auditSleeperScoringCoverage(
   const unsupportedKeys = entries.filter((entry) => entry.reason === 'unsupported_key').map((entry) => entry.key);
   const coefficientMismatches = entries.filter((entry) => entry.reason === 'coefficient_mismatch').map((entry) => entry.key);
   const invalidKeys = entries.filter((entry) => entry.reason === 'invalid_value').map((entry) => entry.key);
+  const status: ScoringCoverageStatus = entries.every((entry) => entry.status === 'GREEN') ? 'GREEN' : 'RED';
 
   return {
-    status: entries.every((entry) => entry.status === 'GREEN') ? 'GREEN' : 'RED',
+    status,
     profileId: 'tiber_forecast_xfpg_ppr_v1',
     authority: 'TIBER-Forecast',
+    recommendationAuthorityUnlocked: status === 'GREEN',
     nonzeroKeyCount,
     coveredKeyCount,
     coveragePct,
