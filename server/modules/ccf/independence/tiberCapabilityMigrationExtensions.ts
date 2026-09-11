@@ -19,7 +19,7 @@ export const CCF_TIBER_CAPABILITY_MIGRATION_EXTENSIONS_V0: readonly CCFTiberCapa
     requiredForUniversalCCF: true,
     promotionEvidenceRequired: ["native_implementation", "point_in_time_data", "tiber_off"],
     note:
-      "CCF already preserves temporal mode, hashes and missingness, but must make source-state/support-window eligibility explicit so directory placement or artifact naming can never imply truth.",
+      "CCF now has a fail-closed native source-state/support-window eligibility contract; it remains partial until every recommendation-critical source is actually bound to those semantics and replayed point-in-time.",
   },
   {
     id: "data-weather-evidence-contract",
@@ -33,7 +33,7 @@ export const CCF_TIBER_CAPABILITY_MIGRATION_EXTENSIONS_V0: readonly CCFTiberCapa
     ],
     scope: "weekly_outcome",
     disposition: "rebuild_native",
-    status: "rebuild_required",
+    status: "native_partial",
     ccfOwner: "CCF Weather Intelligence System",
     requiredForUniversalCCF: true,
     promotionEvidenceRequired: [
@@ -44,7 +44,7 @@ export const CCF_TIBER_CAPABILITY_MIGRATION_EXTENSIONS_V0: readonly CCFTiberCapa
       "tiber_off",
     ],
     note:
-      "Mine the evidence/temporal/geometry mechanisms, not provider weights or fantasy-impact assumptions. Weather must remain unavailable when source-backed evidence is unavailable.",
+      "CCF now owns the evidence/temporal/geometry/unavailable contract and deterministic field-relative wind. Live providers, historical archives, provider reconciliation and empirically justified fantasy impact remain unpromoted.",
   },
   {
     id: "rookies-athletic-draft-signal-features",
@@ -84,12 +84,12 @@ export const CCF_TIBER_CAPABILITY_MIGRATION_EXTENSIONS_V0: readonly CCFTiberCapa
     ],
     scope: "data_governance",
     disposition: "rebuild_native",
-    status: "rebuild_required",
+    status: "native_partial",
     ccfOwner: "CCF historical decision ledger + certification dataset builder",
     requiredForUniversalCCF: true,
     promotionEvidenceRequired: ["native_implementation", "point_in_time_data", "chronological_oos", "tiber_off"],
     note:
-      "This is a direct anti-leakage pattern: freeze what was knowable before outcomes, bind bytes, and require an auditable reason for any re-freeze.",
+      "CCF now has a generic pre-decision freeze manifest that rejects future-known/outcome-contaminated inputs, binds bytes by hash/size and requires an auditable refreeze reason. Real historical reconstruction coverage is still required.",
   },
   {
     id: "rookies-transactional-artifact-promotion",
@@ -107,7 +107,7 @@ export const CCF_TIBER_CAPABILITY_MIGRATION_EXTENSIONS_V0: readonly CCFTiberCapa
     requiredForUniversalCCF: true,
     promotionEvidenceRequired: ["native_implementation", "point_in_time_data", "tiber_off"],
     note:
-      "CCF already hashes and verifies source snapshots. It still needs transactional staging/CAS/rollback semantics before mutable promotion workflows deserve the same integrity claim.",
+      "CCF now has native byte snapshots plus validate-before-swap, destination/candidate drift checks, rollback and rejected-candidate preservation. It remains partial until exercised by real promotion workflows with failure-injection/concurrency evidence.",
   },
   {
     id: "rookies-experimental-ml-lane",
