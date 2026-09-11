@@ -20,7 +20,7 @@ export function duplicateTiberCapabilityIds(
     if (seen.has(record.id)) duplicates.add(record.id);
     seen.add(record.id);
   }
-  return [...duplicates].sort();
+  return Array.from(duplicates).sort();
 }
 
 export function allTiberCapabilityMigrationBlockers(
