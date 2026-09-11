@@ -1,0 +1,55 @@
+name: CCF Market Intelligence
+
+on:
+  pull_request:
+    paths:
+      - 'server/modules/ccf/market/**'
+      - 'docs/architecture/CCF_MARKET_INTELLIGENCE_V0.md'
+      - '.github/workflows/ccf-market-intelligence.yml'
+      - '.github/workflows/ccf-independence.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  market-intelligence:
+    name: Market evidence contract and normalization
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Reject market-module TypeScript regressions
+        shell: bash
+        run: |
+          set +e
+          npm run typecheck > /tmp/market-typecheck.log 2>&1
+          typecheck_status=$?
+          set -e
+
+          if grep -E '^server/modules/ccf/market/' /tmp/market-typecheck.log; then
+            echo "::error::CCF market intelligence code contains TypeScript errors."
+            grep -E '^server/modules/ccf/market/' /tmp/market-typecheck.log
+            exit 1
+          fi
+
+          if [ "$typecheck_status" -ne 0 ]; then
+            error_count=$(grep -c 'error TS' /tmp/market-typecheck.log || true)
+            echo "::warning::Repository typecheck has ${error_count} errors outside server/modules/ccf/market; treated as pre-existing/base debt for this focused gate."
+          else
+            echo "Repository-wide typecheck is clean."
+          fi
+
+      - name: Run focused market evidence tests
+        run: npm test -- server/modules/ccf/market/__tests__/marketEvidence.test.ts
