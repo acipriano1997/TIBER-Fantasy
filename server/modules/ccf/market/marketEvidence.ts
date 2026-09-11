@@ -37,6 +37,12 @@ export interface CCFBookQuote {
   marketId: string;
   marketKind: CCFMarketKind;
   marketScope: CCFMarketScope;
+  /**
+   * Number of mutually exclusive selections expected in the complete bookmaker
+   * snapshot. May be null for raw evidence whose completeness is not known yet,
+   * but fair-probability/vig normalization is blocked until it is known.
+   */
+  expectedSelectionCount: number | null;
   selection: CCFMarketSelection;
   oddsFormat: CCFOddsFormat;
   odds: number;
@@ -69,6 +75,7 @@ export interface CCFNormalizedBookMarket {
   bookmaker: string;
   marketId: string;
   capturedAt: string;
+  expectedSelectionCount: number;
   overround: number;
   selections: CCFNormalizedMarketSelection[];
 }
@@ -99,6 +106,22 @@ function parseTimestamp(label: string, value: string): number {
 
 function requireNonEmpty(label: string, value: string): void {
   if (!value.trim()) throw new CCFMarketEvidenceError(`${label} is required`);
+}
+
+function validateExpectedSelectionCount(
+  label: string,
+  value: number | null,
+  allowUnknown: boolean,
+): void {
+  if (value == null) {
+    if (!allowUnknown) {
+      throw new CCFMarketEvidenceError(`${label} is required before fair-probability normalization`);
+    }
+    return;
+  }
+  if (!Number.isInteger(value) || value < 2) {
+    throw new CCFMarketEvidenceError(`${label} must be an integer greater than or equal to 2`);
+  }
 }
 
 export function decimalOddsFromOdds(format: CCFOddsFormat, odds: number): number {
@@ -151,6 +174,19 @@ export function normalizeBookMarketSnapshot(quotes: CCFBookQuote[]): CCFNormaliz
   }
 
   const first = quotes[0];
+  validateExpectedSelectionCount(
+    "expectedSelectionCount",
+    first.expectedSelectionCount,
+    false,
+  );
+  const expectedSelectionCount = first.expectedSelectionCount as number;
+
+  if (quotes.length !== expectedSelectionCount) {
+    throw new CCFMarketEvidenceError(
+      `market normalization requires the complete selection set: expected ${expectedSelectionCount}, received ${quotes.length}`,
+    );
+  }
+
   const selectionIds = new Set<string>();
 
   for (const quote of quotes) {
@@ -162,6 +198,9 @@ export function normalizeBookMarketSnapshot(quotes: CCFBookQuote[]): CCFNormaliz
     }
     if (quote.capturedAt !== first.capturedAt) {
       throw new CCFMarketEvidenceError("market normalization requires one capturedAt snapshot");
+    }
+    if (quote.expectedSelectionCount !== expectedSelectionCount) {
+      throw new CCFMarketEvidenceError("market normalization requires one expectedSelectionCount");
     }
     if (quote.status !== "open") {
       throw new CCFMarketEvidenceError("only open quotes may be normalized into a live market snapshot");
@@ -179,6 +218,7 @@ export function normalizeBookMarketSnapshot(quotes: CCFBookQuote[]): CCFNormaliz
     bookmaker: first.bookmaker,
     marketId: first.marketId,
     capturedAt: first.capturedAt,
+    expectedSelectionCount,
     overround: normalized.overround,
     selections: quotes.map((quote, index) => ({
       selectionId: quote.selection.selectionId,
@@ -256,6 +296,11 @@ export function validateCCFMarketEvidenceBundle(bundle: CCFMarketEvidenceBundle)
     requireNonEmpty(`${quote.quoteId}.marketId`, quote.marketId);
     requireNonEmpty(`${quote.quoteId}.selection.selectionId`, quote.selection.selectionId);
     requireNonEmpty(`${quote.quoteId}.rawTraceRef`, quote.rawTraceRef);
+    validateExpectedSelectionCount(
+      `${quote.quoteId}.expectedSelectionCount`,
+      quote.expectedSelectionCount,
+      true,
+    );
 
     if (quoteIds.has(quote.quoteId)) {
       throw new CCFMarketEvidenceError(`duplicate quoteId ${quote.quoteId}`);
@@ -271,6 +316,9 @@ export function validateCCFMarketEvidenceBundle(bundle: CCFMarketEvidenceBundle)
     const retrievedAt = parseTimestamp(`${quote.quoteId}.retrievedAt`, quote.retrievedAt);
     const knownAt = parseTimestamp(`${quote.quoteId}.knownAt`, quote.knownAt);
 
+    if (retrievedAt < capturedAt) {
+      throw new CCFMarketEvidenceError(`${quote.quoteId} retrievedAt cannot predate capturedAt`);
+    }
     if (capturedAt > knownAt) {
       throw new CCFMarketEvidenceError(`${quote.quoteId} capturedAt cannot be later than knownAt`);
     }

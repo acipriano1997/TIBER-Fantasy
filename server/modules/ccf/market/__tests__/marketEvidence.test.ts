@@ -16,6 +16,7 @@ function quote(overrides: Partial<CCFBookQuote> = {}): CCFBookQuote {
     marketId: "game-1-moneyline",
     marketKind: "moneyline",
     marketScope: "game",
+    expectedSelectionCount: 2,
     selection: {
       selectionId: "home",
       label: "AAA",
@@ -74,7 +75,7 @@ describe("CCF market evidence", () => {
     expect(result.fairProbabilities[1]).toBeCloseTo(0.5);
   });
 
-  it("normalizes one bookmaker snapshot and refuses to mix books", () => {
+  it("normalizes one complete bookmaker snapshot and refuses to mix books", () => {
     const home = quote();
     const away = quote({
       quoteId: "q-away",
@@ -90,12 +91,85 @@ describe("CCF market evidence", () => {
     });
 
     const normalized = normalizeBookMarketSnapshot([home, away]);
+    expect(normalized.expectedSelectionCount).toBe(2);
     expect(normalized.overround).toBeGreaterThan(0);
     expect(normalized.selections[0].fairProbability).toBeCloseTo(0.5);
     expect(normalized.selections[1].fairProbability).toBeCloseTo(0.5);
 
     const otherBook = quote({ ...away, bookmaker: "book-b" });
     expect(() => normalizeBookMarketSnapshot([home, otherBook])).toThrow(/mix bookmakers/);
+  });
+
+  it("refuses to de-vig an incomplete three-way market", () => {
+    const home = quote({ expectedSelectionCount: 3 });
+    const away = quote({
+      quoteId: "q-away",
+      expectedSelectionCount: 3,
+      selection: {
+        selectionId: "away",
+        label: "BBB",
+        entityId: "BBB",
+        side: "away",
+        line: null,
+      },
+      rawTraceRef: "sha256:away",
+    });
+
+    expect(() => normalizeBookMarketSnapshot([home, away])).toThrow(/complete selection set/);
+  });
+
+  it("normalizes a complete three-way market when the draw is present", () => {
+    const home = quote({ expectedSelectionCount: 3, oddsFormat: "decimal", odds: 2.4 });
+    const draw = quote({
+      quoteId: "q-draw",
+      expectedSelectionCount: 3,
+      oddsFormat: "decimal",
+      odds: 3.2,
+      selection: {
+        selectionId: "draw",
+        label: "Draw",
+        entityId: null,
+        side: "draw",
+        line: null,
+      },
+      rawTraceRef: "sha256:draw",
+    });
+    const away = quote({
+      quoteId: "q-away",
+      expectedSelectionCount: 3,
+      oddsFormat: "decimal",
+      odds: 3.0,
+      selection: {
+        selectionId: "away",
+        label: "BBB",
+        entityId: "BBB",
+        side: "away",
+        line: null,
+      },
+      rawTraceRef: "sha256:away",
+    });
+
+    const normalized = normalizeBookMarketSnapshot([home, draw, away]);
+    expect(normalized.selections).toHaveLength(3);
+    expect(normalized.selections.reduce((sum, item) => sum + item.fairProbability, 0)).toBeCloseTo(1, 10);
+  });
+
+  it("blocks fair-probability normalization when market completeness is unknown", () => {
+    const home = quote({ expectedSelectionCount: null });
+    const away = quote({
+      quoteId: "q-away",
+      expectedSelectionCount: null,
+      selection: {
+        selectionId: "away",
+        label: "BBB",
+        entityId: "BBB",
+        side: "away",
+        line: null,
+      },
+      rawTraceRef: "sha256:away",
+    });
+
+    expect(() => normalizeBookMarketSnapshot([home, away])).toThrow(/required before fair-probability normalization/);
   });
 
   it("computes price and line movement without labeling the movement as sharp", () => {
@@ -146,6 +220,12 @@ describe("CCF market evidence", () => {
     unavailable.quotes = [];
     unavailable.warnings = ["market provider unavailable"];
     expect(() => validateCCFMarketEvidenceBundle(unavailable)).not.toThrow();
+  });
+
+  it("rejects retrieval timestamps that predate provider capture", () => {
+    const invalid = bundle();
+    invalid.quotes[0].retrievedAt = "2026-09-11T15:54:59Z";
+    expect(() => validateCCFMarketEvidenceBundle(invalid)).toThrow(/retrievedAt cannot predate capturedAt/);
   });
 
   it("rejects malformed odds rather than fabricating a neutral probability", () => {

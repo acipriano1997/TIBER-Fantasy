@@ -17,6 +17,7 @@ Market data must never:
 - replace the CCF player outcome model;
 - be treated as independent simply because multiple books publish the same number;
 - use raw implied probability without vig handling where a complete mutually exclusive market is available;
+- de-vig an incomplete selection set or assume every market is two-way;
 - receive a fixed "sharp book" weight without empirical evidence;
 - use a quote that was not known by the decision `as_of`;
 - infer neutral or healthy conditions from unavailable market evidence;
@@ -28,16 +29,21 @@ Market data must never:
 
 - `ccf-market-evidence-v1` vendor-neutral evidence contract;
 - sport, league, event, bookmaker, market and selection identity;
-- captured/retrieved/known timestamps;
+- captured/retrieved/known timestamps with retrieval-order validation;
 - `knownAt <= asOf` eligibility enforcement;
 - raw trace requirements;
 - explicit available/unavailable semantics;
 - American and decimal odds normalization;
 - raw implied probability conversion;
-- proportional vig removal for complete mutually exclusive snapshots;
+- expected selection cardinality per bookmaker snapshot;
+- proportional vig removal only for a complete mutually exclusive snapshot;
 - single-book/single-market snapshot normalization;
 - deterministic price/line movement calculation;
 - no fantasy-impact, sharpness, steam or bookmaker-quality claims.
+
+Raw evidence may preserve a quote when selection cardinality is not yet known, but fair-probability normalization is blocked until completeness can be proven. This prevents two-outcome assumptions from contaminating three-way or larger cross-sport markets.
+
+`marketPricing.ts`, `marketTape.ts`, `marketAudit.ts`, and `beatVegasCertification.ts` add deterministic fair-price math, point-in-time cross-book inspection, frozen decision scoring, and explicit research/shadow/certified surface gating. None of those layers itself proves a live edge.
 
 ## Cross-sport architecture
 
@@ -45,6 +51,7 @@ Market data must never:
 raw sportsbook observations
   -> CCF market evidence contract
   -> point-in-time archive
+  -> market-cardinality / completeness validation
   -> price / vig normalization
   -> market identity + echo/dependence controls
   -> bookmaker / sport / league / market-type reliability learning
@@ -64,6 +71,7 @@ Historical and live feeds should preserve, when permitted by source/license:
 - sport and league;
 - event identity and scheduled start;
 - market type and market identity;
+- expected selection cardinality / complete market structure;
 - player/team/selection identity;
 - line/threshold;
 - price;
@@ -157,11 +165,15 @@ Calendar refreshes update evidence and learned parameters; they do not automatic
 The foundation is complete when:
 
 - contract validation passes;
-- odds conversion and vig-removal tests pass;
-- future-known evidence is rejected;
+- odds conversion, pricing and vig-removal tests pass;
+- incomplete/unknown-cardinality markets cannot be de-vigged;
+- future-known and temporally impossible evidence is rejected;
 - unavailable evidence remains explicit;
 - market movement is computed without assigning unsupported labels such as `sharp` or `steam`;
-- the CCF independence gate runs the market evidence tests.
+- Market Tape fails closed when any constituent quote is ineligible;
+- frozen audit outputs distinguish modeled selection return from proof of an actual wager;
+- research/shadow/certified gating remains surface-specific and fail-closed;
+- the focused Market Intelligence workflow and broader CCF Independence workflow execute the market foundation tests.
 
 ## Explicitly not complete
 
