@@ -21,6 +21,7 @@ const navSections: NavSectionConfig[] = [
     description: "Inspectable systems only.",
     items: [
       { label: "Command Center", path: "/command-center", badge: "V1" },
+      { label: "Beat Vegas", path: "/command-center/beat-vegas", badge: "R&D" },
       { label: "ESPN Draft", path: "/command-center/draft", badge: "LIVE" },
       { label: "Post-Cutoff Ledger", path: "/observatory/post-cutoff-ledger", badge: "NEW" },
       { label: "Management", path: "/management", badge: "NEW" },
@@ -41,6 +42,7 @@ const navSections: NavSectionConfig[] = [
 
 function getSection(location: string): string {
   if (location.startsWith("/command-center/draft")) return "ESPN Draft";
+  if (location.startsWith("/command-center/beat-vegas")) return "Beat Vegas · Research";
   if (location.startsWith("/command-center")) return "Command Center";
   if (location === "/" || location.startsWith("/observatory") || location.startsWith("/stress-lab")) return "Observatory";
   if (location.startsWith("/draft-review")) return "Draft Review";
@@ -232,6 +234,7 @@ export default function TiberLayout({
         <nav className="tiber-topbar-quicknav">
           <Link href="/command-center/draft" className="tmd-topbar-link">ESPN Draft</Link>
           <Link href="/command-center" className="tmd-topbar-link">Command Center</Link>
+          <Link href="/command-center/beat-vegas" className="tmd-topbar-link">Beat Vegas</Link>
           <Link href="/records" className="tmd-topbar-link">Records</Link>
           <Link href="/tiers" className="tmd-topbar-link">Rankings</Link>
           <Link href="/rookies" className="tmd-topbar-link">Rookies</Link>
