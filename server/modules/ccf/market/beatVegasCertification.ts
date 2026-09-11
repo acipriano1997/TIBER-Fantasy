@@ -125,7 +125,7 @@ function requirementPassed(
 }
 
 function unique(requirements: readonly BeatVegasRequirementId[]): BeatVegasRequirementId[] {
-  return [...new Set(requirements)];
+  return Array.from(new Set(requirements));
 }
 
 function requirementsForSurface(surface: BeatVegasSurface): {
