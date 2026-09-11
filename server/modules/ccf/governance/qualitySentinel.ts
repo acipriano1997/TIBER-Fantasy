@@ -67,9 +67,11 @@ export function evaluateCCFQualityRules<T>(
     if (rule.surface !== surface) continue;
 
     let result: CCFQualityCheckResult;
+    let executionFailed = false;
     try {
       result = rule.check(data);
     } catch (error) {
+      executionFailed = true;
       result = {
         passed: false,
         confidence: 1,
@@ -84,7 +86,7 @@ export function evaluateCCFQualityRules<T>(
     events.push({
       ruleId: rule.id,
       surface,
-      severity: rule.severity === "info" && result.details?.ruleExecutionFailure ? "block" : rule.severity,
+      severity: executionFailed ? "block" : rule.severity,
       confidence: clampProbability(result.confidence),
       message: result.message,
       entityKey,
