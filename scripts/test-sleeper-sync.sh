@@ -48,7 +48,7 @@ echo "Season: $TEST_SEASON"
 
 # 1. The active V2 route must resolve the configured username using live
 # Sleeper data and preserve immutable identity, raw league rules, per-league
-# scoring coverage, and explicit provenance.
+# scoring coverage/authority, and explicit provenance.
 mapfile -t portfolio_response < <(request_live_portfolio "$TEST_USERNAME" "$TEST_SEASON")
 portfolio_status=${portfolio_response[0]:-000}
 portfolio_body=$(printf '%s\n' "${portfolio_response[@]:1}")
@@ -74,6 +74,7 @@ echo "$portfolio_body" | jq -e \
       (.settings | type == "object") and
       (.scoringCoverage | type == "object") and
       (.scoringCoverage.status == "GREEN" or .scoringCoverage.status == "RED") and
+      (.scoringCoverage.recommendationAuthorityUnlocked | type == "boolean") and
       (.scoringCoverage.coveragePct | type == "number") and
       (.scoringCoverage.unsupportedKeys | type == "array") and
       (.scoringCoverage.coefficientMismatches | type == "array") and
@@ -133,14 +134,29 @@ echo "$portfolio_body" | jq '{
 }'
 echo "=== END LIVE SLEEPER PORTFOLIO CERTIFICATION EVIDENCE ==="
 
-# 2. Recommendation authority is a zero-red-league gate. If the route found a
-# real portfolio but any league cannot be scored exactly by the promoted
-# Forecast profile, fail closed and print only the concrete scoring blocker(s).
+# 2. Recommendation authority is league-scoped. GREEN leagues may be consumed
+# while RED leagues remain fail-closed. Portfolio certification remains RED
+# until every league is GREEN; the aggregate productionAuthorityUnlocked flag
+# therefore retains its strict all-green meaning.
 if ! echo "$portfolio_body" | jq -e '
-  .data.scoringCertification.productionAuthorityUnlocked == true and
-  .data.scoringCertification.redLeagueCount == 0 and
-  all(.data.leagues[]; .scoringCoverage.status == "GREEN")
+  . as $root |
+  all($root.data.leagues[];
+    if .scoringCoverage.status == "GREEN"
+    then .scoringCoverage.recommendationAuthorityUnlocked == true
+    else .scoringCoverage.recommendationAuthorityUnlocked == false
+    end
+  ) and
+  $root.data.scoringCertification.greenLeagueCount == ([$root.data.leagues[] | select(.scoringCoverage.status == "GREEN")] | length) and
+  $root.data.scoringCertification.redLeagueCount == ([$root.data.leagues[] | select(.scoringCoverage.status == "RED")] | length) and
+  (($root.data.scoringCertification.redLeagueIds | sort) == ([$root.data.leagues[] | select(.scoringCoverage.status == "RED") | .leagueId] | sort)) and
+  $root.data.scoringCertification.productionAuthorityUnlocked == ($root.data.scoringCertification.redLeagueCount == 0) and
+  $root.data.scoringCertification.status == (if $root.data.scoringCertification.redLeagueCount == 0 then "GREEN" else "RED" end)
 ' >/dev/null; then
+  fail "Per-league recommendation authority is inconsistent with scoring certification" "$portfolio_body"
+fi
+
+green_authority_count=$(echo "$portfolio_body" | jq '[.data.leagues[] | select(.scoringCoverage.recommendationAuthorityUnlocked == true)] | length')
+if [[ "$green_authority_count" -eq 0 ]]; then
   scoring_blockers=$(echo "$portfolio_body" | jq '{
     productionAuthorityUnlocked: .data.scoringCertification.productionAuthorityUnlocked,
     redLeagueCount: .data.scoringCertification.redLeagueCount,
@@ -154,10 +170,17 @@ if ! echo "$portfolio_body" | jq -e '
       invalidKeys: .scoringCoverage.invalidKeys
     }]
   }')
-  fail "Live portfolio is valid, but per-league scoring coverage still blocks recommendation authority" "$scoring_blockers"
+  fail "Live portfolio is valid, but no league currently qualifies for recommendation authority" "$scoring_blockers"
 fi
 
-echo "PASS: every live 2026 league is GREEN; recommendation authority is unlocked by the live-portfolio scoring gate."
+echo "PASS: $green_authority_count live league(s) have exact scoring compatibility and league-scoped recommendation authority."
+
+red_league_count=$(echo "$portfolio_body" | jq '.data.scoringCertification.redLeagueCount')
+if [[ "$red_league_count" -gt 0 ]]; then
+  echo "NOTICE: portfolio aggregate remains RED; unsupported leagues stay fail-closed until Forecast scoring coverage expands."
+else
+  echo "PASS: portfolio aggregate is fully GREEN."
+fi
 
 # 3. Unknown users must fail closed. No stored or synthetic portfolio is an
 # acceptable fallback for production certification.
