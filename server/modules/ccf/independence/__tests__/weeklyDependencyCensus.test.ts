@@ -1,7 +1,5 @@
-import {
-  CCF_TIBER_CAPABILITY_MIGRATION_V0,
-  type CCFTiberCapabilityMigrationRecord,
-} from "../tiberCapabilityMigration";
+import type { CCFTiberCapabilityMigrationRecord } from "../tiberCapabilityMigration";
+import { CCF_ALL_TIBER_CAPABILITY_MIGRATION_V0 } from "../allTiberCapabilityMigration";
 import {
   CCF_WEEKLY_DEPENDENCY_CENSUS_V0,
   blockedCriticalDependencies,
@@ -55,13 +53,13 @@ describe("CCF weekly dependency census", () => {
     expect(canClaimCCFPrimary(allNative)).toBe(false);
   });
 
-  it("allows a claim only when critical dependencies and required capability migration are both certified", () => {
+  it("allows a claim only when critical dependencies and the complete required capability registry are certified", () => {
     const allNative = CCF_WEEKLY_DEPENDENCY_CENSUS_V0.map((record) => ({
       ...record,
       nativeStatus: "eligible_native" as const,
     }));
     const allMigrated: CCFTiberCapabilityMigrationRecord[] =
-      CCF_TIBER_CAPABILITY_MIGRATION_V0.map((record) => ({
+      CCF_ALL_TIBER_CAPABILITY_MIGRATION_V0.map((record) => ({
         ...record,
         status: record.requiredForUniversalCCF ? "native_certified" : record.status,
       }));
