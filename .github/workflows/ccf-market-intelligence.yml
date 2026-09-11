@@ -56,7 +56,11 @@ jobs:
           fi
 
       - name: Run focused market evidence and Beat Vegas tests
-        run: npm test -- server/modules/ccf/market/__tests__/marketEvidence.test.ts server/modules/ccf/market/__tests__/beatVegasFoundation.test.ts
+        run: >-
+          npm test --
+          server/modules/ccf/market/__tests__/marketEvidence.test.ts
+          server/modules/ccf/market/__tests__/beatVegasFoundation.test.ts
+          server/modules/ccf/market/__tests__/marketTapeAndAudit.test.ts
 
       - name: Build application
         run: npm run build
