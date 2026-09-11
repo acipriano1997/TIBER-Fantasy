@@ -124,6 +124,36 @@ describe("Beat Vegas market tape", () => {
     expect(result.currentFairProbabilityRange?.spread).toBeGreaterThan(0);
     expect(result.currentLineRange).toEqual({ min: 64.5, max: 64.5, spread: 0 });
   });
+
+  it("rejects an entire de-vig snapshot when any participating side was not known by asOf", () => {
+    const leakedSnapshot = snapshot(
+      "Book Leak",
+      "leak",
+      "2026-09-11T20:05:00.000Z",
+      "2026-09-11T20:06:00.000Z",
+      -110,
+      -110,
+      64.5,
+    );
+    leakedSnapshot[1] = {
+      ...leakedSnapshot[1],
+      retrievedAt: "2026-09-11T20:11:00.000Z",
+      knownAt: "2026-09-11T20:11:00.000Z",
+    };
+
+    const result = summarizeCCFMarketTape({
+      marketId: "player-123:receiving-yards",
+      selectionId: "over",
+      quotes: leakedSnapshot,
+      asOf: "2026-09-11T20:10:00.000Z",
+      maxAgeMinutes: 15,
+    });
+
+    expect(result.state).toBe("unavailable");
+    expect(result.books).toEqual([]);
+    expect(result.invalidSnapshotCount).toBe(1);
+    expect(result.bestUsableQuote).toBeNull();
+  });
 });
 
 describe("Beat Vegas frozen audit", () => {
