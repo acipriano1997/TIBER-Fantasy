@@ -3,10 +3,12 @@ import {
   type CCFTiberCapabilityMigrationRecord,
 } from "./tiberCapabilityMigration";
 import { CCF_TIBER_CAPABILITY_MIGRATION_EXTENSIONS_V0 } from "./tiberCapabilityMigrationExtensions";
+import { CCF_TIBER_FANTASY_CAPABILITY_MIGRATION_EXTENSIONS_V0 } from "./tiberFantasyCapabilityMigrationExtensions";
 
 export const CCF_ALL_TIBER_CAPABILITY_MIGRATION_V0: readonly CCFTiberCapabilityMigrationRecord[] = [
   ...CCF_TIBER_CAPABILITY_MIGRATION_V0,
   ...CCF_TIBER_CAPABILITY_MIGRATION_EXTENSIONS_V0,
+  ...CCF_TIBER_FANTASY_CAPABILITY_MIGRATION_EXTENSIONS_V0,
 ];
 
 export function duplicateTiberCapabilityIds(
