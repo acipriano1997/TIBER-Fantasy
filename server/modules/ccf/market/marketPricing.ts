@@ -75,3 +75,66 @@ export function betToAmericanOdds(
     minimumDecimalOddsForExpectedRoi(modelProbability, minimumExpectedRoi),
   );
 }
+
+export interface CCFMarketPriceEvaluationInput {
+  ccfProbability: number;
+  marketFairProbability: number;
+  offeredOddsFormat: CCFOddsFormat;
+  offeredOdds: number;
+  minimumExpectedRoi?: number;
+  stakeForExpectedValue?: number;
+}
+
+export interface CCFMarketPriceEvaluation {
+  ccfProbability: number;
+  ccfFairDecimalOdds: number;
+  ccfFairAmericanOdds: number;
+  marketFairProbability: number;
+  marketFairDecimalOdds: number;
+  marketFairAmericanOdds: number;
+  probabilityEdge: number;
+  offeredOddsFormat: CCFOddsFormat;
+  offeredOdds: number;
+  offeredDecimalOdds: number;
+  expectedRoi: number;
+  expectedValue: number;
+  betToAmericanOdds: number;
+  minimumExpectedRoi: number;
+  ruleId: "ccf-market-price-evaluation-v1";
+}
+
+/**
+ * Produces the canonical inspectable CCF-vs-market price chain. This function
+ * intentionally does not emit BET/PASS or any recommendation label.
+ */
+export function evaluateCCFMarketPrice(
+  input: CCFMarketPriceEvaluationInput,
+): CCFMarketPriceEvaluation {
+  assertProbability(input.ccfProbability, "ccfProbability");
+  assertProbability(input.marketFairProbability, "marketFairProbability");
+  const minimumExpectedRoi = input.minimumExpectedRoi ?? 0;
+  const stakeForExpectedValue = input.stakeForExpectedValue ?? 100;
+  assertNonNegativeFinite(minimumExpectedRoi, "minimumExpectedRoi");
+  assertNonNegativeFinite(stakeForExpectedValue, "stakeForExpectedValue");
+
+  const offeredDecimalOdds = decimalOddsFromOdds(input.offeredOddsFormat, input.offeredOdds);
+  const expectedRoi = input.ccfProbability * offeredDecimalOdds - 1;
+
+  return {
+    ccfProbability: input.ccfProbability,
+    ccfFairDecimalOdds: fairDecimalOddsFromProbability(input.ccfProbability),
+    ccfFairAmericanOdds: fairAmericanOddsFromProbability(input.ccfProbability),
+    marketFairProbability: input.marketFairProbability,
+    marketFairDecimalOdds: fairDecimalOddsFromProbability(input.marketFairProbability),
+    marketFairAmericanOdds: fairAmericanOddsFromProbability(input.marketFairProbability),
+    probabilityEdge: input.ccfProbability - input.marketFairProbability,
+    offeredOddsFormat: input.offeredOddsFormat,
+    offeredOdds: input.offeredOdds,
+    offeredDecimalOdds,
+    expectedRoi,
+    expectedValue: stakeForExpectedValue * expectedRoi,
+    betToAmericanOdds: betToAmericanOdds(input.ccfProbability, minimumExpectedRoi),
+    minimumExpectedRoi,
+    ruleId: "ccf-market-price-evaluation-v1",
+  };
+}
