@@ -39,7 +39,7 @@ export function compareCCFPlayerFeatureVectors(
     throw new Error("minimumSharedWeight must be a non-negative finite number");
   }
 
-  const allFeatures = [...new Set([...Object.keys(left.features), ...Object.keys(right.features)])].sort();
+  const allFeatures = Array.from(new Set([...Object.keys(left.features), ...Object.keys(right.features)])).sort();
   const sharedFeatures: string[] = [];
   const missingFromLeft: string[] = [];
   const missingFromRight: string[] = [];
