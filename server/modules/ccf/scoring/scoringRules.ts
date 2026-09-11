@@ -25,10 +25,17 @@ export interface CCFFantasyStatLine {
 export type CCFScoringStat = keyof CCFFantasyStatLine;
 
 export interface CCFScoringBonusRule {
+  id: string;
   stat: CCFScoringStat;
   threshold: number;
   points: number;
   comparison: "at_least";
+  /**
+   * `stack` means every qualified rule applies. `highest_threshold_in_group`
+   * means only the most specific qualified rule in the named group applies.
+   */
+  stacking: "stack" | "highest_threshold_in_group";
+  group?: string;
 }
 
 export interface CCFLeagueScoringRules {
@@ -90,12 +97,27 @@ export function validateCCFLeagueScoringRules(
     assertFinite(label, value);
   }
 
+  const bonusIds = new Set<string>();
   for (const bonus of rules.bonuses) {
+    if (!bonus.id.trim()) {
+      throw new CCFScoringContractError("bonus id is required");
+    }
+    if (bonusIds.has(bonus.id)) {
+      throw new CCFScoringContractError(`duplicate bonus id ${bonus.id}`);
+    }
+    bonusIds.add(bonus.id);
+
     if (!bonus.stat.trim()) {
       throw new CCFScoringContractError("bonus stat is required");
     }
-    assertFinite(`bonus ${bonus.stat} threshold`, bonus.threshold);
-    assertFinite(`bonus ${bonus.stat} points`, bonus.points);
+    assertFinite(`bonus ${bonus.id} threshold`, bonus.threshold);
+    assertFinite(`bonus ${bonus.id} points`, bonus.points);
+
+    if (bonus.stacking === "highest_threshold_in_group" && !bonus.group?.trim()) {
+      throw new CCFScoringContractError(
+        `bonus ${bonus.id} requires a group for highest_threshold_in_group`,
+      );
+    }
   }
 
   return rules;
@@ -111,6 +133,39 @@ export function validateCCFFantasyStatLine(statLine: CCFFantasyStatLine): CCFFan
   return statLine;
 }
 
+function scoreBonuses(statLine: CCFFantasyStatLine, rules: CCFLeagueScoringRules): number {
+  let score = 0;
+  const highestOnlyGroups = new Map<string, CCFScoringBonusRule>();
+
+  for (const bonus of rules.bonuses) {
+    const value = statLine[bonus.stat];
+    if (typeof value !== "number" || value < bonus.threshold) {
+      continue;
+    }
+
+    if (bonus.stacking === "stack") {
+      score += bonus.points;
+      continue;
+    }
+
+    const group = bonus.group!;
+    const incumbent = highestOnlyGroups.get(group);
+    if (
+      incumbent == null ||
+      bonus.threshold > incumbent.threshold ||
+      (bonus.threshold === incumbent.threshold && bonus.points > incumbent.points)
+    ) {
+      highestOnlyGroups.set(group, bonus);
+    }
+  }
+
+  for (const bonus of highestOnlyGroups.values()) {
+    score += bonus.points;
+  }
+
+  return score;
+}
+
 export function scoreCCFFantasyStatLine(
   statLine: CCFFantasyStatLine,
   rules: CCFLeagueScoringRules,
@@ -118,7 +173,7 @@ export function scoreCCFFantasyStatLine(
   validateCCFFantasyStatLine(statLine);
   validateCCFLeagueScoringRules(rules);
 
-  let score =
+  const baseScore =
     statLine.passingYards * rules.passingYard +
     statLine.passingTouchdowns * rules.passingTouchdown +
     statLine.interceptions * rules.interception +
@@ -134,14 +189,7 @@ export function scoreCCFFantasyStatLine(
     statLine.fumblesLost * rules.fumbleLost +
     statLine.returnTouchdowns * rules.returnTouchdown;
 
-  for (const bonus of rules.bonuses) {
-    const value = statLine[bonus.stat];
-    if (typeof value === "number" && value >= bonus.threshold) {
-      score += bonus.points;
-    }
-  }
-
-  return score;
+  return baseScore + scoreBonuses(statLine, rules);
 }
 
 export const CCF_BASE_PPR_RULES: CCFLeagueScoringRules = {
@@ -182,10 +230,13 @@ export const CCF_BASE_STANDARD_RULES: CCFLeagueScoringRules = {
 export function fingerprintCCFLeagueScoringRules(rules: CCFLeagueScoringRules): string {
   validateCCFLeagueScoringRules(rules);
   const orderedBonuses = [...rules.bonuses].sort((a, b) => {
+    const group = (a.group ?? "").localeCompare(b.group ?? "");
+    if (group !== 0) return group;
     const stat = a.stat.localeCompare(b.stat);
     if (stat !== 0) return stat;
     if (a.threshold !== b.threshold) return a.threshold - b.threshold;
-    return a.points - b.points;
+    if (a.points !== b.points) return a.points - b.points;
+    return a.id.localeCompare(b.id);
   });
 
   return JSON.stringify({
