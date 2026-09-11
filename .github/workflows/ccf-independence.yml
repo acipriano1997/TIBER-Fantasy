@@ -80,6 +80,8 @@ jobs:
           server/modules/ccf/sources/__tests__/transactionalArtifactPromotion.test.ts
           server/modules/ccf/weather/__tests__/weatherEvidence.test.ts
           server/modules/ccf/market/__tests__/marketEvidence.test.ts
+          server/modules/ccf/market/__tests__/beatVegasFoundation.test.ts
+          server/modules/ccf/market/__tests__/marketTapeAndAudit.test.ts
 
       - name: Build application
         run: sh build.sh
