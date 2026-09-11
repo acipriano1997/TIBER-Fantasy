@@ -64,6 +64,8 @@ jobs:
           server/modules/ccf/independence/__tests__/certifyNativeOutcome.test.ts
           server/modules/ccf/certification/__tests__/chronologicalSplit.test.ts
           server/modules/ccf/certification/__tests__/simpleBenchmarks.test.ts
+          server/modules/ccf/certification/__tests__/calibration.test.ts
+          server/modules/ccf/certification/__tests__/subgroupStability.test.ts
           server/modules/ccf/value/__tests__/replacementValue.test.ts
           server/modules/ccf/features/__tests__/weeklyFeatureEvidence.test.ts
           server/modules/ccf/scoring/__tests__/scoringRules.test.ts
