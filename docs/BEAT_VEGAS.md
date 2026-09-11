@@ -6,7 +6,7 @@
 
 Beat Vegas is the market-validation laboratory for the Fantasy Football Command Center. It is not a standalone picks engine, and this foundation does not claim a validated live odds feed, historical market replay, closing-line capture, calibrated betting edge, DFS ownership feed, or certified contest simulation.
 
-The correct failure mode is an explicit research/shadow/unavailable state. Never invent a quote, substitute stale evidence, or let an external consensus silently become recommendation authority.
+The correct failure mode is an explicit research/shadow/unavailable state. Never invent a quote, substitute stale evidence, infer a fair probability from an incomplete market, or let an external consensus silently become recommendation authority.
 
 ## Authority doctrine
 
@@ -18,7 +18,7 @@ The correct failure mode is an explicit research/shadow/unavailable state. Never
 
 ## Canonical price chain
 
-For an eligible binary market selection, the inspectable chain is:
+For an eligible market selection whose complete mutually exclusive outcome set is known, the inspectable chain is:
 
 `CCF probability -> CCF fair odds -> market de-vigged probability -> offered odds -> probability edge -> expected ROI -> bet-to price`
 
@@ -32,13 +32,16 @@ The pricing layer returns math, not a BET/PASS verdict.
 
 - sport/league/event/book/market/selection identity;
 - captured/retrieved/known timestamps;
-- `knownAt <= asOf` anti-leakage enforcement;
+- temporal-order validation plus `knownAt <= asOf` anti-leakage enforcement;
 - explicit unavailable semantics and raw-trace requirements;
 - American/decimal odds normalization;
 - raw implied probability;
-- proportional vig removal for complete mutually exclusive snapshots;
+- explicit expected selection cardinality for each bookmaker market snapshot;
+- proportional vig removal only when the complete mutually exclusive selection set is present;
 - normalized one-book market snapshots;
 - deterministic line/price movement.
+
+This matters for cross-sport use: a two-outcome NFL prop and a three-outcome soccer moneyline must not be normalized as though they have the same outcome structure. If market completeness is unknown, the raw quote may be retained as evidence but fair-probability normalization is blocked.
 
 ### Fair price / EV / price sensitivity
 
@@ -63,7 +66,7 @@ A bet-to price is a mathematical price threshold, not a recommendation.
 - stale-book and invalid-snapshot counts;
 - explicit `usable | partial | unavailable` state.
 
-Stale quotes never win best-price selection.
+A de-vigged snapshot is ineligible if any participating side was not known by the frozen `asOf`. Stale quotes never win best-price selection.
 
 ### Frozen audit scoring
 
@@ -140,7 +143,7 @@ Avoid opaque "sharp money," public-bet percentages, black-box consensus scores, 
 The next honest stage requires real evidence rather than more speculative scaffolding:
 
 - approved/licensed market provider adapter(s) and immutable raw quote capture;
-- normalized identity mapping across books/providers;
+- normalized identity mapping and complete-market cardinality mapping across books/providers/sports;
 - historical point-in-time market replay and closing-line reconstruction;
 - frozen calibration/edge-decay/CLV studies;
 - shared CCF joint game-state/outcome simulation;
