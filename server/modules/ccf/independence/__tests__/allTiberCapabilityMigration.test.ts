@@ -6,38 +6,50 @@ import {
 } from "../allTiberCapabilityMigration";
 
 describe("complete TIBER capability migration registry", () => {
-  it("has unique capability ids across base and extension registries", () => {
+  it("has unique capability ids across every audited TIBER registry", () => {
     expect(duplicateTiberCapabilityIds()).toEqual([]);
   });
 
-  it("keeps universal CCF blocked while newly discovered required mechanisms are uncertified", () => {
+  it("keeps universal CCF blocked while required Data, Rookies, and Fantasy-app mechanisms are uncertified", () => {
     const blockerIds = new Set(allTiberCapabilityMigrationBlockers().map((record) => record.id));
-    expect(blockerIds).toContain("data-weather-evidence-contract");
-    expect(blockerIds).toContain("rookies-athletic-draft-signal-features");
-    expect(blockerIds).toContain("rookies-historical-reconstruction-freeze");
-    expect(blockerIds).toContain("rookies-transactional-artifact-promotion");
+    for (const id of [
+      "data-weather-evidence-contract",
+      "rookies-athletic-draft-signal-features",
+      "rookies-historical-reconstruction-freeze",
+      "rookies-transactional-artifact-promotion",
+      "fantasy-fire-role-opportunity",
+      "fantasy-matchup-sos-context",
+      "fantasy-sentinel-output-guardrails",
+      "fantasy-metric-matrix-similarity",
+      "fantasy-management-use-activation-gates",
+      "fantasy-context-entity-lineage",
+      "fantasy-post-cutoff-signal-ledger",
+      "fantasy-hypothesis-core",
+      "fantasy-doctrine-insulation-market",
+      "fantasy-draft-context-compiler",
+    ]) {
+      expect(blockerIds).toContain(id);
+    }
     expect(canClaimAllTiberCapabilityMigrationComplete()).toBe(false);
   });
 
-  it("explicitly retires the uncalibrated experimental Rookie ML lane", () => {
-    expect(
-      CCF_ALL_TIBER_CAPABILITY_MIGRATION_V0.find(
-        (record) => record.id === "rookies-experimental-ml-lane",
-      ),
-    ).toMatchObject({
-      disposition: "intentionally_retire",
-      status: "intentionally_retired",
-      requiredForUniversalCCF: false,
-    });
-  });
-
-  it("keeps Devy and operator discovery signals outside native outcome authority", () => {
-    for (const id of ["rookies-devy-signal-discovery", "rookies-operator-signal-candidates"]) {
+  it("explicitly retires uncalibrated or duplicate legacy brains", () => {
+    for (const id of ["rookies-experimental-ml-lane", "fantasy-legacy-composite-brains"]) {
       expect(CCF_ALL_TIBER_CAPABILITY_MIGRATION_V0.find((record) => record.id === id)).toMatchObject({
-        disposition: "challenger_only",
-        status: "challenger_only",
+        disposition: "intentionally_retire",
+        status: "intentionally_retired",
         requiredForUniversalCCF: false,
       });
+    }
+  });
+
+  it("keeps discovery and optional leverage hypotheses outside native outcome authority", () => {
+    for (const id of [
+      "rookies-devy-signal-discovery",
+      "rookies-operator-signal-candidates",
+      "fantasy-catalyst-leverage-context",
+    ]) {
+      expect(CCF_ALL_TIBER_CAPABILITY_MIGRATION_V0.find((record) => record.id === id)?.requiredForUniversalCCF).toBe(false);
     }
   });
 
