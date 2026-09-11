@@ -1,46 +1,51 @@
-import { americanOddsToDecimal } from "./marketMath";
+import {
+  decimalOddsFromOdds,
+  type CCFOddsFormat,
+} from "./marketEvidence";
 
 export interface FrozenBinaryMarketDecision {
   decisionId: string;
-  marketSeriesId: string;
+  marketId: string;
   selectedOutcomeId: string;
   /** Frozen CCF decision timestamp. */
   frozenAt: string;
   ccfModelVersion: string;
   ccfProbability: number;
-  decisionMarketNoVigProbability: number;
-  offeredAmericanOdds: number;
-  sportsbook: string;
-  marketSnapshotId: string;
-  marketObservedAt: string;
+  decisionMarketFairProbability: number;
+  offeredOddsFormat: CCFOddsFormat;
+  offeredOdds: number;
+  bookmaker: string;
+  marketQuoteId: string;
+  marketCapturedAt: string;
   marketKnownAt: string;
-  marketSource: string;
+  marketRawTraceRef: string;
 }
 
 export interface ClosingMarketEvidence {
-  observedAt: string;
+  capturedAt: string;
   knownAt: string;
-  source: string;
-  closingNoVigProbability: number;
-  closingAmericanOdds?: number | null;
+  rawTraceRef: string;
+  closingFairProbability: number;
+  closingOddsFormat?: CCFOddsFormat | null;
+  closingOdds?: number | null;
 }
 
 export interface SettledMarketAudit {
   decisionId: string;
-  marketSnapshotId: string;
+  marketQuoteId: string;
   outcome: 0 | 1;
   brierScore: number;
   logLoss: number;
   decisionMarketBrierScore: number;
   brierImprovementVsDecisionMarket: number;
-  /** Outcome-implied return at the recorded offered price; not proof a wager was placed. */
+  /** Outcome-implied return at the frozen offered price; not proof a wager was placed. */
   selectionReturnPerUnit: number;
   returnBasis: "selection_outcome_only";
   closingProbabilityMove: number | null;
   ccfProbabilityMinusClose: number | null;
   offeredVsClosingDecimalPricePct: number | null;
-  closingEvidenceSource: string | null;
-  ruleId: "ccf-market-audit.v1";
+  closingRawTraceRef: string | null;
+  ruleId: "ccf-market-audit-v1";
 }
 
 function assertText(value: string, label: string): void {
@@ -69,22 +74,22 @@ function binaryLogLoss(probability: number, outcome: 0 | 1): number {
 
 function validateFrozenDecisionProvenance(decision: FrozenBinaryMarketDecision): number {
   assertText(decision.decisionId, "decisionId");
-  assertText(decision.marketSeriesId, "marketSeriesId");
+  assertText(decision.marketId, "marketId");
   assertText(decision.selectedOutcomeId, "selectedOutcomeId");
   assertText(decision.ccfModelVersion, "ccfModelVersion");
-  assertText(decision.sportsbook, "sportsbook");
-  assertText(decision.marketSnapshotId, "marketSnapshotId");
-  assertText(decision.marketSource, "marketSource");
+  assertText(decision.bookmaker, "bookmaker");
+  assertText(decision.marketQuoteId, "marketQuoteId");
+  assertText(decision.marketRawTraceRef, "marketRawTraceRef");
 
   const frozenAtMs = parseInstant(decision.frozenAt, "frozenAt");
-  const observedAtMs = parseInstant(decision.marketObservedAt, "marketObservedAt");
+  const capturedAtMs = parseInstant(decision.marketCapturedAt, "marketCapturedAt");
   const knownAtMs = parseInstant(decision.marketKnownAt, "marketKnownAt");
 
-  if (knownAtMs < observedAtMs) {
-    throw new Error("marketKnownAt cannot predate marketObservedAt");
+  if (knownAtMs < capturedAtMs) {
+    throw new Error("marketKnownAt cannot predate marketCapturedAt");
   }
-  if (observedAtMs > frozenAtMs || knownAtMs > frozenAtMs) {
-    throw new Error("decision market evidence must be observed and known by frozenAt");
+  if (capturedAtMs > frozenAtMs || knownAtMs > frozenAtMs) {
+    throw new Error("decision market evidence must be captured and known by frozenAt");
   }
 
   return frozenAtMs;
@@ -97,43 +102,46 @@ export function scoreSettledMarketDecision(
 ): SettledMarketAudit {
   const frozenAtMs = validateFrozenDecisionProvenance(decision);
   assertProbability(decision.ccfProbability, "ccfProbability");
-  assertProbability(decision.decisionMarketNoVigProbability, "decisionMarketNoVigProbability");
+  assertProbability(decision.decisionMarketFairProbability, "decisionMarketFairProbability");
 
-  const offeredDecimal = americanOddsToDecimal(decision.offeredAmericanOdds);
+  const offeredDecimal = decimalOddsFromOdds(decision.offeredOddsFormat, decision.offeredOdds);
   const brierScore = binaryBrier(decision.ccfProbability, outcome);
-  const decisionMarketBrierScore = binaryBrier(decision.decisionMarketNoVigProbability, outcome);
+  const decisionMarketBrierScore = binaryBrier(decision.decisionMarketFairProbability, outcome);
   const selectionReturnPerUnit = outcome === 1 ? offeredDecimal - 1 : -1;
 
   let closingProbabilityMove: number | null = null;
   let ccfProbabilityMinusClose: number | null = null;
   let offeredVsClosingDecimalPricePct: number | null = null;
-  let closingEvidenceSource: string | null = null;
+  let closingRawTraceRef: string | null = null;
 
   if (closing) {
-    assertText(closing.source, "closing.source");
-    assertProbability(closing.closingNoVigProbability, "closingNoVigProbability");
-    const closeObservedAtMs = parseInstant(closing.observedAt, "closing.observedAt");
+    assertText(closing.rawTraceRef, "closing.rawTraceRef");
+    assertProbability(closing.closingFairProbability, "closingFairProbability");
+    const closeCapturedAtMs = parseInstant(closing.capturedAt, "closing.capturedAt");
     const closeKnownAtMs = parseInstant(closing.knownAt, "closing.knownAt");
-    if (closeKnownAtMs < closeObservedAtMs) {
-      throw new Error("closing knownAt cannot predate closing observedAt");
+    if (closeKnownAtMs < closeCapturedAtMs) {
+      throw new Error("closing knownAt cannot predate closing capturedAt");
     }
-    if (closeObservedAtMs < frozenAtMs) {
-      throw new Error("closing evidence must be observed at or after decision freeze");
+    if (closeCapturedAtMs < frozenAtMs) {
+      throw new Error("closing evidence must be captured at or after decision freeze");
     }
 
-    closingProbabilityMove = closing.closingNoVigProbability - decision.decisionMarketNoVigProbability;
-    ccfProbabilityMinusClose = decision.ccfProbability - closing.closingNoVigProbability;
-    closingEvidenceSource = closing.source;
+    closingProbabilityMove = closing.closingFairProbability - decision.decisionMarketFairProbability;
+    ccfProbabilityMinusClose = decision.ccfProbability - closing.closingFairProbability;
+    closingRawTraceRef = closing.rawTraceRef;
 
-    if (closing.closingAmericanOdds != null) {
-      const closingDecimal = americanOddsToDecimal(closing.closingAmericanOdds);
+    if (closing.closingOdds != null || closing.closingOddsFormat != null) {
+      if (closing.closingOdds == null || closing.closingOddsFormat == null) {
+        throw new Error("closing odds and closing odds format must be supplied together");
+      }
+      const closingDecimal = decimalOddsFromOdds(closing.closingOddsFormat, closing.closingOdds);
       offeredVsClosingDecimalPricePct = offeredDecimal / closingDecimal - 1;
     }
   }
 
   return {
     decisionId: decision.decisionId,
-    marketSnapshotId: decision.marketSnapshotId,
+    marketQuoteId: decision.marketQuoteId,
     outcome,
     brierScore,
     logLoss: binaryLogLoss(decision.ccfProbability, outcome),
@@ -144,7 +152,7 @@ export function scoreSettledMarketDecision(
     closingProbabilityMove,
     ccfProbabilityMinusClose,
     offeredVsClosingDecimalPricePct,
-    closingEvidenceSource,
-    ruleId: "ccf-market-audit.v1",
+    closingRawTraceRef,
+    ruleId: "ccf-market-audit-v1",
   };
 }
