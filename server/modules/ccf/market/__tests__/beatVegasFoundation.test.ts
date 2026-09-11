@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { CCFBookQuote } from "../marketEvidence";
 import {
   betToAmericanOdds,
+  evaluateCCFMarketPrice,
   expectedRoiFromProbability,
   fairAmericanOddsFromProbability,
 } from "../marketPricing";
@@ -96,6 +97,26 @@ describe("Beat Vegas fair-price math", () => {
     const betTo = betToAmericanOdds(0.55, 0.02);
     expect(expectedRoiFromProbability(0.55, "american", betTo)).toBeCloseTo(0.02, 10);
   });
+
+  it("centralizes the complete inspectable CCF-versus-market price chain without emitting a pick", () => {
+    const evaluation = evaluateCCFMarketPrice({
+      ccfProbability: 0.57,
+      marketFairProbability: 0.5,
+      offeredOddsFormat: "american",
+      offeredOdds: -110,
+      minimumExpectedRoi: 0.02,
+      stakeForExpectedValue: 100,
+    });
+
+    expect(evaluation.probabilityEdge).toBeCloseTo(0.07, 10);
+    expect(evaluation.ccfFairAmericanOdds).toBeLessThan(-100);
+    expect(evaluation.marketFairAmericanOdds).toBeCloseTo(100, 10);
+    expect(evaluation.expectedRoi).toBeGreaterThan(0);
+    expect(evaluation.expectedValue).toBeCloseTo(100 * evaluation.expectedRoi, 10);
+    expect(expectedRoiFromProbability(0.57, "american", evaluation.betToAmericanOdds)).toBeCloseTo(0.02, 10);
+    expect(evaluation.ruleId).toBe("ccf-market-price-evaluation-v1");
+    expect(evaluation).not.toHaveProperty("recommendation");
+  });
 });
 
 describe("Beat Vegas market tape", () => {
@@ -153,6 +174,31 @@ describe("Beat Vegas market tape", () => {
     expect(result.state).toBe("unavailable");
     expect(result.books).toEqual([]);
     expect(result.invalidSnapshotCount).toBe(1);
+    expect(result.bestUsableQuote).toBeNull();
+  });
+
+  it("measures freshness from capture time so delayed ingestion cannot revive an old quote", () => {
+    const delayed = snapshot(
+      "Book Delay",
+      "delay",
+      "2026-09-11T19:50:00.000Z",
+      "2026-09-11T20:09:00.000Z",
+      -110,
+      -110,
+      64.5,
+    );
+
+    const result = summarizeCCFMarketTape({
+      marketId: "player-123:receiving-yards",
+      selectionId: "over",
+      quotes: delayed,
+      asOf: "2026-09-11T20:10:00.000Z",
+      maxAgeMinutes: 5,
+    });
+
+    expect(result.state).toBe("unavailable");
+    expect(result.staleBookCount).toBe(1);
+    expect(result.books[0].current.ageMinutes).toBeCloseTo(20, 10);
     expect(result.bestUsableQuote).toBeNull();
   });
 });
