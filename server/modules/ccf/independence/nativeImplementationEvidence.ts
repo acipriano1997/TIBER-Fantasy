@@ -64,6 +64,21 @@ export const CCF_NATIVE_IMPLEMENTATION_EVIDENCE_V0: readonly CCFNativeImplementa
     remainingEvidence: ["real league roster/scoring binding", "historical decision-value evaluation", "ablation", "TIBER-off replay"],
     note: "Replacement baselines are derived from league starter demand plus actual flex allocation rather than static universal defaults.",
   },
+  {
+    capabilityId: "rookies-transactional-artifact-promotion",
+    maturity: "scaffold_implemented",
+    implementationPaths: ["server/modules/ccf/sources/sourceSnapshot.ts"],
+    testPaths: ["server/modules/ccf/sources/__tests__/sourceSnapshot.test.ts"],
+    recommendationAuthority: false,
+    remainingEvidence: [
+      "fresh staging area",
+      "validate-before-swap",
+      "compare-and-swap authorization snapshot",
+      "rollback and rejected-candidate preservation",
+      "concurrency/drift tests",
+    ],
+    note: "CCF already binds source bytes by SHA-256/size and known-time eligibility, but that is only the immutable-snapshot half of TIBER-Rookies' stronger transactional promotion discipline.",
+  },
 ] as const;
 
 export function findCCFNativeImplementationEvidence(
