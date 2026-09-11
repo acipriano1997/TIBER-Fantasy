@@ -71,7 +71,7 @@ export function evaluateCCFSubgroupStability(
     byGroup.set(row.subgroup, group);
   }
 
-  const groups = [...byGroup.entries()]
+  const groups = Array.from(byGroup.entries())
     .filter(([, groupRows]) => groupRows.length >= minimumGroupSize)
     .map(([subgroup, groupRows]) => summarize(subgroup, groupRows))
     .sort((a, b) => a.subgroup.localeCompare(b.subgroup));
