@@ -11,13 +11,13 @@ describe('Sleeper scoring coverage audit', () => {
       rec: 1,
       rec_yd: 0.1,
       rec_td: 6,
-      // Zero-valued settings are non-contributing and excluded.
       bonus_pass_yd_300: 0,
     });
 
     expect(audit.status).toBe('GREEN');
     expect(audit.profileId).toBe('tiber_forecast_xfpg_ppr_v1');
     expect(audit.authority).toBe('TIBER-Forecast');
+    expect(audit.recommendationAuthorityUnlocked).toBe(true);
     expect(audit.nonzeroKeyCount).toBe(8);
     expect(audit.coveredKeyCount).toBe(8);
     expect(audit.coveragePct).toBe(100);
@@ -39,6 +39,7 @@ describe('Sleeper scoring coverage audit', () => {
     });
 
     expect(audit.status).toBe('RED');
+    expect(audit.recommendationAuthorityUnlocked).toBe(false);
     expect(audit.coveragePct).toBe(87.5);
     expect(audit.coefficientMismatches).toEqual(['pass_td']);
     expect(audit.entries.find((entry) => entry.key === 'pass_td')).toMatchObject({
@@ -65,6 +66,7 @@ describe('Sleeper scoring coverage audit', () => {
     });
 
     expect(audit.status).toBe('RED');
+    expect(audit.recommendationAuthorityUnlocked).toBe(false);
     expect(audit.unsupportedKeys).toEqual(['bonus_rec_te', 'def_td', 'fum_lost', 'pass_2pt']);
     expect(audit.coveredKeyCount).toBe(7);
     expect(audit.nonzeroKeyCount).toBe(11);
@@ -77,6 +79,7 @@ describe('Sleeper scoring coverage audit', () => {
     });
 
     expect(audit.status).toBe('RED');
+    expect(audit.recommendationAuthorityUnlocked).toBe(false);
     expect(audit.invalidKeys).toEqual(['pass_yd']);
     expect(audit.entries.find((entry) => entry.key === 'pass_yd')).toMatchObject({
       leagueCoefficient: null,
@@ -89,6 +92,7 @@ describe('Sleeper scoring coverage audit', () => {
     const audit = auditSleeperScoringCoverage({ rec: 0, pass_td: 0 });
 
     expect(audit.status).toBe('GREEN');
+    expect(audit.recommendationAuthorityUnlocked).toBe(true);
     expect(audit.nonzeroKeyCount).toBe(0);
     expect(audit.coveredKeyCount).toBe(0);
     expect(audit.coveragePct).toBe(100);
