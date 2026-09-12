@@ -15,6 +15,8 @@ Work the highest-priority unblocked item first. Deferred/frozen work remains **O
 - TIBER may remain only as secondary evidence, benchmark, prior, or challenger; it must never be a critical dependency or silently determine recommendations.
 - Preserve point-in-time/as-of provenance, anti-leakage, explicit unavailable states, graceful degradation, immutable decision/evidence ledgers, challenger comparisons, and abstention when evidence is insufficient.
 - Local-first development remains authoritative: local filesystem/Git → focused tests → broad tests → local preflight → clean local commit → deliberate GitHub sync/backup.
+- **Authority graph:** every recommendation-critical value must be traceable through the Universal Recommendation Authority Graph. A surface cannot claim `CCF_PRIMARY` while any critical path contains TIBER model output, external consensus/projection, market/expert challenger evidence, a legacy heuristic, unknown lineage, or ineligible/stale evidence.
+- **Learning discipline:** post-outcome misses must distinguish model error, evidence error, calibration error, decision-policy error, regime change, and irreducible variance. Do not train on regret or treat every loss as model failure.
 
 ---
 
@@ -22,7 +24,16 @@ Work the highest-priority unblocked item first. Deferred/frozen work remains **O
 
 ## 1. CCF independence from TIBER — **P0 / ACTIVE**
 
-Finish native CCF independence and recommendation authority without relying on TIBER, external consensus, or legacy heuristics. Preserve the TIBER capability-migration registry, TIBER-off certification, native source spine, explicit provenance, and fail-closed behavior.
+Finish native CCF independence and recommendation authority without relying on TIBER, external consensus, or legacy heuristics. Preserve the TIBER capability-migration registry, TIBER-off certification, native source spine, explicit provenance, fail-closed behavior, and the Universal Recommendation Authority Graph.
+
+### Pressure-test additions now required
+
+1. Generalize the weekly dependency census into machine-readable authority checks for Draft, Lineup/Start-Sit, Waivers, Trades, Keeper, Dynasty, Devy, and Beat Vegas.
+2. Freeze the legacy Start/Sit path as compatibility/challenger-only until native CCF outcome distributions and decision policy replace it.
+3. Reclassify TIBER-Forecast IRRIS injury/readiness inference as challenger/reference implementation for FFCC; rebuild/refit recommendation-critical injury/readiness inference inside CCF before native promotion.
+4. Audit all open legacy/transition PRs for stale authority semantics so Forecast/FORGE/TIBER-produced inference cannot later be mistaken for CCF-native evidence.
+5. Preserve TIBER-Data/source contracts only as evidence/provenance transport where appropriate; keep recommendation-critical derived features and inference under CCF ownership.
+6. Require frozen native result-before-challenger comparison so external consensus cannot silently pull CCF toward the crowd.
 
 ## 2. Full CCF backtesting & certification — **P0 / FUTURE-GATED, OPEN**
 
@@ -47,6 +58,7 @@ Current state: evaluation infrastructure and leakage-safe native backtest scaffo
 15. Predeclare model-promotion thresholds before looking at final holdout results to avoid threshold fishing.
 16. Add decision-level outcome evaluation, including feasible-alternative lineup regret, not just player prediction error.
 17. Once enough frozen runs exist, maintain a longitudinal CCF progression report showing which model/version changes helped, hurt, or did nothing under comparable conditions.
+18. Persist the reconciliation classification for meaningful misses (`model_error`, `evidence_error`, `calibration_error`, `decision_policy_error`, `regime_change`, `irreducible_variance`) and use it for diagnosis rather than automatically updating the model after every bad outcome.
 
 ### Promotion condition
 
@@ -58,19 +70,19 @@ Continue coverage audit, provenance hardening, empirical-gap closure, and source
 
 ## 4. Expert Signal Engine — **P1 / OPEN**
 
-Ingest permitted/licensed expert evidence with strict as-of provenance; learn reliability by season/position/signal type; deduplicate echoed signals; preserve rationale mechanisms; score frozen expert calls afterward. Expert evidence remains challenger/secondary only.
+Ingest permitted/licensed expert evidence with strict as-of provenance; learn reliability by season/position/signal type; deduplicate echoed signals; preserve rationale mechanisms; score frozen expert calls afterward. Expert evidence remains challenger/secondary only. Freeze the native CCF result before expert comparison; expert agreement must not automatically increase native confidence.
 
 ## 5. Weather Intelligence System — **P1 / OPEN**
 
-Advance from native weather evidence contract to live ingestion, immutable historical archive, source/provider evaluation, empirically learned fantasy-impact mechanisms, and point-in-time certification. No hand-set fantasy weighting promoted without evidence.
+Advance from native weather evidence contract to live ingestion, immutable historical archive, source/provider evaluation, empirically learned fantasy-impact mechanisms, and point-in-time certification. No hand-set fantasy weighting promoted without evidence. Keep source/venue/roof facts separable from CCF-owned provider reconciliation, player sensitivity, uncertainty, and recommendation effects.
 
 ## 6. Injury & Readiness Intelligence — **P1 / OPEN**
 
-Combine medical/injury evidence and relevant news to estimate readiness/absence timelines probabilistically while clearly separating observed facts, official narrative, and CCF inference. No unsupported diagnosis masquerading as fact.
+Combine medical/injury evidence and relevant news to estimate readiness/absence timelines probabilistically while clearly separating observed facts, official narrative, and CCF inference. No unsupported diagnosis masquerading as fact. Existing IRRIS/TIBER-Forecast inference is challenger/reference work, not native FFCC recommendation authority; independently source, fit, calibrate, and certify the CCF injury/readiness layer.
 
 ## 7. Recommendation Authority Gate — **P1 / OPEN**
 
-Bind real weekly recommendation surfaces to certified CCF-native evidence only; preserve abstention, unavailable states, challenger visibility, and immutable as-of decision ledgers.
+Bind real weekly recommendation surfaces to certified CCF-native evidence only; preserve abstention, unavailable states, challenger visibility, immutable as-of decision ledgers, and Universal Recommendation Authority Graph enforcement.
 
 ## 8. Sleeper integration / live portfolio truth — **P1 / OPEN**
 
@@ -133,6 +145,13 @@ Durable historical records, attribution, decision review, season narrative, and 
 Broader product/UI expansion after core data/model/recommendation authority is reliable.
 
 ---
+
+## Deferred research hypotheses — preserve, do not presume value
+
+- **Cross-sport market scanning:** test only after an NFL-native market baseline exists. Predeclare comparison `CCF baseline` vs `+ NFL market evidence` vs `+ cross-sport-derived market-behavior features`. Promote only if frozen chronological OOS evidence shows incremental NFL decision value; otherwise retire.
+- **Additional AI agents:** add only when they create genuinely independent challenge, verification, source-specialist, or failure-mode coverage. Do not add agents merely to create majority voting or consensus theater.
+- **Expert rationale mining:** potentially useful for discovering missing mechanisms; any promoted native feature must be independently reproduced and validated by CCF rather than inherited from expert conviction.
+- **IRRIS mechanism mining:** preserve useful injury-family, recovery, workload, recurrence, functional-limitation, and scenario-mixture concepts as hypotheses/reference; do not copy fitted priors/weights into CCF authority without independent validation.
 
 ## Backtesting history rule
 
