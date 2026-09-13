@@ -3,7 +3,20 @@ name: ESPN Draft Bridge Certification
 on:
   push:
     branches:
-      - feat/espn-command-center-draft-bridge
+      - main
+    paths:
+      - 'server/services/espnDraftBridge.ts'
+      - 'server/services/espnDraftMarket.ts'
+      - 'server/services/__tests__/espnDraftBridge*.test.ts'
+      - 'server/services/__tests__/espnDraftMarket.test.ts'
+      - 'server/routes/managementRoutes.ts'
+      - 'client/src/lib/espnDraftBridge.ts'
+      - 'client/src/lib/espnDraftMarket.ts'
+      - 'client/src/pages/EspnDraftRoom.tsx'
+      - 'client/src/App.tsx'
+      - 'client/src/components/TiberLayout.tsx'
+      - 'tools/espn-draft-bridge/**'
+      - '.github/workflows/espn-draft-bridge.yml'
   pull_request:
     paths:
       - 'server/services/espnDraftBridge.ts'
