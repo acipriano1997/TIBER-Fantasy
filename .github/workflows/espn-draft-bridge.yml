@@ -10,6 +10,7 @@ on:
       - 'server/services/__tests__/espnDraftBridge*.test.ts'
       - 'server/services/__tests__/espnDraftMarket.test.ts'
       - 'server/routes/managementRoutes.ts'
+      - 'server/routes/__tests__/espnDraftBridgeRoutes.test.ts'
       - 'client/src/lib/espnDraftBridge.ts'
       - 'client/src/lib/espnDraftMarket.ts'
       - 'client/src/pages/EspnDraftRoom.tsx'
@@ -24,6 +25,7 @@ on:
       - 'server/services/__tests__/espnDraftBridge*.test.ts'
       - 'server/services/__tests__/espnDraftMarket.test.ts'
       - 'server/routes/managementRoutes.ts'
+      - 'server/routes/__tests__/espnDraftBridgeRoutes.test.ts'
       - 'client/src/lib/espnDraftBridge.ts'
       - 'client/src/lib/espnDraftMarket.ts'
       - 'client/src/pages/EspnDraftRoom.tsx'
@@ -52,10 +54,11 @@ jobs:
           cache: npm
       - name: Install locked dependencies
         run: npm ci
-      - name: Run bridge, extension, and market truth contracts
+      - name: Run bridge, route-boundary, extension, and market truth contracts
         run: >-
           npm test -- --runTestsByPath
           server/services/__tests__/espnDraftBridge.test.ts
+          server/routes/__tests__/espnDraftBridgeRoutes.test.ts
           server/services/__tests__/espnDraftBridgeExtensionContract.test.ts
           server/services/__tests__/espnDraftMarket.test.ts
       - name: Typecheck bridge delta against baseline debt
@@ -66,15 +69,15 @@ jobs:
           typecheck_status=$?
           set -e
 
-          bridge_pattern='^(server/services/espnDraftBridge\.ts|server/services/espnDraftMarket\.ts|server/routes/managementRoutes\.ts|client/src/lib/espnDraftBridge\.ts|client/src/lib/espnDraftMarket\.ts|client/src/pages/EspnDraftRoom\.tsx|client/src/App\.tsx|client/src/components/TiberLayout\.tsx)\('
+          bridge_pattern='^(server/services/espnDraftBridge\.ts|server/services/espnDraftMarket\.ts|server/routes/managementRoutes\.ts|server/routes/__tests__/espnDraftBridgeRoutes\.test\.ts|client/src/lib/espnDraftBridge\.ts|client/src/lib/espnDraftMarket\.ts|client/src/pages/EspnDraftRoom\.tsx|client/src/App\.tsx|client/src/components/TiberLayout\.tsx)\('
           if grep -E "$bridge_pattern" /tmp/tiber-typecheck.log; then
-            echo "::error::ESPN Draft Bridge introduced or exposes type errors in its changed production files."
+            echo "::error::ESPN Draft Bridge introduced or exposes type errors in its changed production/test files."
             exit 1
           fi
 
           if [ "$typecheck_status" -ne 0 ]; then
             error_count=$(grep -c 'error TS' /tmp/tiber-typecheck.log || true)
-            echo "::warning::Repository-wide typecheck has ${error_count} baseline errors outside the ESPN bridge production delta."
+            echo "::warning::Repository-wide typecheck has ${error_count} baseline errors outside the ESPN bridge delta."
           else
             echo "Repository-wide typecheck is clean."
           fi
