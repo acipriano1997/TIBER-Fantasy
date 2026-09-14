@@ -7,10 +7,16 @@ The executable registry is authoritative. A capability is not complete merely be
 
 ## Promotion rule
 
-CCF may claim universal/native primary authority only when both conditions are true:
+The executable checklist requires all of these prerequisites before reporting promotable:
 
-1. every recommendation-critical weekly dependency is explicitly `eligible_native`; and
-2. every capability marked `requiredForUniversalCCF` in the TIBER capability-migration registry is `native_certified`.
+1. the complete required weekly census is present, with unique keys, and every critical dependency is `eligible_native` **and** belongs to a permitted CCF-native producer family;
+2. the complete canonical required capability registry is present, with unique IDs and all required entries still required and `native_certified`;
+3. exactly one eligible declared authority graph covers each of the eight decision surfaces; and
+4. every critical model matches a previously recorded certified native release in the canonical backtest ledger, including model/calibration and scoring/population identity.
+
+The additive v1 checklist fields `authority`, `summary.authoritySurfaceBlockers`, and `summary.uncertifiedModelSurfaces` expose these graph/model prerequisites. Without supplied production graphs, all eight surfaces are explicitly blocked. Relabeling external dependencies, dropping required rows, or clearing required flags cannot satisfy the checklist.
+
+These checks do not authenticate declared source/runtime provenance, validate the contents of referenced certification artifacts, or activate recommendation routes. Graph regression fixtures are not predictive evidence. Production runtime binding and the full historical certification protocol remain required.
 
 External consensus, TIBER model outputs, Rookie Alpha, and FORGE final grades/ranks remain challenger evidence and cannot satisfy a native gate.
 

@@ -1,7 +1,9 @@
 import type { CCFTiberCapabilityMigrationRecord } from "./tiberCapabilityMigration";
+import { auditCCFUniversalAuthority } from "./authorityGraph";
 import {
   CCF_ALL_TIBER_CAPABILITY_MIGRATION_V0,
   allTiberCapabilityMigrationBlockers,
+  canClaimAllTiberCapabilityMigrationComplete,
 } from "./allTiberCapabilityMigration";
 import {
   CCF_WEEKLY_DEPENDENCY_CENSUS_V0,
@@ -42,10 +44,13 @@ export interface CCFDependencyReleaseChecklistItem {
 export interface CCFUniversalReleaseChecklist {
   version: "ccf-universal-release-checklist-v1";
   promotable: boolean;
+  authority: ReturnType<typeof auditCCFUniversalAuthority>;
   summary: {
     capabilityBlockers: number;
     criticalDependencyBlockers: number;
     scaffoldedButUncertified: number;
+    authoritySurfaceBlockers: number;
+    uncertifiedModelSurfaces: number;
   };
   capabilities: CCFCapabilityReleaseChecklistItem[];
   dependencies: CCFDependencyReleaseChecklistItem[];
@@ -61,12 +66,15 @@ function capabilityState(record: CCFTiberCapabilityMigrationRecord): CCFReleaseC
 
 function dependencyState(record: CCFWeeklyDependencyRecord): CCFReleaseChecklistState {
   if (!record.recommendationCritical) return "non_authoritative";
-  if (record.nativeStatus === "eligible_native") return "certified";
+  if (blockedCriticalDependencies([record]).length === 0) return "certified";
   if (record.nativeStatus === "challenger_only") return "non_authoritative";
   return "blocked";
 }
 
-export function buildCCFUniversalReleaseChecklist(): CCFUniversalReleaseChecklist {
+export function buildCCFUniversalReleaseChecklist(
+  authorityGraphs: readonly unknown[] = [],
+): CCFUniversalReleaseChecklist {
+  const authority = auditCCFUniversalAuthority(authorityGraphs);
   const capabilities = CCF_ALL_TIBER_CAPABILITY_MIGRATION_V0.map((record) => ({
     kind: "capability" as const,
     id: record.id,
@@ -98,23 +106,28 @@ export function buildCCFUniversalReleaseChecklist(): CCFUniversalReleaseChecklis
 
   return {
     version: "ccf-universal-release-checklist-v1",
-    promotable: capabilityBlockers === 0 && criticalDependencyBlockers === 0,
+    promotable: canClaimAllTiberCapabilityMigrationComplete() && criticalDependencyBlockers === 0 && authority.modelCertificationComplete,
+    authority,
     summary: {
       capabilityBlockers,
       criticalDependencyBlockers,
       scaffoldedButUncertified,
+      authoritySurfaceBlockers: authority.surfaces.filter((surface) => !surface.lineageEligible).length,
+      uncertifiedModelSurfaces: authority.surfaces.filter((surface) => !surface.modelCertificationEligible).length,
     },
     capabilities,
     dependencies,
   };
 }
 
-export function assertCCFUniversalReleaseReady(): void {
-  const checklist = buildCCFUniversalReleaseChecklist();
+export function assertCCFUniversalReleaseReady(authorityGraphs: readonly unknown[] = []): void {
+  const checklist = buildCCFUniversalReleaseChecklist(authorityGraphs);
   if (!checklist.promotable) {
     throw new Error(
       `CCF universal release blocked: ${checklist.summary.capabilityBlockers} capability blockers, ` +
-        `${checklist.summary.criticalDependencyBlockers} critical dependency blockers`,
+        `${checklist.summary.criticalDependencyBlockers} critical dependency blockers, ` +
+        `${checklist.summary.authoritySurfaceBlockers} surface lineage blockers, ` +
+        `${checklist.summary.uncertifiedModelSurfaces} uncertified model surfaces`,
     );
   }
 }

@@ -34,5 +34,11 @@ export function allTiberCapabilityMigrationBlockers(
 export function canClaimAllTiberCapabilityMigrationComplete(
   registry: readonly CCFTiberCapabilityMigrationRecord[] = CCF_ALL_TIBER_CAPABILITY_MIGRATION_V0,
 ): boolean {
-  return duplicateTiberCapabilityIds(registry).length === 0 && allTiberCapabilityMigrationBlockers(registry).length === 0;
+  const requiredIds = CCF_ALL_TIBER_CAPABILITY_MIGRATION_V0
+    .filter((record) => record.requiredForUniversalCCF).map((record) => record.id);
+  const complete = requiredIds.every((id) => registry.some(
+    (record) => record.id === id && record.requiredForUniversalCCF && record.status === "native_certified",
+  ));
+  return complete && duplicateTiberCapabilityIds(registry).length === 0
+    && allTiberCapabilityMigrationBlockers(registry).length === 0;
 }

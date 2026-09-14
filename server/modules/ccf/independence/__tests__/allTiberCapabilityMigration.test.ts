@@ -61,4 +61,16 @@ describe("complete TIBER capability migration registry", () => {
     );
     expect(canClaimAllTiberCapabilityMigrationComplete(certified)).toBe(true);
   });
+
+  it("rejects empty, truncated, duplicate, and declassified required registries", () => {
+    const certified = CCF_ALL_TIBER_CAPABILITY_MIGRATION_V0.map((record) => ({
+      ...record, status: record.requiredForUniversalCCF ? "native_certified" as const : record.status,
+    }));
+    const requiredId = certified.find((record) => record.requiredForUniversalCCF)!.id;
+    for (const registry of [
+      [], certified.filter((record) => record.id !== requiredId), [...certified, certified[0]],
+      certified.map((record) => ({ ...record, requiredForUniversalCCF: false })),
+    ]) expect(canClaimAllTiberCapabilityMigrationComplete(registry)).toBe(false);
+  });
+
 });

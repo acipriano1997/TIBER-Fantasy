@@ -53,7 +53,7 @@ describe("CCF weekly dependency census", () => {
     expect(canClaimCCFPrimary(allNative)).toBe(false);
   });
 
-  it("allows a claim only when critical dependencies and the complete required capability registry are certified", () => {
+  it("rejects status-only relabeling even with a certified capability registry", () => {
     const allNative = CCF_WEEKLY_DEPENDENCY_CENSUS_V0.map((record) => ({
       ...record,
       nativeStatus: "eligible_native" as const,
@@ -64,6 +64,22 @@ describe("CCF weekly dependency census", () => {
         status: record.requiredForUniversalCCF ? "native_certified" : record.status,
       }));
 
-    expect(canClaimCCFPrimary(allNative, allMigrated)).toBe(true);
+    expect(blockedCriticalDependencies(allNative).length).toBeGreaterThan(0);
+    expect(canClaimCCFPrimary(allNative, allMigrated)).toBe(false);
   });
+
+  it("requires complete census and surface evidence even after native relabeling", () => {
+    const native = CCF_WEEKLY_DEPENDENCY_CENSUS_V0.map((record) => ({
+      ...record, producerFamily: "ccf_native_fact" as const, nativeStatus: "eligible_native" as const,
+    }));
+    const certified = CCF_ALL_TIBER_CAPABILITY_MIGRATION_V0.map((record) => ({
+      ...record, status: record.requiredForUniversalCCF ? "native_certified" as const : record.status,
+    }));
+    expect(blockedCriticalDependencies(native)).toEqual([]);
+    for (const census of [
+      [], native.slice(1), [...native, native[0]],
+      native.map((record) => ({ ...record, recommendationCritical: false })), native,
+    ]) expect(canClaimCCFPrimary(census, certified)).toBe(false);
+  });
+
 });

@@ -37,4 +37,16 @@ describe("CCF universal release checklist", () => {
       required: false,
     });
   });
+
+  it("reports all eight surfaces blocked without lineage and model certification", () => {
+    const checklist = buildCCFUniversalReleaseChecklist();
+    expect(checklist.authority.surfaces.map((audit) => audit.surface)).toEqual([
+      "draft", "lineup", "waiver", "trade", "keeper", "dynasty", "devy", "beat_vegas",
+    ]);
+    expect(checklist.summary.authoritySurfaceBlockers).toBe(8);
+    expect(checklist.summary.uncertifiedModelSurfaces).toBe(8);
+    expect(checklist.authority.modelCertificationComplete).toBe(false);
+    expect(checklist.authority.surfaces.every((audit) => audit.recommendationAuthority === false)).toBe(true);
+  });
+
 });

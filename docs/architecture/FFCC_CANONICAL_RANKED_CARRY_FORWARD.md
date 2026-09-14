@@ -28,7 +28,7 @@ Finish native CCF independence and recommendation authority without relying on T
 
 ### Pressure-test additions now required
 
-1. Generalize the weekly dependency census into machine-readable authority checks for Draft, Lineup/Start-Sit, Waivers, Trades, Keeper, Dynasty, Devy, and Beat Vegas.
+1. Structural authority graph checks implemented for Draft, Lineup/Start-Sit, Waivers, Trades, Keeper, Dynasty, Devy, and Beat Vegas (2026-09-14, PR #25). Trusted per-surface graph extraction, source/runtime bindings, and production enforcement remain **OPEN**.
 2. Freeze the legacy Start/Sit path as compatibility/challenger-only until native CCF outcome distributions and decision policy replace it.
 3. Reclassify TIBER-Forecast IRRIS injury/readiness inference as challenger/reference implementation for FFCC; rebuild/refit recommendation-critical injury/readiness inference inside CCF before native promotion.
 4. Audit all open legacy/transition PRs for stale authority semantics so Forecast/FORGE/TIBER-produced inference cannot later be mistaken for CCF-native evidence.
@@ -160,3 +160,9 @@ The CCF backtest progression ledger is append-only. Infrastructure-only mileston
 ## Separation rule
 
 This document is **Fantasy Football Command Center only**. Football Unwritten tasks, repos, doctrines, certification gates, and work queues must remain separate unless explicitly transferred by the user.
+
+## 2026-09-14 scoped progress — authority prerequisites
+
+PR #25 adds strict, fingerprinted eight-surface declared-lineage validation, transitive dependency checks, native-family enforcement, canonical model-certification matching, and census/registry completeness checks. Regression coverage includes relabeling, omission, cycles, malformed inputs, temporal violations, and missing certification. No production recommendation is activated. Hosted validation must be read from the exact PR head; no local runtime was available for this continuation.
+
+P0 independence and historical backtesting remain **OPEN**. Next: bind genuine runtime/source artifacts, freeze the first production-native candidate and point-in-time dataset, and execute the predeclared chronological OOS protocol. No historical performance scores or certification records were invented. ESPN live-session verification still requires the user's local Chrome/ESPN session.

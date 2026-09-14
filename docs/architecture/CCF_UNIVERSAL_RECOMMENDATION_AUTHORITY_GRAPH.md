@@ -160,6 +160,8 @@ Changes to native models/policies should be supported by repeated or mechanistic
 
 ## Enforcement target
 
-The existing weekly dependency census is the first implementation slice. Future work should generalize the same machine-readable authority checks across all surfaces and make `CCF_PRIMARY` mechanically impossible when an inadmissible recommendation-critical dependency is present.
+The 2026-09-14 implementation in `server/modules/ccf/independence/authorityGraph.ts` validates declared graphs for all eight registered surfaces (`beat_vegas` is the machine identifier). It validates runtime schema, fingerprints normalized lineage, traverses every root dependency regardless of criticality labels, and rejects missing/duplicate references, cycles, skipped stages, disconnected critical nodes, inadmissible producer families, and invalid provenance/time metadata.
 
-This document defines the architecture. It does not claim that universal enforcement is already implemented.
+A model must identify a matching, previously recorded certified release in the canonical CCF backtest progression ledger, including model/calibration versions, scoring profile, population, evidence references, and finite model/baseline errors. Missing or duplicate surface graphs block universal release. Fixture graphs and caller-supplied test history do not grant production authority. The evaluator always returns `recommendationAuthority: false`.
+
+This is a structural release prerequisite, not complete production enforcement: declared provenance is not authenticated source evidence, metadata timestamps do not establish freshness, and a matching ledger record does not independently verify its underlying certification artifacts. Trusted source/runtime bindings, per-surface graph extraction, frozen production backtests, and route cutover remain OPEN. No model or predictive performance is certified by these graph tests.

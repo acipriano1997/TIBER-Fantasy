@@ -913,3 +913,13 @@ Workflow: Creates PRs on GitHub, merged by Architect J after review
 - The client reads the server-enforced profile and renders a Draft Review-only shell; profile failure is UI fail-closed, public response bodies are not logged, and unknown configured profiles stop startup.
 - Validation: focused security/routing suites 11/11, deployment-equivalent build green, no touched-file typecheck diagnostics, diff clean. No deployment or merge authority was exercised.
 - Exact-head review repairs: API GETs—including mixed-case paths that Express treats as API routes—are network-only in the service worker and explicitly bypass browser HTTP caching; service-worker activation deletes the legacy dynamic API cache. This prevents a cached `full` capability or private GET response from surviving a profile change or being replayed during an outage. Static/document caching remains versioned and separate. The public-only shell clears the absent sidebar's desktop offset.
+
+## 2026-09-14 — CCF universal authority prerequisite hardening
+
+- Scope: FFCC / TIBER-Fantasy, existing draft PR #25 only.
+- Added strict eight-surface declared authority graph schema, deterministic fingerprint, transitive lineage/stage/time checks, and canonical certified-backtest identity matching.
+- Closed status-only producer-family bypass and missing/declassified/duplicate required census/registry paths; universal checklist now exposes surface/model blockers.
+- Added adversarial regression coverage and focused CI wiring; updated authority/checklist/queue documentation.
+- Validation at commit preparation: code reviewed through GitHub connector; no local runtime available. Fresh hosted CCF TypeScript/test/build and repository checks pending on this revision; consult exact PR-head Actions for results.
+- This validates declarations and release prerequisites, not authentic source/runtime bindings or predictive accuracy. No production models, historical scores, or certification records fabricated; no merge, deployment, or recommendation activation.
+- Carry forward: native runtime bindings, frozen production candidate/dataset, chronological OOS certification, and user's real local Chrome/ESPN verification.

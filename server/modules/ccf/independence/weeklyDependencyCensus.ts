@@ -1,4 +1,5 @@
-import type { CCFProducerFamily } from "../outcomes/contract";
+import { isCCFNativeProducerFamily, type CCFProducerFamily } from "../outcomes/contract";
+import { auditCCFUniversalAuthority } from "./authorityGraph";
 import type { CCFTiberCapabilityMigrationRecord } from "./tiberCapabilityMigration";
 import {
   CCF_ALL_TIBER_CAPABILITY_MIGRATION_V0,
@@ -180,16 +181,25 @@ export function blockedCriticalDependencies(
   census: readonly CCFWeeklyDependencyRecord[] = CCF_WEEKLY_DEPENDENCY_CENSUS_V0,
 ): CCFWeeklyDependencyRecord[] {
   return census.filter(
-    (record) => record.recommendationCritical && record.nativeStatus !== "eligible_native",
+    (record) => record.recommendationCritical && (
+      record.nativeStatus !== "eligible_native" || !isCCFNativeProducerFamily(record.producerFamily)
+    ),
   );
 }
 
 export function canClaimCCFPrimary(
   census: readonly CCFWeeklyDependencyRecord[] = CCF_WEEKLY_DEPENDENCY_CENSUS_V0,
   migrationRegistry: readonly CCFTiberCapabilityMigrationRecord[] = CCF_ALL_TIBER_CAPABILITY_MIGRATION_V0,
+  authorityGraphs: readonly unknown[] = [],
 ): boolean {
-  return (
-    blockedCriticalDependencies(census).length === 0 &&
-    canClaimAllTiberCapabilityMigrationComplete(migrationRegistry)
+  const key = (record: CCFWeeklyDependencyRecord) => JSON.stringify([record.surface, record.fieldOrMechanism]);
+  const keys = new Set(census.map(key));
+  const required = CCF_WEEKLY_DEPENDENCY_CENSUS_V0.filter((record) => record.recommendationCritical);
+  const censusComplete = keys.size === census.length && required.every((record) =>
+    census.some((candidate) => key(candidate) === key(record) && candidate.recommendationCritical),
   );
+  // Callers cannot inject a synthetic backtest history into the claim gate.
+  return censusComplete && blockedCriticalDependencies(census).length === 0
+    && canClaimAllTiberCapabilityMigrationComplete(migrationRegistry)
+    && auditCCFUniversalAuthority(authorityGraphs).modelCertificationComplete;
 }
