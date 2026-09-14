@@ -2,6 +2,11 @@ process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgres://example.com/t
 
 jest.mock('../../infra/db', () => ({ db: {} }));
 jest.mock('../../storage', () => ({ storage: {} }));
+// The bridge uses the real router/store but never computes a league dashboard.
+// Avoid importing FORGE's background refresh timers through that dependency.
+jest.mock('../../services/leagueDashboardService', () => ({
+  computeLeagueDashboard: jest.fn(),
+}));
 
 import express from 'express';
 import request from 'supertest';

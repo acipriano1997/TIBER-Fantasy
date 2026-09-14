@@ -913,3 +913,9 @@ Workflow: Creates PRs on GitHub, merged by Architect J after review
 - The client reads the server-enforced profile and renders a Draft Review-only shell; profile failure is UI fail-closed, public response bodies are not logged, and unknown configured profiles stop startup.
 - Validation: focused security/routing suites 11/11, deployment-equivalent build green, no touched-file typecheck diagnostics, diff clean. No deployment or merge authority was exercised.
 - Exact-head review repairs: API GETs—including mixed-case paths that Express treats as API routes—are network-only in the service worker and explicitly bypass browser HTTP caching; service-worker activation deletes the legacy dynamic API cache. This prevents a cached `full` capability or private GET response from surviving a profile change or being replayed during an outage. Static/document caching remains versioned and separate. The public-only shell clears the absent sidebar's desktop offset.
+
+### 2026-09-14 — ESPN bridge certification resumption
+- Continued PR #31 from `f5f7f8952ef6e017e91ad05d658e2ff157717471` in an isolated worktree.
+- Mocked the unrelated dashboard module in the bridge route test after tracing two leaked hourly timers; kept the real HTTP route and bridge store under test.
+- Validation: 20/20 tests, natural process exit, unchanged coverage gates, bridge TypeScript gate and production build pass. Full-repository typecheck still reports 508 diagnostics outside bridge paths.
+- Handoff: `docs/command-center-v1/work-mode-resume-2026-09-14.md`. No model-authority promotion, personal-session certification, merge, or deployment.
