@@ -34,8 +34,8 @@ request_live_portfolio() {
     --data-urlencode "season=$season" \
     "$BASE_URL/api/sleeper/leagues/live" || true)
 
-  http_code=$(echo "$response" | tail -n1)
-  body=$(echo "$response" | head -n -1)
+  http_code=${response##*$'\n'}
+  body=${response%$'\n'*}
   printf '%s\n%s\n' "$http_code" "$body"
 }
 
@@ -49,9 +49,9 @@ echo "Season: $TEST_SEASON"
 # 1. The active V2 route must resolve the configured username using live
 # Sleeper data and preserve immutable identity, raw league rules, per-league
 # scoring coverage/authority, and explicit provenance.
-mapfile -t portfolio_response < <(request_live_portfolio "$TEST_USERNAME" "$TEST_SEASON")
-portfolio_status=${portfolio_response[0]:-000}
-portfolio_body=$(printf '%s\n' "${portfolio_response[@]:1}")
+portfolio_response=$(request_live_portfolio "$TEST_USERNAME" "$TEST_SEASON")
+portfolio_status=${portfolio_response%%$'\n'*}
+portfolio_body=${portfolio_response#*$'\n'}
 
 [[ "$portfolio_status" == "200" ]] || fail \
   "Expected live portfolio discovery to return HTTP 200, got $portfolio_status" \
@@ -66,7 +66,7 @@ echo "$portfolio_body" | jq -e \
     (.data.count | type == "number") and
     .data.count > 0 and
     (.data.leagues | type == "array") and
-    (.data.leagues | length == .data.count) and
+    ((.data.leagues | length) == .data.count) and
     all(.data.leagues[];
       (.leagueId | type == "string") and
       (.scoringSettings | type == "object") and
@@ -134,10 +134,9 @@ echo "$portfolio_body" | jq '{
 }'
 echo "=== END LIVE SLEEPER PORTFOLIO CERTIFICATION EVIDENCE ==="
 
-# 2. Recommendation authority is league-scoped. GREEN leagues may be consumed
-# while RED leagues remain fail-closed. Portfolio certification remains RED
-# until every league is GREEN; the aggregate productionAuthorityUnlocked flag
-# therefore retains its strict all-green meaning.
+# 2. These historical authority fields describe exact external Forecast
+# compatibility only; they never certify CCF-primary recommendations. RED
+# leagues remain locked and aggregate compatibility requires every league GREEN.
 if ! echo "$portfolio_body" | jq -e '
   . as $root |
   all($root.data.leagues[];
@@ -152,7 +151,7 @@ if ! echo "$portfolio_body" | jq -e '
   $root.data.scoringCertification.productionAuthorityUnlocked == ($root.data.scoringCertification.redLeagueCount == 0) and
   $root.data.scoringCertification.status == (if $root.data.scoringCertification.redLeagueCount == 0 then "GREEN" else "RED" end)
 ' >/dev/null; then
-  fail "Per-league recommendation authority is inconsistent with scoring certification" "$portfolio_body"
+  fail "Per-league Forecast compatibility is inconsistent with scoring certification" "$portfolio_body"
 fi
 
 green_authority_count=$(echo "$portfolio_body" | jq '[.data.leagues[] | select(.scoringCoverage.recommendationAuthorityUnlocked == true)] | length')
@@ -170,10 +169,10 @@ if [[ "$green_authority_count" -eq 0 ]]; then
       invalidKeys: .scoringCoverage.invalidKeys
     }]
   }')
-  fail "Live portfolio is valid, but no league currently qualifies for recommendation authority" "$scoring_blockers"
+  fail "Live portfolio is valid, but no league currently qualifies for exact Forecast scoring compatibility; CCF authority is separately gated" "$scoring_blockers"
 fi
 
-echo "PASS: $green_authority_count live league(s) have exact scoring compatibility and league-scoped recommendation authority."
+echo "PASS: $green_authority_count live league(s) have exact external Forecast scoring compatibility; this does not grant CCF recommendation authority."
 
 red_league_count=$(echo "$portfolio_body" | jq '.data.scoringCertification.redLeagueCount')
 if [[ "$red_league_count" -gt 0 ]]; then
@@ -185,9 +184,9 @@ fi
 # 3. Unknown users must fail closed. No stored or synthetic portfolio is an
 # acceptable fallback for production certification.
 BAD_USERNAME="tiber_preflight_missing_user_9f3c2d1a"
-mapfile -t missing_response < <(request_live_portfolio "$BAD_USERNAME" "$TEST_SEASON")
-missing_status=${missing_response[0]:-000}
-missing_body=$(printf '%s\n' "${missing_response[@]:1}")
+missing_response=$(request_live_portfolio "$BAD_USERNAME" "$TEST_SEASON")
+missing_status=${missing_response%%$'\n'*}
+missing_body=${missing_response#*$'\n'}
 
 [[ "$missing_status" == "404" ]] || fail \
   "Expected unknown user to return HTTP 404, got $missing_status" \
@@ -204,8 +203,8 @@ malformed_response=$(curl "${CURL_OPTS[@]}" -G -w $'\n%{http_code}' \
   --data-urlencode "username= " \
   --data-urlencode "season=not-a-season" \
   "$BASE_URL/api/sleeper/leagues/live" || true)
-malformed_status=$(echo "$malformed_response" | tail -n1)
-malformed_body=$(echo "$malformed_response" | head -n -1)
+malformed_status=${malformed_response##*$'\n'}
+malformed_body=${malformed_response%$'\n'*}
 
 [[ "$malformed_status" == "400" ]] || fail \
   "Expected malformed live portfolio query to return HTTP 400, got $malformed_status" \

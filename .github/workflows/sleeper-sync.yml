@@ -22,6 +22,7 @@ on:
       - 'client/src/pages/dashboard.tsx'
       - 'client/src/hooks/useLeagueContext.ts'
       - 'scripts/test-sleeper-sync.sh'
+      - 'scripts/tests/sleeper-preflight.test.mjs'
       - 'docs/sleeper-sync/**'
       - '.github/workflows/sleeper-sync.yml'
   push:
@@ -45,6 +46,7 @@ on:
       - 'server/routes/__tests__/healthRoutes.test.ts'
       - 'server/routes/__tests__/sleeperUsageTruthBoundary.test.ts'
       - 'scripts/test-sleeper-sync.sh'
+      - 'scripts/tests/sleeper-preflight.test.mjs'
       - '.github/workflows/sleeper-sync.yml'
   workflow_dispatch:
 
@@ -135,6 +137,9 @@ jobs:
 
       - name: Build release artifact
         run: sh build.sh
+
+      - name: Verify the Sleeper smoke assertions against synthetic responses
+        run: node --test scripts/tests/sleeper-preflight.test.mjs
 
       - name: Smoke release runtime and certify live Sleeper portfolio
         shell: bash
