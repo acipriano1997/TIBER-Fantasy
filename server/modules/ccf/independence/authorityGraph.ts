@@ -158,7 +158,7 @@ export function evaluateCCFAuthorityGraph(
     if (byId.get(id)?.stage !== "recommendation") blockers.add(id + ":missing_recommendation_root");
   }
   if (blockers.size > 0) {
-    result.blockers = [...blockers].sort();
+    result.blockers = Array.from(blockers).sort();
     return result;
   }
   const visited = new Set<string>();
@@ -208,8 +208,8 @@ export function evaluateCCFAuthorityGraph(
     }
   }
   if (graph.purpose !== "production") result.modelCertificationBlockers.push("fixture_has_no_production_authority");
-  result.criticalNodeIds = [...critical].sort();
-  result.blockers = [...blockers].sort();
+  result.criticalNodeIds = Array.from(critical).sort();
+  result.blockers = Array.from(blockers).sort();
   result.modelCertificationBlockers.sort();
   result.lineageEligible = result.blockers.length === 0;
   result.modelCertificationEligible = result.lineageEligible && result.modelCertificationBlockers.length === 0;

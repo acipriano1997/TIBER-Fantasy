@@ -704,3 +704,5 @@ Every agent should append an entry here after completing work.
 - Validation at commit preparation: code reviewed through GitHub connector; no local runtime available. Fresh hosted CCF TypeScript/test/build and repository checks pending on this revision; consult exact PR-head Actions for results.
 - This validates declarations and release prerequisites, not authentic source/runtime bindings or predictive accuracy. No production models, historical scores, or certification records fabricated; no merge, deployment, or recommendation activation.
 - Carry forward: native runtime bindings, frozen production candidate/dataset, chronological OOS certification, and user's real local Chrome/ESPN verification.
+
+- Hosted follow-up: initial revision dcbde24 failed focused TypeScript on Set spread (TS2802); replaced with Array.from without changing compiler settings or gate strictness. Other three workflows passed. Fresh full checks pending on the compatibility fix.
