@@ -145,6 +145,13 @@ const REQUIRED_NATIVE_ARMS: readonly CCFPredictiveValidationArm[] = [
   "usage_rate",
 ];
 
+const PROMOTION_ELIGIBLE_COMPARATOR_ARMS = new Set<CCFPredictiveValidationArm>([
+  "historical_mean",
+  "recent_mean",
+  "usage_rate",
+  "previous_ccf",
+]);
+
 const REQUIRED_ANTI_LEAKAGE_CONTROLS: readonly CCFAntiLeakageControl[] = [
   "post_cutoff_evidence_rejected",
   "future_correction_rejected",
@@ -186,8 +193,10 @@ function requireUniqueNonEmpty<T extends string>(label: string, values: readonly
 }
 
 function requireThreshold(label: string, value: number | null): void {
-  if (value != null && !Number.isFinite(value)) {
-    throw new CCFPredictiveValidationProtocolError(`${label} must be finite when provided`);
+  if (value != null && (!Number.isFinite(value) || value < 0)) {
+    throw new CCFPredictiveValidationProtocolError(
+      `${label} must be finite and non-negative when provided`,
+    );
   }
 }
 
@@ -265,6 +274,14 @@ export function validateCCFPredictiveValidationProtocol(
     "samplePolicy.minimumIndependentTimeBlocks",
     protocol.samplePolicy.minimumIndependentTimeBlocks,
   );
+  if (
+    protocol.samplePolicy.minimumOverallPairedRows <
+    protocol.samplePolicy.minimumIndependentTimeBlocks
+  ) {
+    throw new CCFPredictiveValidationProtocolError(
+      "minimumOverallPairedRows cannot be smaller than minimumIndependentTimeBlocks",
+    );
+  }
 
   if (protocol.uncertaintyPolicy.method !== "paired_block_bootstrap") {
     throw new CCFPredictiveValidationProtocolError("paired block bootstrap is required for v1");
@@ -315,6 +332,11 @@ export function validateCCFPredictiveValidationProtocol(
         `${criterion.criterionId} comparatorArm is not present in protocol arms`,
       );
     }
+    if (!PROMOTION_ELIGIBLE_COMPARATOR_ARMS.has(criterion.comparatorArm)) {
+      throw new CCFPredictiveValidationProtocolError(
+        `${criterion.criterionId} promotion comparator must be CCF-owned; external challengers and diagnostic oracles are report-only`,
+      );
+    }
     if (criterion.comparatorArm === criterion.candidateArm) {
       throw new CCFPredictiveValidationProtocolError(
         `${criterion.criterionId} comparator and candidate arms must differ`,
@@ -336,6 +358,12 @@ export function validateCCFPredictiveValidationProtocol(
         `${criterion.criterionId} must predeclare at least one promotion threshold`,
       );
     }
+  }
+
+  if (protocol.outcomeAccessedBeforeFreeze !== false) {
+    throw new CCFPredictiveValidationProtocolError(
+      "outcomeAccessedBeforeFreeze must remain false for a valid promotion protocol",
+    );
   }
 
   const requiredTruths: Array<[string, boolean]> = [
