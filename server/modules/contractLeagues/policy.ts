@@ -216,6 +216,17 @@ export const retirementPolicySchema = z.object({
   consumesRestructureUse: z.boolean(),
 });
 
+export const cutMoneyDispositionSchema = z.enum([
+  'CLEAR',
+  'DEAD_CAP_PRESERVE_SCHEDULE',
+  'DEAD_CAP_ACCELERATE_CURRENT_SEASON',
+]);
+
+export const cutFinancialTreatmentSchema = z.object({
+  guaranteed: cutMoneyDispositionSchema,
+  optional: cutMoneyDispositionSchema,
+});
+
 export const tagPolicySchema = z.object({
   id: z.string().trim().min(1),
   type: z.enum(['FRANCHISE', 'TRANSITION', 'RFA', 'CUSTOM']),
@@ -311,6 +322,7 @@ export const contractLeaguePolicySchema = z.object({
     cuts: z.object({
       releasingOwnerReacquisitionCooldownHours: z.number().nonnegative().nullable(),
       leagueNominationCooldownHours: z.number().nonnegative().nullable(),
+      financialTreatment: cutFinancialTreatmentSchema.nullable().default(null),
     }),
     trades: z.object({
       outsideApprovalsRequired: z.number().int().nonnegative().nullable(),
