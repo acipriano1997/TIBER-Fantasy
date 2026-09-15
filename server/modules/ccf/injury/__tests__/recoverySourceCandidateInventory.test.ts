@@ -24,36 +24,42 @@ describe("CCF recovery source candidate inventory", () => {
     ).toEqual([]);
   });
 
-  it("records NFL.com official inactive reports as terms-blocked, not as a production candidate", () => {
+  it("tracks Sportradar NFL Official Game Roster as the viable activation candidate", () => {
     const activation = CCF_RECOVERY_SOURCE_CANDIDATE_INVENTORY.bindings.find(
-      (binding) => binding.sourceClass === "official_game_activation",
+      (binding) =>
+        binding.sourceClass === "official_game_activation" &&
+        binding.status === "candidate",
     );
 
     expect(activation).toMatchObject({
-      bindingId: "nfl-official-inactive-report-terms-blocked-v1",
-      provider: "NFL.com",
-      datasetOrProduct: "Inactive Reports",
+      bindingId: "sportradar-nfl-official-game-roster-candidate-v1",
+      provider: "Sportradar",
+      datasetOrProduct: "NFL Official API - Game Roster",
       authority: "raw_fact",
-      status: "rejected",
+      status: "candidate",
       temporalMode: "current_snapshot_only",
       archiveStrategy: "none",
       parserVersion: null,
-      sourceLocatorTemplate: "https://www.nfl.com/inactives/",
       pointInTimeSemanticsDocumented: false,
       rawTraceSupported: false,
     });
-    expect(activation?.licenseOrTermsRef).toMatch(/systematic retrieval/i);
-    expect(activation?.reliabilityReviewRef).toMatch(/Terms and Conditions audited/);
+    expect(activation?.sourceLocatorTemplate).toContain("api.sportradar.com/nfl/official/");
+    expect(activation?.licenseOrTermsRef).toContain("developer.sportradar.com");
   });
 
-  it("has no viable official game-activation binding after the terms audit", () => {
-    expect(
-      CCF_RECOVERY_SOURCE_CANDIDATE_INVENTORY.bindings.filter(
-        (binding) =>
-          binding.sourceClass === "official_game_activation" &&
-          binding.status !== "rejected",
-      ),
-    ).toEqual([]);
+  it("retains NFL.com public inactive reports as a terms-blocked rejected path", () => {
+    const rejected = CCF_RECOVERY_SOURCE_CANDIDATE_INVENTORY.bindings.find(
+      (binding) => binding.bindingId === "nfl-official-inactive-report-terms-blocked-v1",
+    );
+
+    expect(rejected).toMatchObject({
+      sourceClass: "official_game_activation",
+      provider: "NFL.com",
+      status: "rejected",
+      archiveStrategy: "none",
+      parserVersion: null,
+    });
+    expect(rejected?.licenseOrTermsRef).toMatch(/systematic retrieval/i);
   });
 
   it("keeps the minimum source coverage gate failing until promotion proof exists", () => {
