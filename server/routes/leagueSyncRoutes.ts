@@ -289,7 +289,7 @@ export function createLeagueSyncRouter(deps: LeagueSyncDeps = defaultDeps) {
 
       const context = await deps.storage.getUserLeagueContext(user_id);
 
-      res.json({ success: true, preference, ...context });
+      res.json({ success: true, ...context, preference });
     } catch (error) {
       console.error('❌ [League Context] Failed to update context:', error);
       res.status(500).json({ success: false, error: (error as Error).message || 'Failed to update league context' });
