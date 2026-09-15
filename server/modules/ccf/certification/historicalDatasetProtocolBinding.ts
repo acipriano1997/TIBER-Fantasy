@@ -101,7 +101,7 @@ export function auditCCFHistoricalDatasetProtocolBinding(
     datasetFingerprint,
     testRows,
     testIndependentTimeBlocks,
-    blockers: [...blockers].sort(),
+    blockers: Array.from(blockers).sort(),
   };
 }
 
