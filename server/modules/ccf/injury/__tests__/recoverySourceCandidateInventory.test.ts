@@ -24,26 +24,36 @@ describe("CCF recovery source candidate inventory", () => {
     ).toEqual([]);
   });
 
-  it("tracks official NFL inactive reports as an unpromoted game-activation candidate", () => {
+  it("records NFL.com official inactive reports as terms-blocked, not as a production candidate", () => {
     const activation = CCF_RECOVERY_SOURCE_CANDIDATE_INVENTORY.bindings.find(
       (binding) => binding.sourceClass === "official_game_activation",
     );
 
     expect(activation).toMatchObject({
-      bindingId: "nfl-official-inactive-report-candidate-v1",
+      bindingId: "nfl-official-inactive-report-terms-blocked-v1",
       provider: "NFL.com",
       datasetOrProduct: "Inactive Reports",
       authority: "raw_fact",
-      status: "candidate",
+      status: "rejected",
       temporalMode: "current_snapshot_only",
-      archiveStrategy: "provider_archive",
-      parserVersion: "ccf-nfl-official-inactives-candidate-v1",
-      sourceLocatorTemplate: "https://amp.nfl.com/news/{inactive-report-article-slug}",
+      archiveStrategy: "none",
+      parserVersion: null,
+      sourceLocatorTemplate: "https://www.nfl.com/inactives/",
       pointInTimeSemanticsDocumented: false,
       rawTraceSupported: false,
     });
-    expect(activation?.licenseOrTermsRef).toBeNull();
-    expect(activation?.reliabilityReviewRef).toBeNull();
+    expect(activation?.licenseOrTermsRef).toMatch(/systematic retrieval/i);
+    expect(activation?.reliabilityReviewRef).toMatch(/Terms and Conditions audited/);
+  });
+
+  it("has no viable official game-activation binding after the terms audit", () => {
+    expect(
+      CCF_RECOVERY_SOURCE_CANDIDATE_INVENTORY.bindings.filter(
+        (binding) =>
+          binding.sourceClass === "official_game_activation" &&
+          binding.status !== "rejected",
+      ),
+    ).toEqual([]);
   });
 
   it("keeps the minimum source coverage gate failing until promotion proof exists", () => {
