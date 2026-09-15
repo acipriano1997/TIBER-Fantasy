@@ -8,13 +8,16 @@ function makePolicy() {
     cap: { ...base.cap, defaultCeiling: 500, salaryIncrement: 0.5 },
     contracts: {
       ...base.contracts,
-      structures: [{
-        id: 'resign-mid',
-        displayName: 'Re-sign Mid',
-        guaranteedShare: 0.5,
-        optionalShare: 0.5,
-        allowedDistributions: ['EVEN' as const],
-      }],
+      structures: [
+        ...base.contracts.structures,
+        {
+          id: 'resign-mid',
+          displayName: 'Re-sign Mid',
+          guaranteedShare: 0.5,
+          optionalShare: 0.5,
+          allowedDistributions: ['EVEN' as const],
+        },
+      ],
       reSign: {
         enabled: true,
         allowance: { maxUses: 8, mode: 'ANCHORED_FROM_FIRST_USE' as const, windowSeasons: 5 },
