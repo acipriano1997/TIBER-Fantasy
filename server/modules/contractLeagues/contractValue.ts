@@ -119,13 +119,32 @@ function fingerprint(value: unknown) {
   return `sha256:${createHash('sha256').update(canonical).digest('hex')}`;
 }
 
-function time(value: string) {
+function time(value: string | null | undefined) {
+  if (!value) return null;
   const parsed = new Date(value).valueOf();
   return Number.isFinite(parsed) ? parsed : null;
 }
 
 function activeContract(contract: ContractLeagueSnapshot['teams'][number]['contracts'][number]) {
   return contract.status !== 'CUT' && contract.status !== 'EXPIRED';
+}
+
+function rejectFutureEvidence(
+  reasons: Array<{ code: string; detail: string }>,
+  decisionMs: number,
+  label: string,
+  value: string | null | undefined,
+  code: string,
+) {
+  if (!value) return;
+  const evidenceMs = time(value);
+  if (evidenceMs === null) {
+    reasons.push({ code: `${code}_INVALID`, detail: `${label} must be a valid timestamp when present.` });
+    return;
+  }
+  if (evidenceMs > decisionMs) {
+    reasons.push({ code, detail: `${label} occurs after the frozen decision timestamp and is ineligible for comparison.` });
+  }
 }
 
 export function compareContractPlayerValues(input: {
@@ -157,6 +176,22 @@ export function compareContractPlayerValues(input: {
   const valueMs = time(values.decisionAsOf);
   if (decisionMs === null) reasons.push({ code: 'DECISION_TIME_INVALID', detail: 'decisionAsOf must be a valid timestamp.' });
   if (valueMs === null) reasons.push({ code: 'CCF_VALUE_TIME_INVALID', detail: 'CCF value evidence has an invalid decision timestamp.' });
+  if (decisionMs !== null) {
+    rejectFutureEvidence(
+      reasons,
+      decisionMs,
+      'snapshot provenance.importedAt',
+      snapshot.provenance.importedAt,
+      'SNAPSHOT_IMPORTED_AFTER_DECISION',
+    );
+    rejectFutureEvidence(
+      reasons,
+      decisionMs,
+      'snapshot provenance.sourceModifiedAt',
+      snapshot.provenance.sourceModifiedAt,
+      'SNAPSHOT_SOURCE_MODIFIED_AFTER_DECISION',
+    );
+  }
   if (decisionMs !== null && valueMs !== null && valueMs > decisionMs) reasons.push({ code: 'CCF_VALUE_AFTER_DECISION', detail: 'CCF value evidence occurs after the frozen contract decision time.' });
 
   const teamMatches = snapshot.teams.filter((team) => team.sourceTeamName === input.sourceTeamName.trim());
