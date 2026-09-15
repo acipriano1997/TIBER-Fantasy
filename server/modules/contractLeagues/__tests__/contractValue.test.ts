@@ -103,4 +103,36 @@ describe('CCF contract value comparison boundary', () => {
     if (result.status !== 'ABSTAIN') return;
     expect(result.reasonCodes).toContain('CCF_VALUE_AFTER_DECISION');
   });
+
+  it('rejects a snapshot imported after the frozen decision time', () => {
+    const snapshot = makeBoundarySnapshot();
+    snapshot.provenance.importedAt = '2026-09-15T12:31:00.000Z';
+    const result = compareContractPlayerValues({
+      snapshot,
+      leagueKey: 'league-boundary',
+      sourceTeamName: 'Synthetic Team',
+      decisionAsOf: '2026-09-15T12:30:00.000Z',
+      valueEvidence: valueEvidence(),
+    });
+
+    expect(result.status).toBe('ABSTAIN');
+    if (result.status !== 'ABSTAIN') return;
+    expect(result.reasonCodes).toContain('SNAPSHOT_IMPORTED_AFTER_DECISION');
+  });
+
+  it('rejects source contract state modified after the frozen decision time', () => {
+    const snapshot = makeBoundarySnapshot();
+    snapshot.provenance.sourceModifiedAt = '2026-09-15T12:31:00.000Z';
+    const result = compareContractPlayerValues({
+      snapshot,
+      leagueKey: 'league-boundary',
+      sourceTeamName: 'Synthetic Team',
+      decisionAsOf: '2026-09-15T12:30:00.000Z',
+      valueEvidence: valueEvidence(),
+    });
+
+    expect(result.status).toBe('ABSTAIN');
+    if (result.status !== 'ABSTAIN') return;
+    expect(result.reasonCodes).toContain('SNAPSHOT_SOURCE_MODIFIED_AFTER_DECISION');
+  });
 });
