@@ -20,11 +20,13 @@ function readyCandidate(
     temporalMode: "archived_point_in_time",
     archiveStrategy: "immutable_snapshot",
     licenseOrTermsRef: "terms://licensed",
+    permissionStatus: "permitted_for_intended_use",
     parserVersion: "parser-v1",
     sourceLocatorTemplate: "provider://game/{id}/roster",
     pointInTimeSemanticsDocumented: true,
     rawTraceSupported: true,
     reliabilityReviewRef: "review://provider/game-roster-v1",
+    reliabilityStatus: "passed",
     notes: [],
     ...overrides,
   };
@@ -46,11 +48,13 @@ describe("CCF recovery source promotion readiness", () => {
         temporalMode: "current_snapshot_only",
         archiveStrategy: "none",
         licenseOrTermsRef: null,
+        permissionStatus: "unreviewed",
         parserVersion: null,
         sourceLocatorTemplate: null,
         pointInTimeSemanticsDocumented: false,
         rawTraceSupported: false,
         reliabilityReviewRef: null,
+        reliabilityStatus: "unreviewed",
       }),
     );
 
@@ -59,11 +63,13 @@ describe("CCF recovery source promotion readiness", () => {
       "temporal_mode_not_archived_point_in_time",
       "archive_strategy_missing",
       "license_or_terms_missing",
+      "permission_not_cleared",
       "parser_version_missing",
       "source_locator_missing",
       "point_in_time_semantics_undocumented",
       "raw_trace_missing",
       "reliability_review_missing",
+      "reliability_review_not_passed",
     ]);
   });
 
@@ -100,9 +106,11 @@ describe("CCF recovery source promotion readiness", () => {
     const licensedCurrentCandidateBlockers = [
       "temporal_mode_not_archived_point_in_time",
       "archive_strategy_missing",
+      "permission_not_cleared",
       "parser_version_missing",
       "point_in_time_semantics_undocumented",
       "raw_trace_missing",
+      "reliability_review_not_passed",
     ];
 
     expect(
@@ -121,12 +129,15 @@ describe("CCF recovery source promotion readiness", () => {
       "status_research_only",
       "temporal_mode_not_archived_point_in_time",
       "archive_strategy_missing",
+      "permission_not_cleared",
       "point_in_time_semantics_undocumented",
       "raw_trace_missing",
+      "reliability_review_not_passed",
     ]);
 
     expect(byId.get("nflverse-pfr-snap-counts-candidate-v1")?.blockers).toEqual([
-      "reliability_review_missing",
+      "permission_not_cleared",
+      "reliability_review_not_passed",
     ]);
 
     expect(byId.get("nfl-official-inactive-report-terms-blocked-v1")?.blockers).toContain(
