@@ -15,10 +15,11 @@ import {
 } from './rights';
 import { canonicalizeContractLeagueSnapshot } from './persistenceContract';
 
-export const CONTRACT_TRANSACTION_ENGINE_VERSION = 'contract-transaction-engine.v1' as const;
+export const CONTRACT_TRANSACTION_ENGINE_VERSION = 'contract-transaction-engine.v1.1' as const;
 
 type ContractLeaguePhase = ContractLeaguePolicy['roster']['limitsByPhase'][number]['phase'];
 type PolicyWindowAction = ContractLeaguePolicy['lifecycle']['windows'][number]['action'];
+type CutMoneyDisposition = NonNullable<ContractLeaguePolicy['transactions']['cuts']['financialTreatment']>['guaranteed'];
 
 type PlayerSelector = {
   canonicalPlayerId?: string | null;
@@ -195,7 +196,7 @@ function money(value: number) {
 }
 
 function fingerprint(value: unknown): string {
-  const canonical = stableStringify(value) ?? JSON.stringify(value);
+  const canonical = stableStringify(value) ?? JSON.stringify(value) ?? 'null';
   return `sha256:${createHash('sha256').update(canonical).digest('hex')}`;
 }
 
@@ -527,6 +528,51 @@ function scaledAmount(
   return money((currentAmount / currentMultiplier) * targetMultiplier);
 }
 
+function currentAndFutureYears(
+  contract: ContractLeagueSnapshot['teams'][number]['contracts'][number],
+  currentSeason: number,
+) {
+  return contract.years.filter((year) => year.season >= currentSeason);
+}
+
+function ledgerCoverageReasons(
+  states: TeamWorkingState[],
+  seasons: number[],
+): Array<{ code: string; detail: string }> {
+  const reasons: Array<{ code: string; detail: string }> = [];
+  for (const state of states) {
+    for (const season of seasons) {
+      if (!state.team.cap.some((item) => item.season === season)) {
+        reasons.push({
+          code: 'CAP_LEDGER_SEASON_MISSING',
+          detail: `Team ${state.teamKey} has no authoritative cap-ledger row for affected season ${season}.`,
+        });
+      }
+    }
+  }
+  return reasons;
+}
+
+function clearReservePlacement(
+  state: TeamWorkingState,
+  contract: ContractLeagueSnapshot['teams'][number]['contracts'][number],
+) {
+  const rosterState = currentRosterState(contract);
+  if (rosterState === 'IR' || rosterState === 'SEASON_ENDING_IR') {
+    state.reserveCountsAfter[rosterState] = Math.max(0, (state.reserveCountsAfter[rosterState] ?? 0) - 1);
+  }
+}
+
+function cutDeadCapSeason(
+  disposition: CutMoneyDisposition,
+  originalSeason: number,
+  currentSeason: number,
+): number | null {
+  if (disposition === 'CLEAR') return null;
+  if (disposition === 'DEAD_CAP_PRESERVE_SCHEDULE') return originalSeason;
+  return currentSeason;
+}
+
 function finishReady(
   snapshot: ContractLeagueSnapshot,
   policy: ContractLeaguePolicy,
@@ -635,16 +681,96 @@ export function simulateContractTransaction(
 
   if (action.type === 'CUT') {
     const state = getTeam(states, action.teamKey);
-    if (!state || !resolvePlayer(state, action.player)) {
+    const contract = state ? resolvePlayer(state, action.player) : null;
+    if (!state || !contract) {
       return abstain(snapshot!, policy!, context, action, [{
         code: 'PLAYER_UNRESOLVED',
         detail: 'CUT requires exactly one active roster contract on the bound team.',
       }]);
     }
-    return abstain(snapshot!, policy!, context, action, [{
-      code: 'CUT_FINANCIAL_POLICY_UNAVAILABLE',
-      detail: 'The current policy schema does not yet encode whether released guaranteed/optional money becomes dead cap, clears, or accelerates. CUT must abstain rather than assume NFL-style treatment.',
-    }]);
+
+    const financialTreatment = policy!.transactions.cuts.financialTreatment;
+    if (!financialTreatment) {
+      return abstain(snapshot!, policy!, context, action, [{
+        code: 'CUT_FINANCIAL_POLICY_UNAVAILABLE',
+        detail: 'CUT requires explicit guaranteed/optional release dispositions; no private or NFL-style default may be assumed.',
+      }]);
+    }
+
+    const affectedYears = currentAndFutureYears(contract, snapshot!.league.season);
+    const ledgerReasons = ledgerCoverageReasons(
+      [state],
+      [...new Set([...affectedYears.map((year) => year.season), snapshot!.league.season])],
+    );
+    if (ledgerReasons.length) {
+      return abstain(snapshot!, policy!, context, action, ledgerReasons);
+    }
+
+    for (const year of affectedYears) {
+      if (Math.abs(year.capHit - (year.guaranteed + year.optional)) > 0.000001) {
+        return abstain(snapshot!, policy!, context, action, [{
+          code: 'CONTRACT_CAP_HIT_DECOMPOSITION_UNAVAILABLE',
+          detail: 'CUT simulation requires capHit to reconcile to guaranteed + optional for every affected contract year.',
+        }]);
+      }
+    }
+
+    const deadCapBySeason = new Map<number, number>();
+    for (const year of affectedYears) {
+      applySeasonDelta(state, year.season, {
+        guaranteedObligation: -year.guaranteed,
+        optionalObligation: -year.optional,
+        contractCapHit: -year.capHit,
+        ledgerTotalGuaranteed: -year.guaranteed,
+        ledgerTotalCapHit: -year.capHit,
+      });
+
+      const guaranteedDeadCapSeason = cutDeadCapSeason(
+        financialTreatment.guaranteed,
+        year.season,
+        snapshot!.league.season,
+      );
+      if (guaranteedDeadCapSeason !== null && year.guaranteed > 0) {
+        deadCapBySeason.set(
+          guaranteedDeadCapSeason,
+          money((deadCapBySeason.get(guaranteedDeadCapSeason) ?? 0) + year.guaranteed),
+        );
+      }
+
+      const optionalDeadCapSeason = cutDeadCapSeason(
+        financialTreatment.optional,
+        year.season,
+        snapshot!.league.season,
+      );
+      if (optionalDeadCapSeason !== null && year.optional > 0) {
+        deadCapBySeason.set(
+          optionalDeadCapSeason,
+          money((deadCapBySeason.get(optionalDeadCapSeason) ?? 0) + year.optional),
+        );
+      }
+    }
+
+    for (const [season, deadCap] of deadCapBySeason) {
+      applySeasonDelta(state, season, {
+        deadCap,
+        ledgerTotalCapHit: deadCap,
+        ledgerTotalGuaranteed: financialTreatment.deadCapCountsTowardGuaranteedLedger ? deadCap : 0,
+      });
+    }
+
+    state.rosterCountDelta -= 1;
+    clearReservePlacement(state, contract);
+
+    const reacquisitionCooldown = policy!.transactions.cuts.releasingOwnerReacquisitionCooldownHours;
+    if (reacquisitionCooldown !== null && reacquisitionCooldown > 0) {
+      followUpActions.push(`COOLDOWN: releasing team cannot reacquire the player for ${reacquisitionCooldown} hour(s).`);
+    }
+    const nominationCooldown = policy!.transactions.cuts.leagueNominationCooldownHours;
+    if (nominationCooldown !== null && nominationCooldown > 0) {
+      followUpActions.push(`NOMINATION_COOLDOWN: player cannot be nominated for ${nominationCooldown} hour(s).`);
+    }
+
+    return finishReady(snapshot!, policy!, context, action, states, violations, rightEffects, followUpActions);
   }
 
   if (action.type === 'TRADE') {
@@ -672,8 +798,34 @@ export function simulateContractTransaction(
         detail: 'TRADE requires exactly one active roster contract on the source team.',
       }]);
     }
+    if (currentRosterState(contract) !== 'ACTIVE') {
+      return abstain(snapshot!, policy!, context, action, [{
+        code: 'TRADE_ROSTER_STATE_TRANSFER_UNMODELED',
+        detail: 'Trading a player currently occupying a reserve state requires an explicit destination roster-state treatment.',
+      }]);
+    }
+
+    const affectedYears = currentAndFutureYears(contract, snapshot!.league.season);
+    const ledgerReasons = ledgerCoverageReasons(
+      [source, target],
+      affectedYears.map((year) => year.season),
+    );
+    if (ledgerReasons.length) {
+      return abstain(snapshot!, policy!, context, action, ledgerReasons);
+    }
 
     const retainedBySeason = action.retainedGuaranteedBySeason ?? {};
+    const affectedSeasonSet = new Set(affectedYears.map((year) => year.season));
+    const unknownRetainedSeason = Object.entries(retainedBySeason).find(
+      ([season, amount]) => Number(amount) !== 0 && !affectedSeasonSet.has(Number(season)),
+    );
+    if (unknownRetainedSeason) {
+      return abstain(snapshot!, policy!, context, action, [{
+        code: 'RETAINED_SALARY_SEASON_UNRESOLVED',
+        detail: `Retained salary references season ${unknownRetainedSeason[0]}, which is not an active/future contract year.`,
+      }]);
+    }
+
     const retainedPolicy = policy!.transactions.trades.retainedGuaranteedMoney;
     const retaining = Object.values(retainedBySeason).some((amount) => amount > 0);
     if (retaining && !retainedPolicy.allowed) {
@@ -686,7 +838,7 @@ export function simulateContractTransaction(
       }]);
     }
 
-    for (const year of contract.years) {
+    for (const year of affectedYears) {
       const retained = Number(retainedBySeason[year.season] ?? 0);
       if (!Number.isFinite(retained) || retained < 0) {
         violations.push({
@@ -796,7 +948,13 @@ export function simulateContractTransaction(
       }]);
     }
 
-    for (const year of contract.years) {
+    const affectedYears = currentAndFutureYears(contract, snapshot!.league.season);
+    const ledgerReasons = ledgerCoverageReasons([state], affectedYears.map((year) => year.season));
+    if (ledgerReasons.length) {
+      return abstain(snapshot!, policy!, context, action, ledgerReasons);
+    }
+
+    for (const year of affectedYears) {
       applySeasonDelta(state, year.season, {
         guaranteedObligation: -year.guaranteed,
         optionalObligation: -year.optional,
@@ -806,6 +964,7 @@ export function simulateContractTransaction(
       });
     }
     state.rosterCountDelta -= 1;
+    clearReservePlacement(state, contract);
     rightEffects.push({
       teamKey: action.teamKey,
       rightType: 'AMNESTY',
@@ -865,7 +1024,13 @@ export function simulateContractTransaction(
     return finishReady(snapshot!, policy!, context, action, states, violations, rightEffects, followUpActions);
   }
 
-  for (const year of contract.years) {
+  const affectedYears = currentAndFutureYears(contract, snapshot!.league.season);
+  const ledgerReasons = ledgerCoverageReasons([state], affectedYears.map((year) => year.season));
+  if (ledgerReasons.length) {
+    return abstain(snapshot!, policy!, context, action, ledgerReasons);
+  }
+
+  for (const year of affectedYears) {
     const nextGuaranteed = scaledAmount(year.guaranteed, currentTreatment.guaranteedMultiplier, targetTreatment.guaranteedMultiplier);
     const nextOptional = scaledAmount(year.optional, currentTreatment.optionalMultiplier, targetTreatment.optionalMultiplier);
     const nextCapHit = scaledAmount(year.capHit, currentTreatment.capHitMultiplier, targetTreatment.capHitMultiplier);
