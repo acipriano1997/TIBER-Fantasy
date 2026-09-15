@@ -161,9 +161,11 @@ export function validateCCFMarketSignalEvidence(
     throw new CCFMarketPerceptionContractError("observedAt cannot be later than knownAt");
   }
   if (knownAtMs > asOfMs) {
-    throw new CCFMarketPerceptionContractError("market evidence violates temporal eligibility: knownAt > asOf");
+    throw new CCFMarketPerceptionContractError(
+      "market evidence violates temporal eligibility: knownAt > asOf",
+    );
   }
-  if (![ -1, 0, 1 ].includes(signal.direction)) {
+  if (![-1, 0, 1].includes(signal.direction)) {
     throw new CCFMarketPerceptionContractError("direction must be -1, 0, or 1");
   }
 
@@ -192,8 +194,13 @@ export function validateCCFMarketPerceptionPolicy(
   if (policy.mediumWindowHours <= policy.fastWindowHours) {
     throw new CCFMarketPerceptionContractError("mediumWindowHours must exceed fastWindowHours");
   }
-  if (!Number.isInteger(policy.minimumIndependentSources) || policy.minimumIndependentSources <= 0) {
-    throw new CCFMarketPerceptionContractError("minimumIndependentSources must be a positive integer");
+  if (
+    !Number.isInteger(policy.minimumIndependentSources) ||
+    policy.minimumIndependentSources <= 0
+  ) {
+    throw new CCFMarketPerceptionContractError(
+      "minimumIndependentSources must be a positive integer",
+    );
   }
   if (policy.collapsePolicy !== "latest_per_kind_then_source_average") {
     throw new CCFMarketPerceptionContractError("unsupported market signal collapse policy");
@@ -210,7 +217,9 @@ export function validateCCFMarketPerceptionPolicy(
     totalWeight += weight;
   }
   if (totalWeight <= 0) {
-    throw new CCFMarketPerceptionContractError("source family weights must have positive total weight");
+    throw new CCFMarketPerceptionContractError(
+      "source family weights must have positive total weight",
+    );
   }
 
   return policy;
@@ -224,7 +233,9 @@ interface SourceComposite {
   sourceRefs: string[];
 }
 
-function latestPerKind(signals: readonly CCFMarketSignalEvidence[]): CCFMarketSignalEvidence[] {
+function latestPerKind(
+  signals: readonly CCFMarketSignalEvidence[],
+): CCFMarketSignalEvidence[] {
   const latest = new Map<CCFMarketSignalKind, CCFMarketSignalEvidence>();
   const ordered = [...signals].sort((left, right) => {
     const timeDiff = Date.parse(right.knownAt) - Date.parse(left.knownAt);
@@ -263,7 +274,9 @@ function buildSourceComposites(
     const directionalValue =
       collapsed.reduce((sum, signal) => sum + signal.direction * signal.magnitude, 0) /
       collapsed.length;
-    const levelSignals = collapsed.filter((signal) => signal.marketLevelPercentile != null);
+    const levelSignals = collapsed.filter(
+      (signal) => signal.marketLevelPercentile != null,
+    );
     const marketLevelPercentile =
       levelSignals.length === 0
         ? null
@@ -291,7 +304,9 @@ function summarizeWindow(
   policy: CCFMarketPerceptionPolicy,
 ): CCFMarketWindowSummary {
   const cutoffMs = asOfMs - windowHours * 60 * 60 * 1000;
-  const windowSignals = allSignals.filter((signal) => Date.parse(signal.knownAt) >= cutoffMs);
+  const windowSignals = allSignals.filter(
+    (signal) => Date.parse(signal.knownAt) >= cutoffMs,
+  );
   const composites = buildSourceComposites(windowSignals);
   const weightedComposites = composites.filter(
     (source) => policy.sourceFamilyWeights[source.sourceFamily] > 0,
@@ -300,7 +315,7 @@ function summarizeWindow(
     (sum, source) => sum + policy.sourceFamilyWeights[source.sourceFamily],
     0,
   );
-  const independentSourceCount = composites.length;
+  const independentSourceCount = weightedComposites.length;
   const status =
     independentSourceCount >= policy.minimumIndependentSources && totalSourceWeight > 0
       ? "available"
@@ -351,8 +366,12 @@ function summarizeWindow(
     independenceRatio:
       windowSignals.length === 0 ? 0 : independentSourceCount / windowSignals.length,
     sourceWeightConcentration,
-    sourceFamilies: [...new Set(composites.map((source) => source.sourceFamily))].sort(),
-    sourceRefs: [...new Set(composites.flatMap((source) => source.sourceRefs))].sort(),
+    sourceFamilies: [
+      ...new Set(weightedComposites.map((source) => source.sourceFamily)),
+    ].sort(),
+    sourceRefs: [
+      ...new Set(weightedComposites.flatMap((source) => source.sourceRefs)),
+    ].sort(),
   };
 }
 
@@ -382,10 +401,14 @@ export function buildCCFMarketPerceptionSnapshot(
     playerId ??= signal.playerId;
     formatId ??= signal.formatId;
     if (signal.playerId !== playerId) {
-      throw new CCFMarketPerceptionContractError("all market signals must refer to one player");
+      throw new CCFMarketPerceptionContractError(
+        "all market signals must refer to one player",
+      );
     }
     if (signal.formatId !== formatId) {
-      throw new CCFMarketPerceptionContractError("all market signals must use one formatId");
+      throw new CCFMarketPerceptionContractError(
+        "all market signals must use one formatId",
+      );
     }
 
     const knownFamily = sourceFamilyById.get(signal.sourceId);
@@ -430,10 +453,14 @@ export function buildCCFMarketNeighborhood(
 ): CCFMarketNeighborhood {
   requireText("targetPlayerId", targetPlayerId);
   if (!Number.isInteger(radius) || radius <= 0) {
-    throw new CCFMarketPerceptionContractError("market neighborhood radius must be positive");
+    throw new CCFMarketPerceptionContractError(
+      "market neighborhood radius must be positive",
+    );
   }
   if (snapshots.length === 0) {
-    throw new CCFMarketPerceptionContractError("market neighborhood requires snapshots");
+    throw new CCFMarketPerceptionContractError(
+      "market neighborhood requires snapshots",
+    );
   }
 
   const formatId = snapshots[0].formatId;
@@ -459,7 +486,10 @@ export function buildCCFMarketNeighborhood(
     }
     playerIds.add(snapshot.playerId);
     if (snapshot.marketLevelPercentile != null) {
-      requireUnitInterval("snapshot.marketLevelPercentile", snapshot.marketLevelPercentile);
+      requireUnitInterval(
+        "snapshot.marketLevelPercentile",
+        snapshot.marketLevelPercentile,
+      );
       eligible.push({
         playerId: snapshot.playerId,
         marketLevelPercentile: snapshot.marketLevelPercentile,
