@@ -1,0 +1,63 @@
+{
+  "schemaVersion": "league-source-link.v1",
+  "league": {
+    "name": "Devy and Big Boobs",
+    "platform": "sleeper",
+    "platformLeagueId": "1383497639848341504",
+    "platformUsername": "Cippy97"
+  },
+  "supplementalSources": [
+    {
+      "sourceId": "google-drive:1xzg7FHcBTSJoXq6JiIApBsJ3upXLjG5a3KK77mml6qc:Sheet1",
+      "kind": "google_sheet",
+      "role": "devy_rights",
+      "authority": "authoritative_for_devy_rights_only",
+      "driveFileName": "Devy and Big Boobs",
+      "spreadsheetId": "1xzg7FHcBTSJoXq6JiIApBsJ3upXLjG5a3KK77mml6qc",
+      "sheetName": "Sheet1",
+      "ownerSelector": {
+        "type": "manager_handle",
+        "value": "@cippy97",
+        "normalization": [
+          "trim",
+          "strip_leading_at",
+          "case_insensitive"
+        ]
+      },
+      "layout": {
+        "leagueTeamHeaderRow": 1,
+        "managerHandleRow": 2,
+        "columnLabelRow": 3,
+        "prospectLabel": "Prospects",
+        "schoolLabel": "School",
+        "columnResolution": "discover_pair_by_manager_handle_do_not_hardcode_column_letters"
+      },
+      "joinPolicy": {
+        "mode": "supplement",
+        "sleeperRemainsAuthoritativeFor": [
+          "league_identity",
+          "league_settings",
+          "scoring_settings",
+          "nfl_roster",
+          "starters",
+          "bench",
+          "ir",
+          "taxi",
+          "transactions",
+          "matchups"
+        ],
+        "sheetRemainsAuthoritativeFor": [
+          "devy_prospect_ownership",
+          "devy_prospect_school"
+        ],
+        "neverTreatDevyProspectsAsSleeperNflRosterPlayers": true
+      },
+      "validation": {
+        "requireLeagueNameMatch": true,
+        "requireManagerHandleMatch": true,
+        "rejectAmbiguousManagerHandleMatches": true,
+        "preserveUnmatchedProspectsForIdentityResolution": true
+      }
+    }
+  ]
+}
