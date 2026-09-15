@@ -225,7 +225,7 @@ export async function evaluateWeeklyDecisionRuntime(
     leagueId,
     rosterId,
     rosterPositions: leagueContext.rosterPositions,
-    players: [...rosterPlayers].sort(),
+    players: Array.from(rosterPlayers).sort(),
     starters,
     reserve: (roster.reserve ?? []).map(String).sort(),
     taxi: (roster.taxi ?? []).map(String).sort(),
