@@ -40,9 +40,16 @@ jobs:
           typecheck_status=$?
           set -e
 
-          if grep -E '^server/modules/ccf/' /tmp/ccf-typecheck.log; then
+          ccf_errors=$(grep -E '^server/modules/ccf/' /tmp/ccf-typecheck.log || true)
+          if [ -n "$ccf_errors" ]; then
             echo "::error::CCF independence code contains TypeScript errors."
-            grep -E '^server/modules/ccf/' /tmp/ccf-typecheck.log
+            printf '%s\n' "$ccf_errors"
+            {
+              echo '## CCF TypeScript regressions'
+              echo '```text'
+              printf '%s\n' "$ccf_errors"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
 
