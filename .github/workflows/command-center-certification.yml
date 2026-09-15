@@ -29,7 +29,7 @@ jobs:
           cache: npm
       - name: Install locked dependencies
         run: npm ci
-      - name: Typecheck Gate 0 delta against baseline debt
+      - name: Typecheck Gate 0 and contract-league delta against baseline debt
         shell: bash
         run: |
           set +e
@@ -37,15 +37,15 @@ jobs:
           typecheck_status=$?
           set -e
 
-          gate0_pattern='^(server/index\.ts|server/middleware/personalUserScope\.ts|server/routes/leagueDashboardRoutes\.ts|server/services/leagueDashboardTruthBoundary\.ts)\('
-          if grep -E "$gate0_pattern" /tmp/tiber-typecheck.log; then
-            echo "::error::Gate 0 introduced or exposes type errors in its production files."
+          gated_pattern='^(server/index\.ts|server/middleware/personalUserScope\.ts|server/routes/leagueDashboardRoutes\.ts|server/services/leagueDashboardTruthBoundary\.ts|server/modules/contractLeagues/[^ ]+\.ts)\('
+          if grep -E "$gated_pattern" /tmp/tiber-typecheck.log; then
+            echo "::error::Certification introduced or exposes type errors in gated production files."
             exit 1
           fi
 
           if [ "$typecheck_status" -ne 0 ]; then
             error_count=$(grep -c 'error TS' /tmp/tiber-typecheck.log || true)
-            echo "::warning::Repository-wide typecheck has ${error_count} pre-existing errors outside the Gate 0 production delta; recorded as baseline debt and not treated as a new regression."
+            echo "::warning::Repository-wide typecheck has ${error_count} pre-existing errors outside the gated production delta; recorded as baseline debt and not treated as a new regression."
           else
             echo "Repository-wide typecheck is clean."
           fi
@@ -55,5 +55,7 @@ jobs:
           server/middleware/__tests__/personalUserScope.test.ts
           server/services/__tests__/leagueDashboardTruthBoundary.test.ts
           server/modules/management/__tests__/forgeTeamDirectionFreshnessPolicy.test.ts
+      - name: Run contract league regressions
+        run: npm test -- server/modules/contractLeagues/__tests__
       - name: Build application
         run: sh build.sh
