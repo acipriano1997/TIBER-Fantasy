@@ -83,19 +83,26 @@ function protocol(): CCFPredictiveValidationProtocol {
   };
 }
 
+function evidence(overrides: Record<string, unknown> = {}) {
+  return {
+    criterionId: "mae-vs-usage",
+    target: "fantasy_points" as const,
+    metric: "mae" as const,
+    comparatorArm: "usage_rate" as const,
+    candidateArm: "native_candidate" as const,
+    candidateValue: 4,
+    comparatorValue: 5,
+    pairedSampleSize: 500,
+    independentTimeBlocks: 30,
+    confidenceLowerBoundForImprovement: 0.2,
+    supportedSubgroupsPassed: true,
+    ...overrides,
+  };
+}
+
 describe("CCF predictive promotion evaluation", () => {
   it("passes only when the frozen improvement, sample, uncertainty, and subgroup gates all pass", () => {
-    const result = evaluateCCFPredictivePromotion(protocol(), [
-      {
-        criterionId: "mae-vs-usage",
-        candidateValue: 4,
-        comparatorValue: 5,
-        pairedSampleSize: 500,
-        independentTimeBlocks: 30,
-        confidenceLowerBoundForImprovement: 0.2,
-        supportedSubgroupsPassed: true,
-      },
-    ]);
+    const result = evaluateCCFPredictivePromotion(protocol(), [evidence()]);
     expect(result.passed).toBe(true);
     expect(result.criterionResults[0].absoluteImprovement).toBe(1);
     expect(result.criterionResults[0].relativeImprovement).toBeCloseTo(0.2);
@@ -103,15 +110,10 @@ describe("CCF predictive promotion evaluation", () => {
 
   it("fails rather than weakening a preregistered gate after outcomes are known", () => {
     const result = evaluateCCFPredictivePromotion(protocol(), [
-      {
-        criterionId: "mae-vs-usage",
+      evidence({
         candidateValue: 4.7,
-        comparatorValue: 5,
-        pairedSampleSize: 500,
-        independentTimeBlocks: 30,
         confidenceLowerBoundForImprovement: -0.05,
-        supportedSubgroupsPassed: true,
-      },
+      }),
     ]);
     expect(result.passed).toBe(false);
     expect(result.criterionResults[0].absoluteImprovementGatePassed).toBe(true);
@@ -119,20 +121,20 @@ describe("CCF predictive promotion evaluation", () => {
     expect(result.criterionResults[0].confidenceGatePassed).toBe(false);
   });
 
+  it("binds metric/target/arm identity rather than trusting a criterion id alone", () => {
+    expect(() =>
+      evaluateCCFPredictivePromotion(protocol(), [
+        evidence({ comparatorArm: "historical_mean" }),
+      ] as never),
+    ).toThrow(/comparatorArm does not match frozen criterion/);
+  });
+
   it("fails closed on missing or unexpected criterion evidence", () => {
     expect(() => evaluateCCFPredictivePromotion(protocol(), [])).toThrow(/missing criterion evidence/);
     expect(() =>
       evaluateCCFPredictivePromotion(protocol(), [
-        {
-          criterionId: "not-in-protocol",
-          candidateValue: 4,
-          comparatorValue: 5,
-          pairedSampleSize: 500,
-          independentTimeBlocks: 30,
-          confidenceLowerBoundForImprovement: 0.2,
-          supportedSubgroupsPassed: true,
-        },
-      ]),
+        evidence({ criterionId: "not-in-protocol" }),
+      ] as never),
     ).toThrow(/unexpected criterion evidence/);
   });
 });
