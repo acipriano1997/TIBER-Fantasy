@@ -15,6 +15,7 @@ import {
   findCCFNativeImplementationEvidence,
   type CCFNativeImplementationEvidenceRecord,
 } from "./nativeImplementationEvidence";
+import { auditCCFLineupReleaseGate } from "../lineup/lineupReleaseGate";
 
 export type CCFReleaseChecklistState = "certified" | "partial" | "blocked" | "non_authoritative";
 
@@ -45,9 +46,11 @@ export interface CCFUniversalReleaseChecklist {
   version: "ccf-universal-release-checklist-v1";
   promotable: boolean;
   authority: ReturnType<typeof auditCCFUniversalAuthority>;
+  lineupDecision: ReturnType<typeof auditCCFLineupReleaseGate>;
   summary: {
     capabilityBlockers: number;
     criticalDependencyBlockers: number;
+    lineupDecisionBlockers: number;
     scaffoldedButUncertified: number;
     authoritySurfaceBlockers: number;
     trustedBindingSurfaceBlockers: number;
@@ -74,8 +77,10 @@ function dependencyState(record: CCFWeeklyDependencyRecord): CCFReleaseChecklist
 
 export function buildCCFUniversalReleaseChecklist(
   authorityGraphs: readonly unknown[] = [],
+  releaseAsOf: string = new Date().toISOString(),
 ): CCFUniversalReleaseChecklist {
   const authority = auditCCFUniversalAuthority(authorityGraphs);
+  const lineupDecision = auditCCFLineupReleaseGate(releaseAsOf);
   const capabilities = CCF_ALL_TIBER_CAPABILITY_MIGRATION_V0.map((record) => ({
     kind: "capability" as const,
     id: record.id,
@@ -109,12 +114,15 @@ export function buildCCFUniversalReleaseChecklist(
     version: "ccf-universal-release-checklist-v1",
     promotable: canClaimAllTiberCapabilityMigrationComplete()
       && criticalDependencyBlockers === 0
+      && lineupDecision.ready
       && authority.trustedBindingsComplete
       && authority.modelCertificationComplete,
     authority,
+    lineupDecision,
     summary: {
       capabilityBlockers,
       criticalDependencyBlockers,
+      lineupDecisionBlockers: lineupDecision.blockers.length,
       scaffoldedButUncertified,
       authoritySurfaceBlockers: authority.surfaces.filter((surface) => !surface.lineageEligible).length,
       trustedBindingSurfaceBlockers: authority.surfaces.filter(
@@ -127,12 +135,16 @@ export function buildCCFUniversalReleaseChecklist(
   };
 }
 
-export function assertCCFUniversalReleaseReady(authorityGraphs: readonly unknown[] = []): void {
-  const checklist = buildCCFUniversalReleaseChecklist(authorityGraphs);
+export function assertCCFUniversalReleaseReady(
+  authorityGraphs: readonly unknown[] = [],
+  releaseAsOf: string = new Date().toISOString(),
+): void {
+  const checklist = buildCCFUniversalReleaseChecklist(authorityGraphs, releaseAsOf);
   if (!checklist.promotable) {
     throw new Error(
       `CCF universal release blocked: ${checklist.summary.capabilityBlockers} capability blockers, ` +
         `${checklist.summary.criticalDependencyBlockers} critical dependency blockers, ` +
+        `${checklist.summary.lineupDecisionBlockers} lineup-decision blockers, ` +
         `${checklist.summary.authoritySurfaceBlockers} surface lineage blockers, ` +
         `${checklist.summary.trustedBindingSurfaceBlockers} trusted-binding surface blockers, ` +
         `${checklist.summary.uncertifiedModelSurfaces} uncertified model surfaces`,
