@@ -85,6 +85,7 @@ jobs:
           server/modules/ccf/injury/__tests__/injuryRecoveryEvidence.test.ts
           server/modules/ccf/injury/__tests__/injurySourceAndValidation.test.ts
           server/modules/ccf/injury/__tests__/recoverySourceCandidateInventory.test.ts
+          server/modules/ccf/injury/__tests__/recoverySourcePromotionReadiness.test.ts
 
       - name: Build application
         run: sh build.sh
