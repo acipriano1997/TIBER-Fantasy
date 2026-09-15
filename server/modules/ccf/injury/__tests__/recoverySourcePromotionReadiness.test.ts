@@ -97,19 +97,30 @@ describe("CCF recovery source promotion readiness", () => {
       CCF_RECOVERY_SOURCE_CANDIDATE_INVENTORY,
     );
     const byId = new Map(results.map((row) => [row.bindingId, row]));
-
-    expect(byId.get("nflverse-injuries-official-designation-candidate-v1")?.blockers).toEqual([
-      "temporal_mode_not_archived_point_in_time",
-      "archive_strategy_missing",
-      "point_in_time_semantics_undocumented",
-      "raw_trace_missing",
-      "reliability_review_missing",
-    ]);
-
-    expect(byId.get("sportradar-nfl-official-game-roster-candidate-v1")?.blockers).toEqual([
+    const licensedCurrentCandidateBlockers = [
       "temporal_mode_not_archived_point_in_time",
       "archive_strategy_missing",
       "parser_version_missing",
+      "point_in_time_semantics_undocumented",
+      "raw_trace_missing",
+    ];
+
+    expect(
+      byId.get("sportradar-nfl-weekly-injuries-designation-candidate-v1")?.blockers,
+    ).toEqual(licensedCurrentCandidateBlockers);
+    expect(
+      byId.get("sportradar-nfl-weekly-injuries-practice-candidate-v1")?.blockers,
+    ).toEqual(licensedCurrentCandidateBlockers);
+    expect(
+      byId.get("sportradar-nfl-official-game-roster-candidate-v1")?.blockers,
+    ).toEqual(licensedCurrentCandidateBlockers);
+
+    expect(
+      byId.get("nflverse-injuries-official-designation-historical-v1")?.blockers,
+    ).toEqual([
+      "status_research_only",
+      "temporal_mode_not_archived_point_in_time",
+      "archive_strategy_missing",
       "point_in_time_semantics_undocumented",
       "raw_trace_missing",
     ]);
