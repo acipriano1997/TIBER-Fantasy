@@ -32,6 +32,50 @@ describe('contract safe spend envelope', () => {
     });
   });
 
+  it('applies the league-wide maximum annual contract share as a cap-capacity constraint', () => {
+    const policy = makeBoundaryPolicy();
+    policy.cap.maximumAnnualContractShareOfCap = 0.5;
+
+    const result = calculateSafeSpendEnvelope({
+      snapshot: makeBoundarySnapshot(),
+      policy,
+      teamKey: 'team-boundary',
+      sourceTeamName: 'Synthetic Team',
+      phase: 'REGULAR_SEASON',
+      startSeason: 2026,
+      years: 1,
+      structureId: 'synthetic',
+    });
+
+    expect(result.status).toBe('READY');
+    if (result.status !== 'READY') return;
+    expect(result.capCapacityMaximumAnnualValue).toBe(250);
+    expect(result.constraintSafeMaximumAnnualValue).toBe(250);
+    expect(result.limitingFactors).toEqual([
+      expect.objectContaining({ ruleId: 'GLOBAL_MAX_ANNUAL_CONTRACT_SHARE', capacity: 250 }),
+    ]);
+  });
+
+  it('fails closed when the selected structure does not permit the EVEN distribution modeled by v1', () => {
+    const policy = makeBoundaryPolicy();
+    policy.contracts.structures[0].allowedDistributions = ['FRONTLOADED'];
+
+    const result = calculateSafeSpendEnvelope({
+      snapshot: makeBoundarySnapshot(),
+      policy,
+      teamKey: 'team-boundary',
+      sourceTeamName: 'Synthetic Team',
+      phase: 'REGULAR_SEASON',
+      startSeason: 2026,
+      years: 1,
+      structureId: 'synthetic',
+    });
+
+    expect(result.status).toBe('ABSTAIN');
+    if (result.status !== 'ABSTAIN') return;
+    expect(result.reasonCodes).toContain('SAFE_SPEND_DISTRIBUTION_UNMODELED');
+  });
+
   it('fails closed when a proposed term reaches a season without authoritative cap state', () => {
     const result = calculateSafeSpendEnvelope({
       snapshot: makeBoundarySnapshot(),
