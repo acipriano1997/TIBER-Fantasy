@@ -1,0 +1,118 @@
+import {
+  evaluateCCFRecoverySourcePlanPromotionReadiness,
+  evaluateCCFRecoverySourcePromotionReadiness,
+  type CCFRecoverySourceBinding,
+} from "../injurySourceBinding";
+import { CCF_RECOVERY_SOURCE_CANDIDATE_INVENTORY } from "../recoverySourceCandidateInventory";
+
+function readyCandidate(
+  overrides: Partial<CCFRecoverySourceBinding> = {},
+): CCFRecoverySourceBinding {
+  return {
+    bindingVersion: "ccf-recovery-source-binding-v1",
+    bindingId: "ready-candidate",
+    sourceClass: "official_game_activation",
+    provider: "licensed-provider",
+    datasetOrProduct: "game-roster",
+    dimensions: ["participation"],
+    authority: "raw_fact",
+    status: "candidate",
+    temporalMode: "archived_point_in_time",
+    archiveStrategy: "immutable_snapshot",
+    licenseOrTermsRef: "terms://licensed",
+    parserVersion: "parser-v1",
+    sourceLocatorTemplate: "provider://game/{id}/roster",
+    pointInTimeSemanticsDocumented: true,
+    rawTraceSupported: true,
+    reliabilityReviewRef: "review://provider/game-roster-v1",
+    notes: [],
+    ...overrides,
+  };
+}
+
+describe("CCF recovery source promotion readiness", () => {
+  it("reports no blockers for a fully qualified candidate without auto-promoting it", () => {
+    expect(evaluateCCFRecoverySourcePromotionReadiness(readyCandidate())).toEqual({
+      bindingId: "ready-candidate",
+      status: "candidate",
+      promotable: true,
+      blockers: [],
+    });
+  });
+
+  it("enumerates missing provenance instead of relying on the first thrown gate", () => {
+    const result = evaluateCCFRecoverySourcePromotionReadiness(
+      readyCandidate({
+        temporalMode: "current_snapshot_only",
+        archiveStrategy: "none",
+        licenseOrTermsRef: null,
+        parserVersion: null,
+        sourceLocatorTemplate: null,
+        pointInTimeSemanticsDocumented: false,
+        rawTraceSupported: false,
+        reliabilityReviewRef: null,
+      }),
+    );
+
+    expect(result.promotable).toBe(false);
+    expect(result.blockers).toEqual([
+      "temporal_mode_not_archived_point_in_time",
+      "archive_strategy_missing",
+      "license_or_terms_missing",
+      "parser_version_missing",
+      "source_locator_missing",
+      "point_in_time_semantics_undocumented",
+      "raw_trace_missing",
+      "reliability_review_missing",
+    ]);
+  });
+
+  it("never marks rejected or research-only sources promotable", () => {
+    expect(
+      evaluateCCFRecoverySourcePromotionReadiness(
+        readyCandidate({ status: "rejected" }),
+      ).blockers,
+    ).toContain("status_rejected");
+    expect(
+      evaluateCCFRecoverySourcePromotionReadiness(
+        readyCandidate({ status: "research_only" }),
+      ).blockers,
+    ).toContain("status_research_only");
+  });
+
+  it("makes the live candidate inventory blockers explicit and reviewable", () => {
+    const results = evaluateCCFRecoverySourcePlanPromotionReadiness(
+      CCF_RECOVERY_SOURCE_CANDIDATE_INVENTORY,
+    );
+    const byId = new Map(results.map((row) => [row.bindingId, row]));
+
+    expect(byId.get("nflverse-injuries-official-designation-candidate-v1")?.blockers).toEqual([
+      "temporal_mode_not_archived_point_in_time",
+      "archive_strategy_missing",
+      "point_in_time_semantics_undocumented",
+      "raw_trace_missing",
+      "reliability_review_missing",
+    ]);
+
+    expect(byId.get("sportradar-nfl-official-game-roster-candidate-v1")?.blockers).toEqual([
+      "temporal_mode_not_archived_point_in_time",
+      "archive_strategy_missing",
+      "parser_version_missing",
+      "point_in_time_semantics_undocumented",
+      "raw_trace_missing",
+    ]);
+
+    expect(byId.get("nflverse-pfr-snap-counts-candidate-v1")?.blockers).toEqual([
+      "temporal_mode_not_archived_point_in_time",
+      "archive_strategy_missing",
+      "point_in_time_semantics_undocumented",
+      "raw_trace_missing",
+      "reliability_review_missing",
+    ]);
+
+    expect(byId.get("nfl-official-inactive-report-terms-blocked-v1")?.blockers).toContain(
+      "status_rejected",
+    );
+    expect(results.every((row) => row.promotable === false)).toBe(true);
+  });
+});
