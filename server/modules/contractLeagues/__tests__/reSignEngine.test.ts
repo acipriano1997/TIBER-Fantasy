@@ -214,6 +214,18 @@ describe('contract re-sign engine', () => {
     expect(result.reasonCodes).toContain('CAP_LEDGER_SEASON_MISSING');
   });
 
+  test('abstains when no authoritative current or future contract year exists', () => {
+    const snapshot = makeSnapshot();
+    snapshot.teams[0].contracts[0].years = snapshot.teams[0].contracts[0].years.map((year) => ({
+      ...year,
+      season: 2025,
+    }));
+    const result = simulateContractReSign(snapshot, makePolicy(), makeContext(), makeAction());
+    expect(result.status).toBe('ABSTAIN');
+    if (result.status !== 'ABSTAIN') return;
+    expect(result.reasonCodes).toContain('RE_SIGN_CURRENT_TERM_UNAVAILABLE');
+  });
+
   test('does not convert a valid price witness into eligibility when eligibility is unconfirmed', () => {
     const context = makeContext();
     context.pricingWitness = {
