@@ -117,23 +117,50 @@ function numeric(
     }
     return 0;
   }
-  const normalized = raw.endsWith("%") ? String(Number(raw.slice(0, -1)) / 100) : raw;
-  const value = Number(normalized);
+  const value = Number(raw);
   if (!Number.isFinite(value)) {
     throw new CCFNflverseSnapCountSourceError(`numeric field ${String(key)} is invalid: ${raw}`);
   }
   return value;
 }
 
-function normalizeShare(value: number): number {
+function percentageShare(
+  row: RawSnapRow,
+  key: keyof RawSnapRow,
+  required = false,
+): number {
+  const raw = row[key]?.trim();
+  if (!raw || raw.toLowerCase() === "na") {
+    if (required) {
+      throw new CCFNflverseSnapCountSourceError(`required percentage field ${String(key)} is missing`);
+    }
+    return 0;
+  }
+
+  if (raw.endsWith("%")) {
+    const percent = Number(raw.slice(0, -1));
+    if (!Number.isFinite(percent)) {
+      throw new CCFNflverseSnapCountSourceError(`percentage field ${String(key)} is invalid: ${raw}`);
+    }
+    if (percent < 0) {
+      throw new CCFNflverseSnapCountSourceError("snap percentage cannot be negative");
+    }
+    if (percent > 100) {
+      throw new CCFNflverseSnapCountSourceError("snap percentage cannot exceed 100%");
+    }
+    return percent / 100;
+  }
+
+  const value = Number(raw);
+  if (!Number.isFinite(value)) {
+    throw new CCFNflverseSnapCountSourceError(`percentage field ${String(key)} is invalid: ${raw}`);
+  }
   if (value < 0) {
     throw new CCFNflverseSnapCountSourceError("snap percentage cannot be negative");
   }
-  const share = value > 1 ? value / 100 : value;
-  if (share > 1) {
-    throw new CCFNflverseSnapCountSourceError("snap percentage cannot exceed 100%");
-  }
-  return share;
+  if (value <= 1) return value;
+  if (value <= 100) return value / 100;
+  throw new CCFNflverseSnapCountSourceError("snap percentage cannot exceed 100%");
 }
 
 function parseSnapRow(row: RawSnapRow): CCFNflverseSnapCountRow | null {
@@ -163,11 +190,11 @@ function parseSnapRow(row: RawSnapRow): CCFNflverseSnapCountRow | null {
     team,
     opponent: nullableText(row.opponent),
     offenseSnaps: numeric(row, "offense_snaps", true),
-    offensePct: normalizeShare(numeric(row, "offense_pct", true)),
+    offensePct: percentageShare(row, "offense_pct", true),
     defenseSnaps: numeric(row, "defense_snaps"),
-    defensePct: normalizeShare(numeric(row, "defense_pct")),
+    defensePct: percentageShare(row, "defense_pct"),
     specialTeamsSnaps: numeric(row, "st_snaps"),
-    specialTeamsPct: normalizeShare(numeric(row, "st_pct")),
+    specialTeamsPct: percentageShare(row, "st_pct"),
   };
 }
 
