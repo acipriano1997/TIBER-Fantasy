@@ -141,14 +141,21 @@ export function resolveReSignPricingWitness(
 ): ReSignPricingWitnessResult {
   const witnessResult = reSignPricingWitnessSchema.safeParse(witnessInput);
   const policyResult = contractLeaguePolicySchema.safeParse(policyInput);
-  const reasons: Reason[] = [];
 
-  if (!witnessResult.success) reasons.push({ code: 'RE_SIGN_PRICE_WITNESS_INVALID', detail: 'Re-sign pricing witness failed schema validation.' });
-  if (!policyResult.success) reasons.push({ code: 'POLICY_INVALID', detail: 'Contract league policy failed schema validation.' });
-  if (reasons.length) return abstain(witnessInput, policyInput, context, reasons);
+  if (!witnessResult.success || !policyResult.success) {
+    const parseReasons: Reason[] = [];
+    if (!witnessResult.success) {
+      parseReasons.push({ code: 'RE_SIGN_PRICE_WITNESS_INVALID', detail: 'Re-sign pricing witness failed schema validation.' });
+    }
+    if (!policyResult.success) {
+      parseReasons.push({ code: 'POLICY_INVALID', detail: 'Contract league policy failed schema validation.' });
+    }
+    return abstain(witnessInput, policyInput, context, parseReasons);
+  }
 
   const witness = witnessResult.data;
   const policy = policyResult.data;
+  const reasons: Reason[] = [];
   const decisionMs = parseTime(context.decisionAt);
   if (decisionMs === null) reasons.push({ code: 'DECISION_TIME_INVALID', detail: 'Re-sign pricing requires a valid frozen decision timestamp.' });
   if (!context.leagueKey.trim()) reasons.push({ code: 'LEAGUE_KEY_REQUIRED', detail: 'Re-sign pricing requires an explicit internal league key.' });
