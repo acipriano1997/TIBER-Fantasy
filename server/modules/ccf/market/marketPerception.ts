@@ -33,11 +33,12 @@ export interface CCFMarketSignalEvidence {
   direction: CCFMarketSignalDirection;
   magnitude: number;
   /**
-   * Optional source-normalized market standing on [0, 1]. Raw ranks, ADP,
-   * prices, and proprietary scores must be normalized by a versioned adapter
-   * before entering this field. Higher always means a stronger market standing.
+   * Optional market standing on [0, 1], normalized by a versioned source
+   * adapter onto the explicitly named comparison pool. Higher always means a
+   * stronger market standing. Raw provider ranks/values never enter here.
    */
   marketLevelPercentile?: number;
+  marketLevelComparisonPoolId?: string;
 }
 
 export interface CCFMarketPerceptionPolicy {
@@ -55,6 +56,7 @@ export interface CCFMarketWindowSummary {
   status: "available" | "insufficient";
   directionalPressure: number | null;
   marketLevelPercentile: number | null;
+  marketLevelComparisonPoolId: string | null;
   rawSignalCount: number;
   independentSourceCount: number;
   independenceRatio: number;
@@ -79,6 +81,7 @@ export interface CCFMarketPerceptionSnapshot {
    */
   momentumDelta: number | null;
   marketLevelPercentile: number | null;
+  marketLevelComparisonPoolId: string | null;
   diagnosticOnly: true;
   recommendationAuthority: "none";
 }
@@ -93,6 +96,7 @@ export interface CCFMarketNeighborhood {
   playerId: string;
   formatId: string;
   asOf: string;
+  marketLevelComparisonPoolId: string;
   radius: number;
   above: CCFMarketNeighborhoodEntry[];
   target: CCFMarketNeighborhoodEntry;
@@ -172,6 +176,14 @@ export function validateCCFMarketSignalEvidence(
   requireUnitInterval("magnitude", signal.magnitude);
   if (signal.marketLevelPercentile != null) {
     requireUnitInterval("marketLevelPercentile", signal.marketLevelPercentile);
+    requireText(
+      "marketLevelComparisonPoolId",
+      signal.marketLevelComparisonPoolId ?? "",
+    );
+  } else if (signal.marketLevelComparisonPoolId != null) {
+    throw new CCFMarketPerceptionContractError(
+      "marketLevelComparisonPoolId requires marketLevelPercentile",
+    );
   }
 
   return signal;
@@ -230,6 +242,7 @@ interface SourceComposite {
   sourceFamily: CCFMarketSourceFamily;
   directionalValue: number;
   marketLevelPercentile: number | null;
+  marketLevelComparisonPoolId: string | null;
   sourceRefs: string[];
 }
 
@@ -277,6 +290,14 @@ function buildSourceComposites(
     const levelSignals = collapsed.filter(
       (signal) => signal.marketLevelPercentile != null,
     );
+    const comparisonPoolIds = new Set(
+      levelSignals.map((signal) => signal.marketLevelComparisonPoolId as string),
+    );
+    if (comparisonPoolIds.size > 1) {
+      throw new CCFMarketPerceptionContractError(
+        `sourceId ${sourceId} contains incompatible market comparison pools`,
+      );
+    }
     const marketLevelPercentile =
       levelSignals.length === 0
         ? null
@@ -284,12 +305,15 @@ function buildSourceComposites(
             (sum, signal) => sum + (signal.marketLevelPercentile as number),
             0,
           ) / levelSignals.length;
+    const marketLevelComparisonPoolId =
+      comparisonPoolIds.size === 0 ? null : [...comparisonPoolIds][0];
 
     composites.push({
       sourceId,
       sourceFamily: collapsed[0].sourceFamily,
       directionalValue,
       marketLevelPercentile,
+      marketLevelComparisonPoolId,
       sourceRefs: [...new Set(collapsed.map((signal) => signal.sourceRef))].sort(),
     });
   }
@@ -333,6 +357,16 @@ function summarizeWindow(
   const levelComposites = weightedComposites.filter(
     (source) => source.marketLevelPercentile != null,
   );
+  const comparisonPoolIds = new Set(
+    levelComposites.map((source) => source.marketLevelComparisonPoolId as string),
+  );
+  if (comparisonPoolIds.size > 1) {
+    throw new CCFMarketPerceptionContractError(
+      "market level evidence cannot combine incompatible comparison pools",
+    );
+  }
+  const marketLevelComparisonPoolId =
+    comparisonPoolIds.size === 0 ? null : [...comparisonPoolIds][0];
   const totalLevelWeight = levelComposites.reduce(
     (sum, source) => sum + policy.sourceFamilyWeights[source.sourceFamily],
     0,
@@ -361,6 +395,7 @@ function summarizeWindow(
     status,
     directionalPressure,
     marketLevelPercentile,
+    marketLevelComparisonPoolId,
     rawSignalCount: windowSignals.length,
     independentSourceCount,
     independenceRatio:
@@ -429,6 +464,10 @@ export function buildCCFMarketPerceptionSnapshot(
     medium.directionalPressure != null
       ? fast.directionalPressure - medium.directionalPressure
       : null;
+  const marketLevelPercentile =
+    medium.status === "available" ? medium.marketLevelPercentile : null;
+  const marketLevelComparisonPoolId =
+    marketLevelPercentile == null ? null : medium.marketLevelComparisonPoolId;
 
   return {
     contractVersion: "ccf-market-perception-snapshot-v1",
@@ -440,7 +479,8 @@ export function buildCCFMarketPerceptionSnapshot(
     fast,
     medium,
     momentumDelta,
-    marketLevelPercentile: medium.marketLevelPercentile,
+    marketLevelPercentile,
+    marketLevelComparisonPoolId,
     diagnosticOnly: true,
     recommendationAuthority: "none",
   };
@@ -466,6 +506,7 @@ export function buildCCFMarketNeighborhood(
   const formatId = snapshots[0].formatId;
   const asOf = snapshots[0].asOf;
   const playerIds = new Set<string>();
+  const comparisonPoolIds = new Set<string>();
   const eligible: CCFMarketNeighborhoodEntry[] = [];
 
   for (const snapshot of snapshots) {
@@ -485,17 +526,35 @@ export function buildCCFMarketNeighborhood(
       );
     }
     playerIds.add(snapshot.playerId);
+
     if (snapshot.marketLevelPercentile != null) {
       requireUnitInterval(
         "snapshot.marketLevelPercentile",
         snapshot.marketLevelPercentile,
       );
+      requireText(
+        "snapshot.marketLevelComparisonPoolId",
+        snapshot.marketLevelComparisonPoolId ?? "",
+      );
+      comparisonPoolIds.add(snapshot.marketLevelComparisonPoolId as string);
       eligible.push({
         playerId: snapshot.playerId,
         marketLevelPercentile: snapshot.marketLevelPercentile,
       });
     }
   }
+
+  if (comparisonPoolIds.size > 1) {
+    throw new CCFMarketPerceptionContractError(
+      "market neighborhood snapshots must share one comparison pool",
+    );
+  }
+  if (comparisonPoolIds.size === 0) {
+    throw new CCFMarketPerceptionContractError(
+      "market neighborhood requires an eligible market comparison pool",
+    );
+  }
+  const marketLevelComparisonPoolId = [...comparisonPoolIds][0];
 
   eligible.sort((left, right) => {
     const levelDiff = right.marketLevelPercentile - left.marketLevelPercentile;
@@ -515,6 +574,7 @@ export function buildCCFMarketNeighborhood(
     playerId: targetPlayerId,
     formatId,
     asOf,
+    marketLevelComparisonPoolId,
     radius,
     above: eligible.slice(Math.max(0, targetIndex - radius), targetIndex),
     target: eligible[targetIndex],
