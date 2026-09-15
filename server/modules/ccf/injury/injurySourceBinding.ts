@@ -23,6 +23,19 @@ export type CCFRecoveryArchiveStrategy =
   | "provider_archive"
   | "none";
 
+export type CCFRecoverySourcePromotionBlocker =
+  | "status_rejected"
+  | "status_research_only"
+  | "challenger_inference_not_eligible"
+  | "temporal_mode_not_archived_point_in_time"
+  | "archive_strategy_missing"
+  | "license_or_terms_missing"
+  | "parser_version_missing"
+  | "source_locator_missing"
+  | "point_in_time_semantics_undocumented"
+  | "raw_trace_missing"
+  | "reliability_review_missing";
+
 export interface CCFRecoverySourceBinding {
   bindingVersion: "ccf-recovery-source-binding-v1";
   bindingId: string;
@@ -49,6 +62,13 @@ export interface CCFRecoverySourceBindingPlan {
   bindings: CCFRecoverySourceBinding[];
 }
 
+export interface CCFRecoverySourcePromotionReadiness {
+  bindingId: string;
+  status: CCFRecoveryBindingStatus;
+  promotable: boolean;
+  blockers: CCFRecoverySourcePromotionBlocker[];
+}
+
 export class CCFRecoverySourceBindingError extends Error {
   constructor(message: string) {
     super(message);
@@ -67,6 +87,54 @@ function parseTimestamp(label: string, value: string): number {
 function requireText(label: string, value: string | null): string {
   if (!value?.trim()) throw new CCFRecoverySourceBindingError(`${label} is required`);
   return value;
+}
+
+export function evaluateCCFRecoverySourcePromotionReadiness(
+  binding: CCFRecoverySourceBinding,
+): CCFRecoverySourcePromotionReadiness {
+  validateCCFRecoverySourceBinding({
+    ...binding,
+    // Candidate/readiness evaluation must inspect incomplete bindings without
+    // pretending they are already production eligible.
+    status: binding.status === "production_eligible" ? "candidate" : binding.status,
+  });
+
+  const blockers: CCFRecoverySourcePromotionBlocker[] = [];
+  if (binding.status === "rejected") blockers.push("status_rejected");
+  if (binding.status === "research_only") blockers.push("status_research_only");
+  if (binding.authority === "challenger_inference") {
+    blockers.push("challenger_inference_not_eligible");
+  }
+  if (binding.temporalMode !== "archived_point_in_time") {
+    blockers.push("temporal_mode_not_archived_point_in_time");
+  }
+  if (binding.archiveStrategy === "none") blockers.push("archive_strategy_missing");
+  if (!binding.licenseOrTermsRef?.trim()) blockers.push("license_or_terms_missing");
+  if (!binding.parserVersion?.trim()) blockers.push("parser_version_missing");
+  if (!binding.sourceLocatorTemplate?.trim()) blockers.push("source_locator_missing");
+  if (!binding.pointInTimeSemanticsDocumented) {
+    blockers.push("point_in_time_semantics_undocumented");
+  }
+  if (!binding.rawTraceSupported) blockers.push("raw_trace_missing");
+  if (!binding.reliabilityReviewRef?.trim()) blockers.push("reliability_review_missing");
+
+  return {
+    bindingId: binding.bindingId,
+    status: binding.status,
+    promotable:
+      (binding.status === "candidate" || binding.status === "production_eligible") &&
+      blockers.length === 0,
+    blockers,
+  };
+}
+
+export function evaluateCCFRecoverySourcePlanPromotionReadiness(
+  plan: CCFRecoverySourceBindingPlan,
+): CCFRecoverySourcePromotionReadiness[] {
+  validateCCFRecoverySourceBindingPlan(plan);
+  return [...plan.bindings]
+    .sort((left, right) => left.bindingId.localeCompare(right.bindingId))
+    .map(evaluateCCFRecoverySourcePromotionReadiness);
 }
 
 export function validateCCFRecoverySourceBinding(
