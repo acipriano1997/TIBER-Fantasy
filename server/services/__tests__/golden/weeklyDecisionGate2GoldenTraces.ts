@@ -38,7 +38,7 @@ function tail(
     leftTail: null,
     pathways: null,
     sourceReceipts: [{
-      owner: 'TIBER-Forecast',
+      owner: 'CCF-Forecast',
       artifactOrEndpoint: 'weekly-tail-v2',
       schemaOrModelVersion: 'forecast-weekly-tail-v2',
       runOrContentHash,
@@ -165,7 +165,7 @@ export const WEEKLY_DECISION_GATE2_GOLDEN_TRACES: readonly WeeklyDecisionGate2Go
   },
   {
     id: 'fail_closed_source_laundering',
-    description: 'A packet with plausible quantiles but no authoritative TIBER-Forecast receipt cannot enter the decision path.',
+    description: 'A packet with plausible quantiles but no authoritative CCF-Forecast receipt cannot enter the decision path.',
     recordedAt: '2026-09-07T16:14:00.000Z',
     context: baseContext({
       decisionId: 'golden-week1-wr-source-laundering',

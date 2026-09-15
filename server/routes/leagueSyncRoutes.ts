@@ -7,6 +7,8 @@ import {
   publicCommandCenterLeagueContext,
   resolveCommandCenterLeagueContext,
 } from "../services/commandCenterLeagueContextService";
+import { evaluateWeeklyDecisionRuntime } from "../services/weeklyDecisionRuntimeService";
+import { createWeeklyDecisionRuntimeRouter } from "./weeklyDecisionRuntimeRoutes";
 
 type LeagueSyncDeps = {
   storage: typeof storage;
@@ -337,6 +339,11 @@ export function createLeagueSyncRouter(deps: LeagueSyncDeps = defaultDeps) {
       res.status(500).json({ success: false, error: (error as Error).message || 'Failed to fetch picks' });
     }
   });
+
+  router.use(createWeeklyDecisionRuntimeRouter({
+    storage: deps.storage,
+    evaluateRuntime: evaluateWeeklyDecisionRuntime,
+  }));
 
   return router;
 }
