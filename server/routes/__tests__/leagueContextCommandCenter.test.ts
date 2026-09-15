@@ -1,5 +1,8 @@
 import express from 'express';
 import request from 'supertest';
+
+jest.mock('../../storage', () => ({ storage: {} }));
+
 import { createLeagueSyncRouter } from '../leagueSyncRoutes';
 
 const scoring = {
