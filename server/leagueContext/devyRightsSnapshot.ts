@@ -68,11 +68,11 @@ export async function createDevyRightsSnapshot(
   if (!input.extractionComplete) {
     validationIssues.push('Devy rights extraction is not complete for the linked owner column.');
   }
-  for (const [index, right] of input.rights.entries()) {
+  input.rights.forEach((right, index) => {
     if (!right.playerName.trim()) {
       validationIssues.push(`Devy right row ${index + 1} has no player name.`);
     }
-  }
+  });
 
   const sourceHealth = evaluateSourceHealth({
     asOf: input.asOf,
