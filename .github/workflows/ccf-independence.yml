@@ -76,10 +76,17 @@ jobs:
           server/modules/ccf/features/__tests__/weeklyFeatureEvidence.test.ts
           server/modules/ccf/scoring/__tests__/scoringRules.test.ts
           server/modules/ccf/sources/__tests__/nflverseWeeklyPlayerStats.test.ts
+          server/modules/ccf/sources/__tests__/nflverseRecoveryCandidates.test.ts
+          server/modules/ccf/sources/__tests__/archivedNflverseSnapCounts.test.ts
           server/modules/ccf/sources/__tests__/sourceSnapshot.test.ts
+          server/modules/ccf/sources/__tests__/rawSourceArchive.test.ts
           server/modules/ccf/sources/__tests__/sourceState.test.ts
           server/modules/ccf/sources/__tests__/transactionalArtifactPromotion.test.ts
           server/modules/ccf/weather/__tests__/weatherEvidence.test.ts
+          server/modules/ccf/injury/__tests__/injuryRecoveryEvidence.test.ts
+          server/modules/ccf/injury/__tests__/injurySourceAndValidation.test.ts
+          server/modules/ccf/injury/__tests__/recoverySourceCandidateInventory.test.ts
+          server/modules/ccf/injury/__tests__/recoverySourcePromotionReadiness.test.ts
 
       - name: Build application
         run: sh build.sh

@@ -1,6 +1,6 @@
 # CCF Native Source Spine Audit
 
-**Status:** active migration audit for CCF-INDEP-001  
+**Status:** active migration audit for CCF-INDEP-001
 **As of:** 2026-09-15
 
 ## Executive verdict

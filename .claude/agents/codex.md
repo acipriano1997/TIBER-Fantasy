@@ -934,3 +934,9 @@ Workflow: Creates PRs on GitHub, merged by Architect J after review
 - Added adversarial regression coverage and updated the canonical FFCC queue/authority/release documentation.
 - Validation: exact CCF workflow passed 24 suites / 142 tests after the change; focused post-fix replay passed 39/39; no CCF-scoped TypeScript diagnostics while the repository retained 508 unrelated baseline diagnostics; server and deployment-equivalent builds passed with the existing OLC warning; diff check passed.
 - No production binding, model certification, recommendation authority, merge, deployment, or Football Unwritten work occurred.
+
+## 2026-09-15 — CCF recovery stack authority-base repair
+
+- Reconciled the draft injury/recovery source branch with the latest trusted authority and generic source-qualification foundation while retaining its permission/access-gated recovery-source inventory.
+- Validation: exact branch CCF gate 31 suites / 197 tests; zero CCF or touched-file TypeScript diagnostics against 508 unrelated baseline diagnostics; server and deployment builds green with the existing OLC warning; diff checks clean.
+- No recovery source promotion, fabricated evidence, recommendation activation, merge, deployment, or publication occurred.
