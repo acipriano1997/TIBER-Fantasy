@@ -143,7 +143,7 @@ export type WeeklyDecisionResult = {
 
 const SUPPORTED_POSITIONS = new Set(['QB', 'RB', 'WR', 'TE']);
 const REQUIRED_QUANTILES = ['p10', 'p25', 'p50', 'p75', 'p90', 'p95'] as const;
-const AUTHORITATIVE_WEEKLY_TAIL_OWNER = 'TIBER-Forecast';
+export const AUTHORITATIVE_WEEKLY_TAIL_OWNER = 'CCF-Forecast' as const;
 
 function finite(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value);
