@@ -225,6 +225,7 @@ export const cutMoneyDispositionSchema = z.enum([
 export const cutFinancialTreatmentSchema = z.object({
   guaranteed: cutMoneyDispositionSchema,
   optional: cutMoneyDispositionSchema,
+  deadCapCountsTowardGuaranteedLedger: z.boolean(),
 });
 
 export const tagPolicySchema = z.object({
