@@ -58,6 +58,7 @@ describe("CCF universal release checklist", () => {
     const checklist = buildCCFUniversalReleaseChecklist([], RELEASE_AS_OF);
     expect(checklist.lineupDecision.blockers).toEqual(expect.arrayContaining([
       "unified_league_context_adapter:missing",
+      "active_league_position_coverage:missing",
       "production_weekly_source_spine:missing",
       "predictive_validation:missing",
       "trusted_lineup_authority_binding:missing",
