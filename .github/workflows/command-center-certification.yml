@@ -61,6 +61,7 @@ jobs:
           server/leagueContext/__tests__/decisionPacketLeagueContext.test.ts
           server/leagueContext/__tests__/devyRightsSnapshot.test.ts
           server/leagueContext/__tests__/formatIsolation.test.ts
+          server/leagueContext/__tests__/contractWorkbookSnapshot.test.ts
       - name: Run contract league regressions
         run: npm test -- server/modules/contractLeagues/__tests__
       - name: Build application
