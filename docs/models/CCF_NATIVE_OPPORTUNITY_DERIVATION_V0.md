@@ -14,7 +14,7 @@ The narrow pipeline is:
 promoted source-backed canonical play evidence
   -> complete-game + as-of validation
   -> deterministic CCF opportunity ledger
-  -> later rolling/weekly feature construction
+  -> later participation-aware rolling feature construction
   -> later native outcome model
 ```
 
@@ -115,6 +115,21 @@ Player share outputs depend on both a player numerator and team denominator. The
 
 A locally implemented transform does not make a candidate external source native.
 
+## Why rolling player windows are deliberately deferred
+
+A player missing from this opportunity ledger is **not automatically evidence of zero role**. A complete PBP game can omit a player from the player ledger because they received no carry or target, but PBP alone cannot distinguish that state from questions such as:
+
+- was the player active and eligible to play?
+- did the player take offensive snaps without an opportunity?
+- was the player unavailable or inactive?
+- is the canonical identity join incomplete?
+
+Treating every absent player as zero carries/targets would create selection and survivorship bias in role trends. Therefore v0 does not yet build rolling player windows from opportunity ledgers alone.
+
+Before zero-opportunity games enter a player time series, CCF should join promoted participation/activation evidence and explicitly establish that the player was eligible for the denominator being modeled. Missing applicability must remain distinct from observed zero.
+
+Team-level rolling context can be developed independently where completeness is proven, but player role windows should wait for this participation-aware join.
+
 ## Source status
 
 No live PBP provider is promoted by this branch.
@@ -130,7 +145,8 @@ Fixtures may use a synthetic `promoted` source state solely to certify engine be
 3. prove game completeness and correction semantics;
 4. bind canonical IDs;
 5. promote the source only after source-state gates pass;
-6. add rolling prior-game windows and recency/regime features without leaking game-N outcomes into game-N pre-lock decisions;
-7. compare opportunity-family additions through frozen chronological OOS ablations before they influence recommendation authority.
+6. join promoted participation/activation evidence before treating player absence as a zero-opportunity observation;
+7. add rolling prior-game windows and recency/regime features without leaking game-N outcomes into game-N pre-lock decisions;
+8. compare opportunity-family additions through frozen chronological OOS ablations before they influence recommendation authority.
 
 No player projection, fantasy-point coefficient, or recommendation weight is introduced by v0.
