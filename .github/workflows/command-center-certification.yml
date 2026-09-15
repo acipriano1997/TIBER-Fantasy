@@ -57,5 +57,6 @@ jobs:
           server/modules/management/__tests__/forgeTeamDirectionFreshnessPolicy.test.ts
           server/leagueContext/__tests__/leagueContextV1.test.ts
           server/leagueContext/__tests__/decisionPacketLeagueContext.test.ts
+          server/leagueContext/__tests__/devyRightsSnapshot.test.ts
       - name: Build application
         run: sh build.sh
