@@ -22,6 +22,8 @@ import type {
 const SUPPORTED_POSITIONS = new Set(['QB', 'RB', 'WR', 'TE']);
 const NON_STARTING_SLOTS = new Set(['BN', 'IR', 'TAXI']);
 
+type SupportedPosition = 'QB' | 'RB' | 'WR' | 'TE';
+
 export type ActiveTeamContextLike = {
   id?: string | null;
   externalRosterId?: string | number | null;
@@ -94,63 +96,52 @@ const defaultDeps: WeeklyDecisionRuntimeDeps = {
   getSleeperLeague: sleeperClient.getLeague.bind(sleeperClient),
   getLeagueRosters: sleeperClient.getLeagueRosters.bind(sleeperClient),
   getNflPlayers: sleeperClient.getNflPlayers.bind(sleeperClient),
-  // A live roster payload does not prove NFL game-lock state. Until a governed
-  // schedule/lock witness is connected, fail closed rather than assume unlocked.
+  // Sleeper roster truth does not prove whether an NFL game has locked.
   resolveLockState: async () => null,
-  // The old Compass/prediction intervals are not calibrated CCF distributions.
-  // This seam intentionally remains empty until a promoted CCF forecast packet exists.
+  // Legacy Compass intervals are not calibrated CCF outcome distributions.
   getTailOutlook: async () => null,
   now: () => new Date(),
 };
 
-function externalLeagueId(league: ActiveLeagueContextLike | null | undefined): string | null {
-  if (!league) return null;
-  const value = league.leagueIdExternal ?? league.league_id_external ?? null;
+function leagueIdOf(league: ActiveLeagueContextLike | null | undefined): string | null {
+  const value = league?.leagueIdExternal ?? league?.league_id_external ?? null;
   return value == null ? null : String(value);
 }
 
-function externalRosterId(team: ActiveTeamContextLike | null | undefined): string | null {
-  if (!team) return null;
-  const value = team.externalRosterId ?? team.external_roster_id ?? null;
+function rosterIdOf(team: ActiveTeamContextLike | null | undefined): string | null {
+  const value = team?.externalRosterId ?? team?.external_roster_id ?? null;
   return value == null ? null : String(value);
 }
 
 function canonicalize(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(canonicalize);
-  if (value && typeof value === 'object') {
-    return Object.fromEntries(
-      Object.entries(value as Record<string, unknown>)
-        .sort(([left], [right]) => left.localeCompare(right))
-        .map(([key, nested]) => [key, canonicalize(nested)]),
-    );
-  }
-  return value;
+  if (!value || typeof value !== 'object') return value;
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, nested]) => [key, canonicalize(nested)]),
+  );
 }
 
-function sha256(value: unknown): string {
-  return createHash('sha256')
-    .update(JSON.stringify(canonicalize(value)))
-    .digest('hex');
+function hash(value: unknown): string {
+  return createHash('sha256').update(JSON.stringify(canonicalize(value))).digest('hex');
 }
 
-function playerName(playerId: string, player: SleeperPlayer | undefined): string {
-  return player?.full_name
-    ?? [player?.first_name, player?.last_name].filter(Boolean).join(' ')
-    || playerId;
+function positionOf(player: SleeperPlayer | undefined): SupportedPosition | null {
+  const raw = player?.position?.toUpperCase() ?? null;
+  return raw && SUPPORTED_POSITIONS.has(raw) ? raw as SupportedPosition : null;
 }
 
-function normalizedPosition(player: SleeperPlayer | undefined): 'QB' | 'RB' | 'WR' | 'TE' | null {
-  const value = player?.position?.toUpperCase() ?? null;
-  return value && SUPPORTED_POSITIONS.has(value)
-    ? value as 'QB' | 'RB' | 'WR' | 'TE'
-    : null;
+function nameOf(id: string, player: SleeperPlayer | undefined): string {
+  const assembled = [player?.first_name, player?.last_name].filter(Boolean).join(' ');
+  return player?.full_name ?? (assembled || id);
 }
 
-function rosterPlayerSet(roster: SleeperRoster): Set<string> {
+function playerSet(roster: SleeperRoster): Set<string> {
   return new Set((roster.players ?? []).map(String));
 }
 
-function excludedBenchSet(roster: SleeperRoster): Set<string> {
+function unavailableBenchSet(roster: SleeperRoster): Set<string> {
   return new Set([
     ...(roster.starters ?? []),
     ...(roster.reserve ?? []),
@@ -161,29 +152,26 @@ function excludedBenchSet(roster: SleeperRoster): Set<string> {
 function blocked(
   blockers: string[],
   missingInputs: string[],
-  partial: Pick<WeeklyDecisionRuntimeResult, 'roster' | 'candidateSnapshot'> = {
-    roster: null,
-    candidateSnapshot: null,
-  },
+  roster: WeeklyDecisionRuntimeResult['roster'] = null,
+  candidateSnapshot: WeeklyDecisionRuntimeResult['candidateSnapshot'] = null,
 ): WeeklyDecisionRuntimeResult {
   return {
     schemaVersion: 'command-center-weekly-runtime.v1',
     state: 'blocked',
     blockers,
     missingInputs,
-    roster: partial.roster,
-    candidateSnapshot: partial.candidateSnapshot,
+    roster,
+    candidateSnapshot,
     decisionContext: null,
     decision: null,
   };
 }
 
 /**
- * Assemble one governed Weekly Decision v1 comparison from current Sleeper
- * roster truth plus certified league scoring. The runtime deliberately admits
- * only direct exact-position starter/bench swaps. FLEX/SUPER_FLEX cascades,
- * unknown lock state, unresolved identity, and missing calibrated CCF tails
- * fail closed instead of falling back to legacy start/sit heuristics.
+ * Builds a governed Weekly Decision v1 packet from live Sleeper roster truth and
+ * certified league scoring. v1 admits only direct exact-position swaps. FLEX
+ * cascades, unknown lock state, and absent promoted CCF distributions fail
+ * closed; legacy rankings/projections are never substituted.
  */
 export async function evaluateWeeklyDecisionRuntime(
   input: WeeklyDecisionRuntimeInput,
@@ -196,8 +184,8 @@ export async function evaluateWeeklyDecisionRuntime(
     return blocked(['Two distinct Sleeper player IDs are required.'], ['candidate_player_ids']);
   }
 
-  const leagueId = externalLeagueId(input.activeLeague);
-  const rosterId = externalRosterId(input.activeTeam);
+  const leagueId = leagueIdOf(input.activeLeague);
+  const rosterId = rosterIdOf(input.activeTeam);
   if (!input.activeLeague || !leagueId) {
     return blocked(['No active Sleeper league with an external league ID is selected.'], ['active_league']);
   }
@@ -213,10 +201,7 @@ export async function evaluateWeeklyDecisionRuntime(
   const leagueContext = resolvedLeague.context;
   if (!leagueContext || resolvedLeague.readiness.lineup?.ready !== true) {
     return blocked(
-      [
-        'Active league/scoring context is not certified for lineup decisions.',
-        ...(resolvedLeague.readiness.lineup?.blockers ?? []),
-      ],
+      ['Active league/scoring context is not certified for lineup decisions.', ...(resolvedLeague.readiness.lineup?.blockers ?? [])],
       ['certified_active_league_context'],
     );
   }
@@ -227,32 +212,34 @@ export async function evaluateWeeklyDecisionRuntime(
     return blocked(['Certified scoring identity is unavailable.'], ['certified_scoring_identity']);
   }
 
-  const rosters = await deps.getLeagueRosters(leagueId);
-  const roster = rosters.find((row) => String(row.roster_id) === rosterId);
+  const roster = (await deps.getLeagueRosters(leagueId))
+    .find((row) => String(row.roster_id) === rosterId);
   if (!roster) {
     return blocked([`Sleeper roster ${rosterId} was not found in active league ${leagueId}.`], ['live_roster']);
   }
 
   const starters = (roster.starters ?? []).map(String);
-  const playerIds = rosterPlayerSet(roster);
-  const benchExclusions = excludedBenchSet(roster);
+  const rosterPlayers = playerSet(roster);
   const starterSlots = leagueContext.rosterPositions.filter((slot) => !NON_STARTING_SLOTS.has(slot));
-  const rosterSnapshotHash = sha256({
+  const rosterSnapshotHash = hash({
     leagueId,
     rosterId,
     rosterPositions: leagueContext.rosterPositions,
-    players: [...playerIds].sort(),
+    players: [...rosterPlayers].sort(),
     starters,
     reserve: (roster.reserve ?? []).map(String).sort(),
     taxi: (roster.taxi ?? []).map(String).sort(),
   });
-  const rosterSnapshotRef = `sleeper:${leagueId}:roster:${rosterId}:${rosterSnapshotHash.slice(0, 16)}`;
-  const rosterView = {
+  const starterIndex = starters.indexOf(input.starterPlayerId);
+  const controlledSlot = starterIndex >= 0 && starterIndex < starterSlots.length
+    ? starterSlots[starterIndex]
+    : null;
+  const rosterView: NonNullable<WeeklyDecisionRuntimeResult['roster']> = {
     leagueId,
     rosterId,
-    rosterSnapshotRef,
+    rosterSnapshotRef: `sleeper:${leagueId}:roster:${rosterId}:${rosterSnapshotHash.slice(0, 16)}`,
     rosterSnapshotHash,
-    controlledSlot: null as string | null,
+    controlledSlot,
     starterPlayerId: input.starterPlayerId,
     benchPlayerId: input.benchPlayerId,
   };
@@ -260,20 +247,17 @@ export async function evaluateWeeklyDecisionRuntime(
   const geometryBlockers: string[] = [];
   const geometryMissing: string[] = [];
   if (starterSlots.length !== starters.length) {
-    geometryBlockers.push(
-      `Sleeper starter count (${starters.length}) does not match certified starting-slot count (${starterSlots.length}).`,
-    );
+    geometryBlockers.push(`Sleeper starter count (${starters.length}) does not match certified starting-slot count (${starterSlots.length}).`);
     geometryMissing.push('exact_starter_slot_alignment');
   }
-  const starterIndex = starters.indexOf(input.starterPlayerId);
   if (starterIndex < 0) {
     geometryBlockers.push(`${input.starterPlayerId} is not an observed current starter.`);
     geometryMissing.push(`${input.starterPlayerId}:observed_starter`);
   }
-  if (!playerIds.has(input.benchPlayerId)) {
+  if (!rosterPlayers.has(input.benchPlayerId)) {
     geometryBlockers.push(`${input.benchPlayerId} is not on the current Sleeper roster.`);
     geometryMissing.push(`${input.benchPlayerId}:roster_membership`);
-  } else if (benchExclusions.has(input.benchPlayerId)) {
+  } else if (unavailableBenchSet(roster).has(input.benchPlayerId)) {
     geometryBlockers.push(`${input.benchPlayerId} is not an eligible active bench player (starter, reserve, or taxi).`);
     geometryMissing.push(`${input.benchPlayerId}:active_bench_status`);
   }
@@ -281,19 +265,11 @@ export async function evaluateWeeklyDecisionRuntime(
   const players = await deps.getNflPlayers();
   const starterPlayer = players[input.starterPlayerId];
   const benchPlayer = players[input.benchPlayerId];
-  const starterPosition = normalizedPosition(starterPlayer);
-  const benchPosition = normalizedPosition(benchPlayer);
+  const starterPosition = positionOf(starterPlayer);
+  const benchPosition = positionOf(benchPlayer);
   const candidateSnapshot = {
-    starter: {
-      playerId: input.starterPlayerId,
-      name: playerName(input.starterPlayerId, starterPlayer),
-      position: starterPosition,
-    },
-    bench: {
-      playerId: input.benchPlayerId,
-      name: playerName(input.benchPlayerId, benchPlayer),
-      position: benchPosition,
-    },
+    starter: { playerId: input.starterPlayerId, name: nameOf(input.starterPlayerId, starterPlayer), position: starterPosition },
+    bench: { playerId: input.benchPlayerId, name: nameOf(input.benchPlayerId, benchPlayer), position: benchPosition },
   };
 
   if (!starterPlayer || !starterPosition) {
@@ -304,104 +280,66 @@ export async function evaluateWeeklyDecisionRuntime(
     geometryBlockers.push(`Sleeper canonical NFL identity/position is unavailable for ${input.benchPlayerId}.`);
     geometryMissing.push(`${input.benchPlayerId}:canonical_identity`);
   }
-
-  const controlledSlot = starterIndex >= 0 && starterIndex < starterSlots.length
-    ? starterSlots[starterIndex]
-    : null;
-  rosterView.controlledSlot = controlledSlot;
-  if (
-    controlledSlot
-    && starterPosition
-    && benchPosition
-    && (starterPosition !== benchPosition || controlledSlot !== starterPosition)
-  ) {
-    geometryBlockers.push(
-      `Weekly Decision v1 only admits an exact-position slot swap; observed slot ${controlledSlot} cannot certify this ${starterPosition ?? 'unknown'} / ${benchPosition ?? 'unknown'} comparison.`,
-    );
+  if (controlledSlot && starterPosition && benchPosition
+      && (starterPosition !== benchPosition || controlledSlot !== starterPosition)) {
+    geometryBlockers.push(`Weekly Decision v1 only admits an exact-position slot swap; observed slot ${controlledSlot} cannot certify this comparison.`);
     geometryMissing.push('exact_position_legal_swap');
   }
-
   if (geometryBlockers.length) {
-    return blocked(geometryBlockers, geometryMissing, { roster: rosterView, candidateSnapshot });
+    return blocked(geometryBlockers, geometryMissing, rosterView, candidateSnapshot);
   }
 
+  const tailRequest = (playerId: string): WeeklyTailRequest => ({
+    leagueId,
+    season: leagueContext.identity.season,
+    week: input.week,
+    playerId,
+    scoringProfileRef,
+    scoringProfileHash,
+    evidenceCutoffAt,
+  });
   const [starterLock, benchLock, starterTail, benchTail] = await Promise.all([
-    deps.resolveLockState({
-      season: leagueContext.identity.season,
-      week: input.week,
-      playerId: input.starterPlayerId,
-      player: starterPlayer!,
-      evidenceCutoffAt,
-    }),
-    deps.resolveLockState({
-      season: leagueContext.identity.season,
-      week: input.week,
-      playerId: input.benchPlayerId,
-      player: benchPlayer!,
-      evidenceCutoffAt,
-    }),
-    deps.getTailOutlook({
-      leagueId,
-      season: leagueContext.identity.season,
-      week: input.week,
-      playerId: input.starterPlayerId,
-      scoringProfileRef,
-      scoringProfileHash,
-      evidenceCutoffAt,
-    }),
-    deps.getTailOutlook({
-      leagueId,
-      season: leagueContext.identity.season,
-      week: input.week,
-      playerId: input.benchPlayerId,
-      scoringProfileRef,
-      scoringProfileHash,
-      evidenceCutoffAt,
-    }),
+    deps.resolveLockState({ season: leagueContext.identity.season, week: input.week, playerId: input.starterPlayerId, player: starterPlayer!, evidenceCutoffAt }),
+    deps.resolveLockState({ season: leagueContext.identity.season, week: input.week, playerId: input.benchPlayerId, player: benchPlayer!, evidenceCutoffAt }),
+    deps.getTailOutlook(tailRequest(input.starterPlayerId)),
+    deps.getTailOutlook(tailRequest(input.benchPlayerId)),
   ]);
 
   const evidenceBlockers: string[] = [];
   const evidenceMissing: string[] = [];
   if (!starterLock || !benchLock) {
-    evidenceBlockers.push(
-      'NFL game-lock state is not governed for both candidates; Sleeper roster truth alone is not sufficient to assume an unlocked slot.',
-    );
+    evidenceBlockers.push('NFL game-lock state is not governed for both candidates; Sleeper roster truth alone cannot prove an unlocked slot.');
     if (!starterLock) evidenceMissing.push(`${input.starterPlayerId}:lock_state`);
     if (!benchLock) evidenceMissing.push(`${input.benchPlayerId}:lock_state`);
   }
   if (!starterTail || !benchTail) {
-    evidenceBlockers.push(
-      'Promoted calibrated CCF weekly distributions are not available for both candidates; legacy Compass intervals and point projections are not valid substitutes.',
-    );
+    evidenceBlockers.push('Promoted calibrated CCF weekly distributions are not available for both candidates; legacy Compass intervals and point projections are not valid substitutes.');
     if (!starterTail) evidenceMissing.push(`${input.starterPlayerId}:ccf_calibrated_tail`);
     if (!benchTail) evidenceMissing.push(`${input.benchPlayerId}:ccf_calibrated_tail`);
   }
   if (evidenceBlockers.length) {
-    return blocked(evidenceBlockers, evidenceMissing, { roster: rosterView, candidateSnapshot });
+    return blocked(evidenceBlockers, evidenceMissing, rosterView, candidateSnapshot);
   }
 
   const lineupA = { slots: starterSlots, starters };
   const lineupBStarters = [...starters];
   lineupBStarters[starterIndex] = input.benchPlayerId;
-  const lineupB = { slots: starterSlots, starters: lineupBStarters };
-  const locked = Boolean(starterLock!.locked || benchLock!.locked);
-  const teamRef = String(input.activeTeam.id ?? rosterId);
   const decisionContext: WeeklyDecisionContext = {
-    decisionId: `weekly:${leagueId}:${rosterId}:${leagueContext.identity.season}:${input.week}:${input.starterPlayerId}:${input.benchPlayerId}:${sha256({ evidenceCutoffAt }).slice(0, 12)}`,
+    decisionId: `weekly:${leagueId}:${rosterId}:${leagueContext.identity.season}:${input.week}:${input.starterPlayerId}:${input.benchPlayerId}:${hash(evidenceCutoffAt).slice(0, 12)}`,
     season: leagueContext.identity.season,
     week: input.week,
     evidenceCutoffAt,
     validUntil: null,
     leagueRef: leagueId,
-    teamRef,
+    teamRef: String(input.activeTeam.id ?? rosterId),
     scoringProfileRef,
     scoringProfileHash,
-    rosterSnapshotRef,
+    rosterSnapshotRef: rosterView.rosterSnapshotRef,
     rosterSnapshotHash,
-    lineupAHash: sha256(lineupA),
-    lineupBHash: sha256(lineupB),
+    lineupAHash: hash(lineupA),
+    lineupBHash: hash({ slots: starterSlots, starters: lineupBStarters }),
     samePositionLegalSwap: true,
-    locked,
+    locked: Boolean(starterLock!.locked || benchLock!.locked),
     operatorPosture: input.operatorPosture ?? 'unset',
     candidateA: {
       playerId: input.starterPlayerId,
