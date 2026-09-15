@@ -94,6 +94,7 @@ jobs:
           server/modules/ccf/sources/__tests__/rawSourceArchive.test.ts
           server/modules/ccf/sources/__tests__/sourceState.test.ts
           server/modules/ccf/sources/__tests__/transactionalArtifactPromotion.test.ts
+          server/modules/ccf/sources/__tests__/devyIdentityLinkage.test.ts
           server/modules/ccf/weather/__tests__/weatherEvidence.test.ts
           server/modules/ccf/injury/__tests__/injuryRecoveryEvidence.test.ts
           server/modules/ccf/injury/__tests__/injurySourceAndValidation.test.ts
