@@ -4,6 +4,9 @@ import {
   type CCFRecoverySourceBindingPlan,
 } from "./injurySourceBinding";
 
+const NFLVERSE_DATA_LICENSE_REF =
+  "https://github.com/nflverse/nflverse-data/blob/main/LICENSE.md (CC BY 4.0 repository license)";
+
 /**
  * Concrete inventory of recovery-source capabilities that are actually
  * implemented or directly evidenced today. Nothing in this manifest is
@@ -26,7 +29,7 @@ export const CCF_RECOVERY_SOURCE_CANDIDATE_INVENTORY: CCFRecoverySourceBindingPl
       status: "candidate",
       temporalMode: "current_snapshot_only",
       archiveStrategy: "none",
-      licenseOrTermsRef: null,
+      licenseOrTermsRef: NFLVERSE_DATA_LICENSE_REF,
       parserVersion: "ccf-nflverse-injuries-candidate-v1",
       sourceLocatorTemplate:
         "https://github.com/nflverse/nflverse-data/releases/download/injuries/injuries_{season}.csv",
@@ -35,7 +38,7 @@ export const CCF_RECOVERY_SOURCE_CANDIDATE_INVENTORY: CCFRecoverySourceBindingPl
       reliabilityReviewRef: null,
       notes: [
         "Adapter preserves upstream date_modified separately from CCF knownAt.",
-        "Do not promote until historical timestamp/revision semantics and exact terms are audited.",
+        "The nflverse-data repository declares CC BY 4.0; promotion still requires dataset/provenance review, attribution handling, immutable capture, and historical timestamp/revision audit.",
       ],
     },
     {
@@ -49,7 +52,7 @@ export const CCF_RECOVERY_SOURCE_CANDIDATE_INVENTORY: CCFRecoverySourceBindingPl
       status: "candidate",
       temporalMode: "current_snapshot_only",
       archiveStrategy: "none",
-      licenseOrTermsRef: null,
+      licenseOrTermsRef: NFLVERSE_DATA_LICENSE_REF,
       parserVersion: "ccf-nflverse-injuries-candidate-v1",
       sourceLocatorTemplate:
         "https://github.com/nflverse/nflverse-data/releases/download/injuries/injuries_{season}.csv",
@@ -58,7 +61,7 @@ export const CCF_RECOVERY_SOURCE_CANDIDATE_INVENTORY: CCFRecoverySourceBindingPl
       reliabilityReviewRef: null,
       notes: [
         "Practice status is a separate evidence role from final game activation.",
-        "Historical point-in-time eligibility remains unproven.",
+        "The nflverse-data repository declares CC BY 4.0; historical point-in-time eligibility and upstream correction semantics remain unproven.",
       ],
     },
     {
@@ -124,7 +127,7 @@ export const CCF_RECOVERY_SOURCE_CANDIDATE_INVENTORY: CCFRecoverySourceBindingPl
       status: "candidate",
       temporalMode: "current_snapshot_only",
       archiveStrategy: "none",
-      licenseOrTermsRef: null,
+      licenseOrTermsRef: NFLVERSE_DATA_LICENSE_REF,
       parserVersion: "ccf-nflverse-snap-counts-candidate-v1",
       sourceLocatorTemplate:
         "https://github.com/nflverse/nflverse-data/releases/download/snap_counts/snap_counts_{season}.csv",
@@ -133,7 +136,7 @@ export const CCF_RECOVERY_SOURCE_CANDIDATE_INVENTORY: CCFRecoverySourceBindingPl
       reliabilityReviewRef: null,
       notes: [
         "Post-game observed workload only; never eligible for that same game's pre-lock decision.",
-        "Exact downstream terms/attribution and historical publication/revision semantics require review.",
+        "nflverse documents snap-count polling four times daily; exact publication/revision timing, upstream PFR attribution implications, immutable capture, and historical knownAt remain review items.",
       ],
     },
     {
@@ -147,7 +150,7 @@ export const CCF_RECOVERY_SOURCE_CANDIDATE_INVENTORY: CCFRecoverySourceBindingPl
       status: "research_only",
       temporalMode: "current_snapshot_only",
       archiveStrategy: "none",
-      licenseOrTermsRef: "CC-BY-4.0",
+      licenseOrTermsRef: NFLVERSE_DATA_LICENSE_REF,
       parserVersion: "ccf-nflverse-player-stats-v1",
       sourceLocatorTemplate:
         "https://github.com/nflverse/nflverse-data/releases/download/stats_player/stats_player_week_{season}.csv",
