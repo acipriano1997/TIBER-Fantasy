@@ -134,7 +134,8 @@ export function resolveContractLeagueRuleProfile(
     return nameMatch && workbookMatch ? cloneProfile(nameMatch) : null;
   }
 
-  return cloneProfile(nameMatch ?? workbookMatch) ?? null;
+  const resolved = nameMatch ?? workbookMatch;
+  return resolved ? cloneProfile(resolved) : null;
 }
 
 export function assertContractRuleUsable(
