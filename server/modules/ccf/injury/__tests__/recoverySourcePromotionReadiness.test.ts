@@ -67,7 +67,7 @@ describe("CCF recovery source promotion readiness", () => {
     ]);
   });
 
-  it("never marks rejected or research-only sources promotable", () => {
+  it("never marks rejected, research-only, challenger, or speculative sources promotable", () => {
     expect(
       evaluateCCFRecoverySourcePromotionReadiness(
         readyCandidate({ status: "rejected" }),
@@ -78,6 +78,18 @@ describe("CCF recovery source promotion readiness", () => {
         readyCandidate({ status: "research_only" }),
       ).blockers,
     ).toContain("status_research_only");
+
+    const speculative = evaluateCCFRecoverySourcePromotionReadiness(
+      readyCandidate({
+        authority: "challenger_inference",
+        sourceClass: "social_media_speculation",
+      }),
+    );
+    expect(speculative.promotable).toBe(false);
+    expect(speculative.blockers).toEqual([
+      "challenger_inference_not_eligible",
+      "social_media_speculation_not_eligible",
+    ]);
   });
 
   it("makes the live candidate inventory blockers explicit and reviewable", () => {
