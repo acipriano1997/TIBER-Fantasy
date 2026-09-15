@@ -78,6 +78,7 @@ jobs:
           server/modules/ccf/sources/__tests__/nflverseWeeklyPlayerStats.test.ts
           server/modules/ccf/sources/__tests__/nflverseRecoveryCandidates.test.ts
           server/modules/ccf/sources/__tests__/sourceSnapshot.test.ts
+          server/modules/ccf/sources/__tests__/rawSourceArchive.test.ts
           server/modules/ccf/sources/__tests__/sourceState.test.ts
           server/modules/ccf/sources/__tests__/transactionalArtifactPromotion.test.ts
           server/modules/ccf/weather/__tests__/weatherEvidence.test.ts
