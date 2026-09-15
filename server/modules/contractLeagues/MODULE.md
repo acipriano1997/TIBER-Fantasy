@@ -4,12 +4,15 @@
 
 Define the normalized application boundary for user-specific salary-cap / contract-league state without making TIBER-Fantasy the authority for canonical NFL player identity, source-workbook truth, or league-constitution truth.
 
-Contract support has two distinct responsibilities:
+Contract support has separate responsibilities:
 
 1. represent a replayable snapshot of current economic/competitive state;
-2. later evaluate that state under an explicit, versioned league-policy profile to determine legal moves and deterministic cap/contract consequences.
+2. represent league policy independently from current state;
+3. preserve scarce-right history as immutable events;
+4. evaluate hypothetical moves deterministically under frozen, known-at evidence;
+5. translate football outcomes through exact league scoring before lineup/recommendation logic.
 
-Do not collapse those responsibilities into one schema.
+Do not collapse those responsibilities into one schema or score.
 
 ## Source boundary
 
@@ -33,7 +36,7 @@ Do not commit private roster/contract data, Drive file IDs, private source URLs,
 - Platform adapters own platform league identity/settings and NFL roster state when available.
 - Private workbooks may supplement contract economics and contract-specific states that the platform does not represent.
 - League constitutions/rules sources own custom league-policy truth when platform settings are insufficient.
-- TIBER-Fantasy owns the user-facing normalized snapshot boundary, application persistence, the versioned contract-league policy representation, and the deterministic transaction-consequence layer.
+- TIBER-Fantasy owns the user-facing normalized snapshot boundary, application persistence, versioned contract-league policy representation, scarce-right ledger, legal lineup translation, and deterministic transaction-consequence layer.
 
 ## State vs policy
 
@@ -60,13 +63,13 @@ A policy profile answers **what transformations are legal and how they change st
 - trade/pick/roster constraints;
 - lifecycle deadlines and rule-effective dates.
 
-`contract-league-snapshot.v1` should remain stable rather than absorbing policy merely because a private league or external platform exposes a new rule. Policy must be a separately versioned, provenance-aware follow-on boundary.
+`contract-league-snapshot.v1` remains stable rather than absorbing policy merely because a private league or external platform exposes a new rule. Policy is separately versioned and provenance-aware.
 
 ## Persistence boundary
 
-Validated contract snapshots now have an append-only application persistence boundary:
+Validated contract snapshots have an append-only application persistence boundary:
 
-- table: `contract_league_snapshots` in the modular `shared/contractLeagueSchema.ts` schema file;
+- table: `contract_league_snapshots` in modular `shared/contractLeagueSchema.ts`;
 - service: `server/modules/contractLeagues/persistence.ts`;
 - canonicalization/fingerprint contract: `server/modules/contractLeagues/persistenceContract.ts`;
 - identity: an explicit internal `leagueKey` supplied by the caller, never guessed from workbook labels;
@@ -77,9 +80,25 @@ Validated contract snapshots now have an append-only application persistence bou
 - rejection: a `REJECTED` snapshot cannot be persisted as decision state;
 - privacy: persisted source references are opaque private tokens. Public workbook URLs/IDs and private contents do not belong in repository fixtures or logs.
 
-The fingerprint intentionally excludes volatile import/provenance timestamps and source display/locator changes, and normalizes non-semantic source ordering. Re-importing unchanged logical state therefore resolves to the existing immutable row instead of creating false history.
+The fingerprint excludes volatile import/provenance timestamps and source display/locator changes, and normalizes non-semantic source ordering. Re-importing unchanged logical state therefore resolves to the existing immutable row instead of creating false history.
 
-Drizzle Kit is configured to include both `shared/schema.ts` and `shared/contractLeagueSchema.ts`. The application schema boundary is implemented, but database activation still requires the normal generated-Drizzle migration and database certification path; no hand-written raw SQL migration is authorized by this module.
+Drizzle Kit includes both `shared/schema.ts` and `shared/contractLeagueSchema.ts`. Database activation still requires the normal generated-Drizzle migration and database certification path; no hand-written raw SQL migration is authorized by this module.
+
+## Private workbook importer
+
+`importers/threeRowWorkbook.ts` implements the audited workbook-family boundary used by the two private contract leagues without embedding either league's private contents.
+
+It understands:
+
+- one roster/team sheet at a time;
+- guaranteed, optional, and cap-hit player rows;
+- ordinary IR and season-ending IR labels;
+- dead-cap side tables;
+- authoritative Total Guaranteed / Total Cap Hit / Cap after Guarantees / Cap Remaining rows;
+- negative cap remaining;
+- explicit calendar-year headers.
+
+It fails closed on ordinal season headers unless an explicit per-sheet calendar map is supplied, and requires governed canonical-player bindings rather than fuzzy name matching. Cap reconciliation mismatches remain explicit unresolved evidence instead of being auto-corrected.
 
 ## Scoring and lineup decisions
 
@@ -92,25 +111,48 @@ football outcome distribution
 -> recommendation / explanation
 ```
 
-A scoring profile must be explicit. Decision code must not silently substitute generic PPR when league scoring is missing or unresolved. The current legacy Start/Sit module does not satisfy this contract and is classified `EXTRACT`; do not broaden it with new recommendation logic.
+A scoring profile must be explicit. Decision code must not silently substitute generic PPR when league scoring is missing or unresolved.
 
-## Contract decision architecture
+`lineupOptimizer.ts` now provides the contract-league legal lineup primitive. It respects explicit position/slot eligibility including FLEX/SUPERFLEX, supports expected/floor/median/ceiling objectives, preserves candidate uncertainty, and emits a lineup-level joint distribution only when scenario IDs/probabilities are aligned. The legacy Start/Sit path remains classified `EXTRACT`; do not broaden it with parallel recommendation logic.
+
+## Policy and scarce rights
+
+`policy.ts` defines `contract-league-policy.v1`. It can represent generic cap, roster, contract-structure, rookie-scale, restructure, re-sign, amnesty, tag, trade, free-agency, and lifecycle semantics without hard-coding either private league's rule values.
+
+`rights.ts` defines `contract-league-rights-state.v1`. Scarce rights such as amnesty/re-sign/restructure/tag usage are immutable usage/reset events. Remaining availability is derived from those events plus the applicable policy allowance; there is no mutable magic `usesLeft` counter.
+
+Private league policy values and right histories belong in authorized runtime/private data, not repository fixtures.
+
+## Deterministic transaction consequences
+
+`transactionEngine.ts` defines the pure `contract-transaction-engine.v1` kernel. It consumes validated state/policy plus exact lifecycle context and produces read-only economic/roster deltas. It applies deltas to the authoritative imported ledger instead of rebuilding league cap truth from generic assumptions.
+
+The current bounded action surface includes:
+
+- KEEP/no-op replay;
+- player TRADE between explicitly bound teams;
+- policy-limited retained guaranteed salary where the affected cap hit is safely decomposable;
+- AMNESTY when policy and immutable rights state fully authorize its financial treatment;
+- IR / season-ending-IR placement when external eligibility has already been verified.
+
+The kernel exposes legality, violations, current/future before/delta/after cap views, roster effects, scarce-right consumption, follow-up approval/cooldown requirements, and a deterministic fingerprint. It never mutates the imported snapshot.
+
+CUT currently **abstains** because the policy boundary does not yet encode release/dead-cap disposition. That is intentional: the engine must not assume NFL-style cut accounting or infer private league rules from workbook artifacts.
+
+## Known-at / anti-leakage boundary
+
+`transactionDecisionBoundary.ts` wraps the pure kernel for decision-time eligibility. It rejects evidence that was imported or source-modified after the frozen decision timestamp, rejects future rights `asOf` state, and rejects scarce-right state belonging to a different internal league key.
+
+This separation is deliberate:
 
 ```text
-validated contract snapshot
-+ versioned league-policy profile
-+ exact decision timestamp / lifecycle state
--> legal move generator
--> deterministic transaction consequence engine
--> cap / contract / roster deltas by season
-
-CCF fantasy outcome distribution
-+ deterministic economic consequences
-+ roster / contender-rebuilder context
--> contract-aware recommendation / explanation
+source/provenance eligibility + exact as-of time
+-> known-at decision boundary
+-> deterministic legality/economic kernel
+-> CCF contract-aware recommendation layer
 ```
 
-The deterministic transaction layer owns legality and cap math. CCF may consume those results but must not independently reimplement league rules.
+Historical replay therefore cannot silently consume evidence that only became available later.
 
 ## Scenario safety
 
@@ -121,28 +163,40 @@ War Room / what-if simulations are read-only hypothetical state. They must:
 - show current and future cap deltas;
 - preserve scarce-right consumption in the simulated branch;
 - carry a deterministic fingerprint so a scenario can be replayed;
-- abstain when required policy is unavailable.
+- abstain when required policy/source/lifecycle evidence is unavailable.
+
+## Certification
+
+Command Center Certification now has a dedicated contract-league production typecheck (`tsconfig.contract-leagues.json`, ES2022 runtime target) and runs the complete `server/modules/contractLeagues/__tests__` suite. This is separate from the repository's recorded legacy typecheck debt rather than weakening either gate.
+
+Synthetic fixtures only are permitted for contract-league repository tests.
 
 ## Current state
 
 Implemented on the contract-league foundation branch:
 
 - normalized `contract-league-snapshot.v1` boundary;
-- fail-closed adapter into the generic fantasy-scoring translator;
+- fail-closed exact league-scoring adapter;
 - append-only/idempotent snapshot persistence contract and service;
 - `VALID`-only default decision retrieval;
-- synthetic contract/scoring/persistence regression tests;
-- modular Drizzle schema inclusion for the contract snapshot table.
+- audited three-row private-workbook importer boundary;
+- `contract-league-policy.v1` generic policy representation;
+- immutable scarce-right event ledger and availability derivation;
+- exact scoring-aware legal lineup optimizer;
+- deterministic transaction kernel for KEEP, trade/retention, amnesty, and verified reserve placement;
+- known-at/anti-leakage transaction wrapper;
+- dedicated production typecheck and complete contract regression CI gate;
+- synthetic regression coverage only; no private league state/rules are committed.
 
 Still gated follow-on work:
 
 - generated migration + database certification for the persistence table;
-- private-source workbook import for both leagues;
-- verified platform identity binding;
-- versioned league-policy representation;
-- legal scoring-aware lineup optimization;
-- deterministic transaction consequences;
-- market valuation;
-- Contract League War Room behavior.
+- authorized runtime acquisition of the two private workbook sources;
+- verified platform league/team/player binding and source-authority conflict handling;
+- private versioned policy/right profiles for each league (one league still lacks an authoritative rules/scoring source in the audited inputs);
+- explicit cut/release/dead-cap financial policy and CUT simulation;
+- restructure, re-sign, tags/options, free-agent/auction, dead-cap transfer, and remaining transaction transformations;
+- league-local contract-market/surplus valuation;
+- Contract League War Room presentation and CCF/Canonical Decision Packet integration.
 
 The durable follow-on scope lives in `.claude/tasks/contract-league-persistence-and-scoring.md`.
