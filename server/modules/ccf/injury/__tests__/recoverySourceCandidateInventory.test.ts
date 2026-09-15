@@ -24,6 +24,44 @@ describe("CCF recovery source candidate inventory", () => {
     ).toEqual([]);
   });
 
+  it("uses Sportradar Weekly Injuries as the live designation and practice candidates", () => {
+    const designation = CCF_RECOVERY_SOURCE_CANDIDATE_INVENTORY.bindings.find(
+      (binding) =>
+        binding.sourceClass === "official_injury_designation" &&
+        binding.status === "candidate",
+    );
+    const practice = CCF_RECOVERY_SOURCE_CANDIDATE_INVENTORY.bindings.find(
+      (binding) =>
+        binding.sourceClass === "official_practice_participation" &&
+        binding.status === "candidate",
+    );
+
+    expect(designation).toMatchObject({
+      bindingId: "sportradar-nfl-weekly-injuries-designation-candidate-v1",
+      provider: "Sportradar",
+      datasetOrProduct: "NFL Official API - Weekly Injuries",
+      parserVersion: null,
+      status: "candidate",
+    });
+    expect(practice).toMatchObject({
+      bindingId: "sportradar-nfl-weekly-injuries-practice-candidate-v1",
+      provider: "Sportradar",
+      datasetOrProduct: "NFL Official API - Weekly Injuries",
+      parserVersion: null,
+      status: "candidate",
+    });
+  });
+
+  it("demotes discontinued nflverse injury coverage to historical research only", () => {
+    const historical = CCF_RECOVERY_SOURCE_CANDIDATE_INVENTORY.bindings.filter(
+      (binding) => binding.provider === "nflverse" && binding.datasetOrProduct === "injuries",
+    );
+
+    expect(historical).toHaveLength(2);
+    expect(historical.every((binding) => binding.status === "research_only")).toBe(true);
+    expect(historical.every((binding) => binding.notes.some((note) => /after the 2024 season|through 2024/i.test(note)))).toBe(true);
+  });
+
   it("tracks Sportradar NFL Official Game Roster as the viable activation candidate", () => {
     const activation = CCF_RECOVERY_SOURCE_CANDIDATE_INVENTORY.bindings.find(
       (binding) =>
