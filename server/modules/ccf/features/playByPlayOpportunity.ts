@@ -531,7 +531,9 @@ export function deriveCCFGameOpportunityLedger(
         redZoneOpportunityShare: ratio(redZoneOpportunities, team.redZoneOpportunities),
         goalLineOpportunityShare: ratio(goalLineOpportunities, team.goalLineOpportunities),
         twoMinuteOpportunityShare: ratio(twoMinuteOpportunities, team.twoMinuteOpportunities),
-        sourceRefs: Array.from(new Set([...player.sourceRefs, ...team.sourceRefs])).sort(),
+        sourceRefs: Array.from(
+          new Set(Array.from(player.sourceRefs).concat(team.sourceRefs)),
+        ).sort(),
       };
     });
 
