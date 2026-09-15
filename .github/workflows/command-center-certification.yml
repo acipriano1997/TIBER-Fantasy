@@ -37,7 +37,7 @@ jobs:
           typecheck_status=$?
           set -e
 
-          gate0_pattern='^(server/index\.ts|server/middleware/personalUserScope\.ts|server/routes/leagueDashboardRoutes\.ts|server/services/leagueDashboardTruthBoundary\.ts)\('
+          gate0_pattern='^(server/index\.ts|server/middleware/personalUserScope\.ts|server/routes/leagueDashboardRoutes\.ts|server/services/leagueDashboardTruthBoundary\.ts|server/leagueContext/.*\.ts|server/platformSync/leagueAwareSync\.ts)\('
           if grep -E "$gate0_pattern" /tmp/tiber-typecheck.log; then
             echo "::error::Gate 0 introduced or exposes type errors in its production files."
             exit 1
@@ -55,5 +55,9 @@ jobs:
           server/middleware/__tests__/personalUserScope.test.ts
           server/services/__tests__/leagueDashboardTruthBoundary.test.ts
           server/modules/management/__tests__/forgeTeamDirectionFreshnessPolicy.test.ts
+          server/leagueContext/__tests__/leagueContextV1.test.ts
+          server/leagueContext/__tests__/decisionPacketLeagueContext.test.ts
+          server/leagueContext/__tests__/devyRightsSnapshot.test.ts
+          server/leagueContext/__tests__/formatIsolation.test.ts
       - name: Build application
         run: sh build.sh
