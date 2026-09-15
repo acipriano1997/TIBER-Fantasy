@@ -117,7 +117,9 @@ A scoring profile must be explicit. Decision code must not silently substitute g
 
 ## Policy and scarce rights
 
-`policy.ts` defines `contract-league-policy.v1`. It can represent generic cap, roster, contract-structure, rookie-scale, restructure, re-sign, amnesty, tag, trade, free-agency, and lifecycle semantics without hard-coding either private league's rule values.
+`policy.ts` defines `contract-league-policy.v1`. It can represent generic cap, roster, contract-structure, rookie-scale, restructure, re-sign, amnesty, tag, cut/release, trade, free-agency, and lifecycle semantics without hard-coding either private league's rule values.
+
+CUT policy is explicit. Guaranteed and optional money each choose one of three dispositions: clear on release, become dead cap on the original schedule, or accelerate into the current season. Policy also states whether resulting dead cap belongs in the league's guaranteed-money ledger. A missing cut treatment remains `null` and therefore unavailable; no NFL-style default is implied.
 
 `rights.ts` defines `contract-league-rights-state.v1`. Scarce rights such as amnesty/re-sign/restructure/tag usage are immutable usage/reset events. Remaining availability is derived from those events plus the applicable policy allowance; there is no mutable magic `usesLeft` counter.
 
@@ -125,19 +127,20 @@ Private league policy values and right histories belong in authorized runtime/pr
 
 ## Deterministic transaction consequences
 
-`transactionEngine.ts` defines the pure `contract-transaction-engine.v1` kernel. It consumes validated state/policy plus exact lifecycle context and produces read-only economic/roster deltas. It applies deltas to the authoritative imported ledger instead of rebuilding league cap truth from generic assumptions.
+`transactionEngine.ts` defines the pure `contract-transaction-engine.v1.1` kernel. It consumes validated state/policy plus exact lifecycle context and produces read-only economic/roster deltas. It applies deltas to the authoritative imported ledger instead of rebuilding league cap truth from generic assumptions.
 
 The current bounded action surface includes:
 
 - KEEP/no-op replay;
+- CUT / release when policy explicitly supplies guaranteed/optional dead-cap treatment;
 - player TRADE between explicitly bound teams;
 - policy-limited retained guaranteed salary where the affected cap hit is safely decomposable;
 - AMNESTY when policy and immutable rights state fully authorize its financial treatment;
 - IR / season-ending-IR placement when external eligibility has already been verified.
 
-The kernel exposes legality, violations, current/future before/delta/after cap views, roster effects, scarce-right consumption, follow-up approval/cooldown requirements, and a deterministic fingerprint. It never mutates the imported snapshot.
+CUT simulation supports clear-on-release, scheduled dead cap, current-season acceleration, roster removal, reserve-slot clearing, reacquisition/nomination cooldowns, and the league-specific choice of whether dead cap contributes to the guaranteed ledger. It requires authoritative cap-ledger coverage for every affected current/future season and requires cap hit to decompose to guaranteed + optional money; otherwise it abstains rather than inventing release math.
 
-CUT currently **abstains** because the policy boundary does not yet encode release/dead-cap disposition. That is intentional: the engine must not assume NFL-style cut accounting or infer private league rules from workbook artifacts.
+The kernel exposes legality, violations, current/future before/delta/after cap views, roster effects, scarce-right consumption, follow-up approval/cooldown requirements, and a deterministic fingerprint. It never mutates the imported snapshot.
 
 ## Known-at / anti-leakage boundary
 
@@ -167,9 +170,9 @@ War Room / what-if simulations are read-only hypothetical state. They must:
 
 ## Certification
 
-Command Center Certification now has a dedicated contract-league production typecheck (`tsconfig.contract-leagues.json`, ES2022 runtime target) and runs the complete `server/modules/contractLeagues/__tests__` suite. This is separate from the repository's recorded legacy typecheck debt rather than weakening either gate.
+Command Center Certification has a dedicated contract-league production typecheck (`tsconfig.contract-leagues.json`, ES2022 runtime target) and runs the complete `server/modules/contractLeagues/__tests__` suite. This is separate from the repository's recorded legacy typecheck debt rather than weakening either gate.
 
-Synthetic fixtures only are permitted for contract-league repository tests.
+Synthetic fixtures only are permitted for contract-league repository tests. The CUT/dead-cap matrix covers missing policy, clear-on-release, scheduled dead cap, accelerated dead cap, guaranteed-ledger treatment, missing future cap-ledger coverage, and unreconcilable contract cap-hit decomposition.
 
 ## Current state
 
@@ -183,7 +186,7 @@ Implemented on the contract-league foundation branch:
 - `contract-league-policy.v1` generic policy representation;
 - immutable scarce-right event ledger and availability derivation;
 - exact scoring-aware legal lineup optimizer;
-- deterministic transaction kernel for KEEP, trade/retention, amnesty, and verified reserve placement;
+- deterministic transaction kernel for KEEP, CUT/dead-cap treatment, trade/retention, amnesty, and verified reserve placement;
 - known-at/anti-leakage transaction wrapper;
 - dedicated production typecheck and complete contract regression CI gate;
 - synthetic regression coverage only; no private league state/rules are committed.
@@ -193,8 +196,7 @@ Still gated follow-on work:
 - generated migration + database certification for the persistence table;
 - authorized runtime acquisition of the two private workbook sources;
 - verified platform league/team/player binding and source-authority conflict handling;
-- private versioned policy/right profiles for each league (one league still lacks an authoritative rules/scoring source in the audited inputs);
-- explicit cut/release/dead-cap financial policy and CUT simulation;
+- private versioned policy/right profiles for each league (including authoritative cut treatment; one league still lacks an authoritative rules/scoring source in the audited inputs);
 - restructure, re-sign, tags/options, free-agent/auction, dead-cap transfer, and remaining transaction transformations;
 - league-local contract-market/surplus valuation;
 - Contract League War Room presentation and CCF/Canonical Decision Packet integration.
