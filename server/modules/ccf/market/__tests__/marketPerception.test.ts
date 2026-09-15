@@ -217,6 +217,32 @@ describe("CCF market perception intelligence", () => {
     expect(snapshot.momentumDelta).toBeNull();
   });
 
+  it("does not let a zero-weight source family satisfy corroboration coverage", () => {
+    const zeroSocialPolicy = policy();
+    zeroSocialPolicy.sourceFamilyWeights.social = 0;
+
+    const snapshot = buildCCFMarketPerceptionSnapshot(
+      [
+        signal({ signalId: "ignored-social", sourceId: "social-origin" }),
+        signal({
+          signalId: "admitted-adp",
+          sourceId: "adp-origin",
+          sourceFamily: "startup_adp",
+          signalKind: "adp_movement",
+          sourceRef: "source://adp",
+        }),
+      ],
+      AS_OF,
+      zeroSocialPolicy,
+    );
+
+    expect(snapshot.fast.rawSignalCount).toBe(2);
+    expect(snapshot.fast.independentSourceCount).toBe(1);
+    expect(snapshot.fast.status).toBe("insufficient");
+    expect(snapshot.fast.sourceFamilies).toEqual(["startup_adp"]);
+    expect(snapshot.fast.sourceRefs).toEqual(["source://adp"]);
+  });
+
   it("rejects a source identity that changes source families inside one snapshot", () => {
     expect(() =>
       buildCCFMarketPerceptionSnapshot(
@@ -238,9 +264,21 @@ describe("CCF market perception intelligence", () => {
 
   it("builds a same-format, same-as-of market neighborhood without emitting a buy or sell call", () => {
     const snapshots = [
-      buildCCFMarketPerceptionSnapshot(twoSourceLevelSignals("player-a", 0.8), AS_OF, policy()),
-      buildCCFMarketPerceptionSnapshot(twoSourceLevelSignals("player-b", 0.6), AS_OF, policy()),
-      buildCCFMarketPerceptionSnapshot(twoSourceLevelSignals("player-c", 0.4), AS_OF, policy()),
+      buildCCFMarketPerceptionSnapshot(
+        twoSourceLevelSignals("player-a", 0.8),
+        AS_OF,
+        policy(),
+      ),
+      buildCCFMarketPerceptionSnapshot(
+        twoSourceLevelSignals("player-b", 0.6),
+        AS_OF,
+        policy(),
+      ),
+      buildCCFMarketPerceptionSnapshot(
+        twoSourceLevelSignals("player-c", 0.4),
+        AS_OF,
+        policy(),
+      ),
     ];
 
     const neighborhood = buildCCFMarketNeighborhood("player-b", snapshots, 1);
