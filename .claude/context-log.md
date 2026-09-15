@@ -706,3 +706,9 @@ Every agent should append an entry here after completing work.
 - Carry forward: native runtime bindings, frozen production candidate/dataset, chronological OOS certification, and user's real local Chrome/ESPN verification.
 
 - Hosted follow-up: initial revision dcbde24 failed focused TypeScript on Set spread (TS2802); replaced with Array.from without changing compiler settings or gate strictness. Other three workflows passed. Fresh full checks pending on the compatibility fix.
+
+### 2026-09-15 — Codex: PR #33 CCF predictive-validation CI repair
+- **What changed:** Replaced the promotion evaluator's compiler-incompatible direct `MapIterator` iteration with `Array.from` and removed the temporary PR-comment writer/`pull-requests: write` permission from the CCF workflow while retaining read-only step-summary diagnostics.
+- **Files modified:** `server/modules/ccf/certification/promotionEvaluation.ts`, `.github/workflows/ccf-independence.yml`, and agent logs.
+- **Validation:** Exact expanded CCF workflow set passed 34 suites / 211 tests; predictive-validation subset passed 3 suites / 23 tests; CCF-scoped TypeScript diagnostics are zero while the repository retains 508 unrelated baseline diagnostics; server and deployment-equivalent builds passed with the existing OLC duplicate-member warning; `git diff --check` passed.
+- **Notes:** Compatibility/CI repair only. No protocol thresholds, evidence, outcomes, metrics, authority, model status, merge, deployment, or Football Unwritten work changed.

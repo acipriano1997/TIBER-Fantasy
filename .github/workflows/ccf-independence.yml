@@ -9,7 +9,6 @@ on:
 
 permissions:
   contents: read
-  pull-requests: write
 
 concurrency:
   group: ccf-independence-${{ github.workflow }}-${{ github.ref }}
@@ -35,8 +34,6 @@ jobs:
 
       - name: Reject CCF TypeScript regressions
         shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           set +e
           npm run typecheck > /tmp/ccf-typecheck.log 2>&1
@@ -53,11 +50,6 @@ jobs:
               printf '%s\n' "$ccf_errors"
               echo '```'
             } >> "$GITHUB_STEP_SUMMARY"
-
-            if [ "${GITHUB_EVENT_NAME}" = "pull_request" ]; then
-              printf 'Temporary CI diagnostic for exact head `%s`:\n\n```text\n%s\n```\n' "$GITHUB_SHA" "$ccf_errors" > /tmp/ccf-pr-diagnostic.md
-              gh pr comment "${{ github.event.pull_request.number }}" --body-file /tmp/ccf-pr-diagnostic.md || true
-            fi
             exit 1
           fi
 

@@ -925,3 +925,10 @@ Workflow: Creates PRs on GitHub, merged by Architect J after review
 - Carry forward: native runtime bindings, frozen production candidate/dataset, chronological OOS certification, and user's real local Chrome/ESPN verification.
 
 - Hosted follow-up: initial revision dcbde24 failed focused TypeScript on Set spread (TS2802); replaced with Array.from without changing compiler settings or gate strictness. Other three workflows passed. Fresh full checks pending on the compatibility fix.
+
+## 2026-09-15 — PR #33 predictive-validation CI repair
+
+- Replaced the direct `MapIterator` loop in `promotionEvaluation.ts` with the repository-compatible `Array.from` form; promotion semantics are unchanged.
+- Removed temporary automatic PR-comment diagnostics and the associated pull-request write permission from `ccf-independence.yml`; retained the job-summary diagnostics and new predictive-validation suites.
+- Validation: predictive subset 23/23; exact expanded CCF set 34 suites / 211 tests; zero CCF/touched-file TypeScript diagnostics with 508 unrelated repository diagnostics; both builds green with the existing OLC warning; diff clean.
+- No predictive result, threshold, model promotion, recommendation authority, merge, deployment, or Football Unwritten work occurred.
