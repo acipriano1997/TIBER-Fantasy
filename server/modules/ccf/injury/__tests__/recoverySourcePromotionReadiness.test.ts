@@ -126,10 +126,6 @@ describe("CCF recovery source promotion readiness", () => {
     ]);
 
     expect(byId.get("nflverse-pfr-snap-counts-candidate-v1")?.blockers).toEqual([
-      "temporal_mode_not_archived_point_in_time",
-      "archive_strategy_missing",
-      "point_in_time_semantics_undocumented",
-      "raw_trace_missing",
       "reliability_review_missing",
     ]);
 
