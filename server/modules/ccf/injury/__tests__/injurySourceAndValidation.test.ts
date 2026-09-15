@@ -26,11 +26,13 @@ function binding(
     temporalMode: "archived_point_in_time",
     archiveStrategy: "immutable_snapshot",
     licenseOrTermsRef: "terms://fixture",
+    permissionStatus: "permitted_for_intended_use",
     parserVersion: "fixture-parser-v1",
     sourceLocatorTemplate: "source://fixture/{id}",
     pointInTimeSemanticsDocumented: true,
     rawTraceSupported: true,
     reliabilityReviewRef: "review://fixture",
+    reliabilityStatus: "passed",
     notes: [],
     ...overrides,
   };
@@ -144,6 +146,22 @@ describe("CCF recovery source binding", () => {
     expect(() =>
       validateCCFRecoverySourceBinding(binding({ rawTraceSupported: false })),
     ).toThrow(/raw-trace support/);
+  });
+
+  it("requires explicit intended-use permission rather than a terms URL alone", () => {
+    expect(() =>
+      validateCCFRecoverySourceBinding(
+        binding({ permissionStatus: "evaluation_only" }),
+      ),
+    ).toThrow(/permission cleared for the intended use/);
+  });
+
+  it("requires a passed reliability review rather than a review reference alone", () => {
+    expect(() =>
+      validateCCFRecoverySourceBinding(
+        binding({ reliabilityStatus: "incomplete" }),
+      ),
+    ).toThrow(/passed reliability review/);
   });
 
   it("prevents challenger inference from becoming production evidence", () => {
