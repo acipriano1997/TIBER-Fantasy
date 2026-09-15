@@ -80,10 +80,11 @@ function basisShare(
 }
 
 /**
- * Computes a cap-capacity envelope for a hypothetical equal annual-value
- * free-agent contract. It does not certify bid legality: nomination windows,
- * roster mutation, award-time validation, and other transaction semantics stay
- * gated on the future deterministic FREE_AGENT/AUCTION action kernel.
+ * Computes a cap-capacity envelope for a hypothetical EVEN-distribution annual
+ * value free-agent contract. It does not certify bid legality: nomination
+ * windows, roster mutation, award-time validation, and other transaction
+ * semantics stay gated on the future deterministic FREE_AGENT/AUCTION action
+ * kernel.
  */
 export function calculateSafeSpendEnvelope(input: {
   snapshot: unknown;
@@ -110,6 +111,12 @@ export function calculateSafeSpendEnvelope(input: {
 
   const structure = policy.contracts.structures.find((item) => item.id === input.structureId) ?? null;
   if (!structure) reasons.push({ code: 'CONTRACT_STRUCTURE_UNAVAILABLE', detail: 'Requested contract structure is not defined by league policy.' });
+  if (structure && !structure.allowedDistributions.includes('EVEN')) {
+    reasons.push({
+      code: 'SAFE_SPEND_DISTRIBUTION_UNMODELED',
+      detail: 'Safe-spend v1 models equal annual value only; the selected contract structure does not permit EVEN distribution.',
+    });
+  }
   if (policy.freeAgency.allowedStructureIds.length > 0 && !policy.freeAgency.allowedStructureIds.includes(input.structureId)) {
     reasons.push({ code: 'FREE_AGENT_STRUCTURE_NOT_ALLOWED', detail: 'Requested structure is not allowed for free-agent contracts.' });
   }
@@ -178,6 +185,24 @@ export function calculateSafeSpendEnvelope(input: {
       baseFactors.push(factor);
       safeFactors.push(factor);
     }
+
+    if (policy.cap.maximumAnnualContractShareOfCap !== null) {
+      if (seasonHealth.policyCeiling === null) {
+        reasons.push({
+          code: 'CAP_CEILING_UNAVAILABLE',
+          detail: `League-wide maximum annual contract share cannot be evaluated for ${season} without a cap ceiling.`,
+        });
+      } else {
+        const globalMaxFactor: CapacityFactor = {
+          season,
+          ruleId: 'GLOBAL_MAX_ANNUAL_CONTRACT_SHARE',
+          capacity: money(seasonHealth.policyCeiling * policy.cap.maximumAnnualContractShareOfCap),
+          detail: 'League-wide maximum annual contract share of cap.',
+        };
+        baseFactors.push(globalMaxFactor);
+        safeFactors.push(globalMaxFactor);
+      }
+    }
   }
 
   if (reasons.length) return abstain(reasons);
@@ -189,7 +214,7 @@ export function calculateSafeSpendEnvelope(input: {
     ?? policy.cap.defaultCeiling;
   if (policy.freeAgency.maxAnnualValueShareOfCap !== null) {
     if (firstSeasonCeiling === null) {
-      return abstain([{ code: 'CAP_CEILING_UNAVAILABLE', detail: 'Maximum annual contract share requires a defined cap ceiling.' }]);
+      return abstain([{ code: 'CAP_CEILING_UNAVAILABLE', detail: 'Maximum annual free-agent contract share requires a defined cap ceiling.' }]);
     }
     const maxAnnualFactor: CapacityFactor = {
       season: input.startSeason,
