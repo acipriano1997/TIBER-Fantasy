@@ -173,14 +173,13 @@ export function parseNflverseInjuriesCsv(
   }
 
   const fields = new Set(parsed.meta.fields ?? []);
-  const hasSeasonType = fields.has("season_type") || fields.has("game_type");
-  const missing = REQUIRED_COLUMNS.filter((column) => !fields.has(column));
-  if (!hasSeasonType) missing.push("season" as never);
-  if (missing.length > 0 || !hasSeasonType) {
-    const labels = [...missing.filter((column) => column !== ("season" as never))];
-    if (!hasSeasonType) labels.push("season_type|game_type" as never);
+  const missing: string[] = REQUIRED_COLUMNS.filter((column) => !fields.has(column));
+  if (!fields.has("season_type") && !fields.has("game_type")) {
+    missing.push("season_type|game_type");
+  }
+  if (missing.length > 0) {
     throw new CCFNflverseInjurySourceError(
-      `nflverse injury schema missing required columns: ${labels.join(", ")}`,
+      `nflverse injury schema missing required columns: ${missing.join(", ")}`,
     );
   }
 
