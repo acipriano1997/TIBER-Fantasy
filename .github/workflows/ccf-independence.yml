@@ -81,6 +81,7 @@ jobs:
           server/modules/ccf/sources/__tests__/transactionalArtifactPromotion.test.ts
           server/modules/ccf/weather/__tests__/weatherEvidence.test.ts
           server/modules/ccf/injury/__tests__/injuryRecoveryEvidence.test.ts
+          server/modules/ccf/injury/__tests__/injurySourceAndValidation.test.ts
 
       - name: Build application
         run: sh build.sh
