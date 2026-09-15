@@ -58,5 +58,6 @@ jobs:
           server/leagueContext/__tests__/leagueContextV1.test.ts
           server/leagueContext/__tests__/decisionPacketLeagueContext.test.ts
           server/leagueContext/__tests__/devyRightsSnapshot.test.ts
+          server/leagueContext/__tests__/formatIsolation.test.ts
       - name: Build application
         run: sh build.sh
