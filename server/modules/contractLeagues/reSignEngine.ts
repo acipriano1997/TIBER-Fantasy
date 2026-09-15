@@ -276,6 +276,12 @@ export function simulateContractReSign(
   }
 
   const currentYears = contract.years.filter((year) => year.season >= snapshot!.league.season).sort((a, b) => a.season - b.season);
+  if (currentYears.length === 0) {
+    return abstain(snapshot!, policy!, context, action, [{
+      code: 'RE_SIGN_CURRENT_TERM_UNAVAILABLE',
+      detail: 'After-current-contract re-sign simulation requires at least one authoritative current or future contract year.',
+    }]);
+  }
   const proposed = [...action.proposedYears].sort((a, b) => a.season - b.season);
   const startSeason = Math.max(...currentYears.map((year) => year.season)) + 1;
   if (proposed.length < reSignPolicy.minYears || proposed.length > reSignPolicy.maxYears) {
