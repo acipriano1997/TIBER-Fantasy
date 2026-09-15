@@ -105,7 +105,7 @@ export function evaluateCCFPredictivePromotion(
   }
 
   const expectedIds = new Set(protocol.promotionCriteria.map((criterion) => criterion.criterionId));
-  for (const id of evidenceById.keys()) {
+  for (const id of Array.from(evidenceById.keys())) {
     if (!expectedIds.has(id)) throw new Error(`unexpected criterion evidence ${id}`);
   }
 
