@@ -3,6 +3,10 @@ import { deriveSleeperScoringFormat, sleeperClient } from "../integrations/sleep
 import { storage } from "../storage";
 import { createPlaybookForgeLogger } from "../utils/playbookForgeLogger";
 import { normalizeScoringSettings } from "../services/normalizeScoringSettings";
+import {
+  publicCommandCenterLeagueContext,
+  resolveCommandCenterLeagueContext,
+} from "../services/commandCenterLeagueContextService";
 
 type LeagueSyncDeps = {
   storage: typeof storage;
@@ -229,7 +233,22 @@ export function createLeagueSyncRouter(deps: LeagueSyncDeps = defaultDeps) {
         }
       }
 
-      res.json({ success: true, ...context, activeTeam, suggestedTeamId, suggested_team_id: suggestedTeamId });
+      const resolvedDecisionContext = await resolveCommandCenterLeagueContext(
+        context.activeLeague,
+        {
+          getSleeperLeague: deps.sleeperClient.getLeague.bind(deps.sleeperClient),
+          now: () => new Date(),
+        },
+      );
+
+      res.json({
+        success: true,
+        ...context,
+        activeTeam,
+        suggestedTeamId,
+        suggested_team_id: suggestedTeamId,
+        commandCenterLeagueContext: publicCommandCenterLeagueContext(resolvedDecisionContext),
+      });
     } catch (error) {
       console.error('❌ [League Context] Failed to fetch context:', error);
       res.status(500).json({ success: false, error: (error as Error).message || 'Failed to fetch league context' });
@@ -283,7 +302,6 @@ export function createLeagueSyncRouter(deps: LeagueSyncDeps = defaultDeps) {
       if (!league_id) {
         return res.status(400).json({ success: false, error: 'league_id is required' });
       }
-      // Verify league belongs to user
       const leagues = await deps.storage.getLeaguesWithTeams(user_id as string);
       const league = leagues.find((l) => l.id === (league_id as string));
       if (!league) {
@@ -291,7 +309,6 @@ export function createLeagueSyncRouter(deps: LeagueSyncDeps = defaultDeps) {
       }
       const allPicks = await deps.storage.getLeagueFuturePicks(league_id as string);
 
-      // Determine active team's external roster ID for ownership filtering
       let externalRosterId: string | null = null;
       if (team_id) {
         const team = (league.teams ?? []).find((t: any) => (t.id ?? t.team_id) === (team_id as string));
@@ -300,7 +317,6 @@ export function createLeagueSyncRouter(deps: LeagueSyncDeps = defaultDeps) {
         }
       }
 
-      // Normalize raw DB rows (snake_case from db.execute)
       const normalized = allPicks.map((p: any) => ({
         id: p.id,
         season: p.season,
@@ -310,7 +326,6 @@ export function createLeagueSyncRouter(deps: LeagueSyncDeps = defaultDeps) {
         source: p.source ?? 'original',
       }));
 
-      // Filter to active team's owned picks when team_id is provided
       const picks = externalRosterId
         ? normalized.filter((p) => p.currentRosterId === externalRosterId)
         : normalized;
