@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import type {
   CCFRecoveryDimension,
   CCFRecoverySourceClass,
@@ -146,6 +147,24 @@ export function validateCCFRecoverySourceBindingPlan(
     ids.add(binding.bindingId);
   }
   return plan;
+}
+
+export function fingerprintCCFRecoverySourceBindingPlan(
+  plan: CCFRecoverySourceBindingPlan,
+): string {
+  validateCCFRecoverySourceBindingPlan(plan);
+  const canonical = JSON.stringify({
+    contractVersion: plan.contractVersion,
+    asOf: plan.asOf,
+    bindings: [...plan.bindings]
+      .map((binding) => ({
+        ...binding,
+        dimensions: [...binding.dimensions].sort(),
+        notes: [...binding.notes],
+      }))
+      .sort((left, right) => left.bindingId.localeCompare(right.bindingId)),
+  });
+  return crypto.createHash("sha256").update(canonical).digest("hex");
 }
 
 export function productionEligibleCCFRecoveryBindings(
