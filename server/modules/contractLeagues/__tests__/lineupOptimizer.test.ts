@@ -98,7 +98,7 @@ describe('league scoring legal lineup optimizer', () => {
 
   it('applies TE reception premium only to tight ends and can change the optimal flex', () => {
     const candidates = [
-      constantCandidate('rb-a', 'RB', { rushing_yards: 50, receptions: 3, receiving_yards: 20 }),
+      constantCandidate('rb-a', 'RB', { rushing_yards: 80, receptions: 3, receiving_yards: 20 }),
       constantCandidate('te-a', 'TE', { receptions: 8, receiving_yards: 40 }),
     ];
     const oneFlex: ContractLeagueSnapshot['league']['lineup'] = [
