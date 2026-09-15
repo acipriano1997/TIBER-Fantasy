@@ -269,7 +269,7 @@ export function evaluateCCFDevyIdentityLinkage(
     ambiguousRows,
     rosterBindingCount: receipt.rosterBindings.length,
     fingerprint,
-    blockers: [...blockers].sort(),
+    blockers: Array.from(blockers).sort(),
   };
 }
 
