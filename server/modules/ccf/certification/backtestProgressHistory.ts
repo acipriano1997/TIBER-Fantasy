@@ -143,9 +143,14 @@ export const CCF_BACKTEST_PROGRESS_HISTORY_V1: readonly CCFBacktestProgressRecor
       "server/modules/ccf/certification/missAttribution.ts",
       "server/modules/ccf/certification/featureAblation.ts",
       "server/modules/ccf/certification/calibration.ts",
+      "server/modules/ccf/certification/selectivePrediction.ts",
+      "server/modules/ccf/certification/quantileScoring.ts",
+      "server/modules/ccf/certification/rankMetrics.ts",
+      "server/modules/ccf/certification/promotionEvaluation.ts",
+      "docs/architecture/CCF_PREDICTIVE_VALIDATION_AND_ERROR_INTELLIGENCE_V0.md",
     ],
     claim:
-      "Added CCF-wide preregistration, paired block uncertainty, decision-regret, calibration-sharpness, feature-ablation, and miss-attribution infrastructure; no production historical OOS run has been executed and no predictive improvement is claimed.",
+      "Added CCF-wide preregistration, paired block uncertainty, decision-regret, calibration/sharpness and proper-scoring diagnostics, selective-prediction risk/coverage, rank metrics, feature ablation, deterministic promotion evaluation, and miss attribution; no production historical OOS run has been executed and no predictive improvement is claimed.",
   },
 ] as const;
 
