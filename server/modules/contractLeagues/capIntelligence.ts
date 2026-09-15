@@ -1,15 +1,11 @@
 import { contractLeagueSnapshotSchema, type ContractLeagueSnapshot } from './contracts';
 import { contractLeaguePolicySchema, type ContractLeaguePolicy } from './policy';
-import {
-  simulateKnownAtContractTransaction,
-} from './transactionDecisionBoundary';
+import { simulateKnownAtContractTransaction } from './transactionDecisionBoundary';
 import type {
   ContractTransactionAction,
   ContractTransactionContext,
 } from './transactionEngine';
-import {
-  simulateKnownAtContractRestructure,
-} from './restructureDecisionBoundary';
+import { simulateKnownAtContractRestructure } from './restructureDecisionBoundary';
 import type {
   ContractRestructureAction,
   ContractRestructureContext,
@@ -19,6 +15,7 @@ export const CAP_INTELLIGENCE_VERSION = 'contract-cap-intelligence.v1' as const;
 
 type ContractLeaguePhase = ContractLeaguePolicy['roster']['limitsByPhase'][number]['phase'];
 type ComplianceBasis = ContractLeaguePolicy['cap']['compliance'][number]['basis'];
+type Reason = { code: string; detail: string };
 
 export type CapHealthContext = {
   teamKey: string;
@@ -80,6 +77,15 @@ function money(value: number) {
   return Number(value.toFixed(6));
 }
 
+function capHealthAbstention(reasons: Reason[]): CapHealthResult {
+  return {
+    status: 'ABSTAIN',
+    version: CAP_INTELLIGENCE_VERSION,
+    reasonCodes: [...new Set(reasons.map((item) => item.code))],
+    details: reasons.map((item) => item.detail),
+  };
+}
+
 function activeContract(contract: ContractLeagueSnapshot['teams'][number]['contracts'][number]) {
   return contract.status !== 'CUT' && contract.status !== 'EXPIRED';
 }
@@ -128,45 +134,36 @@ export function buildMultiYearCapHealth(
   context: CapHealthContext,
 ): CapHealthResult {
   const snapshotResult = contractLeagueSnapshotSchema.safeParse(snapshotInput);
+  if (!snapshotResult.success) {
+    return capHealthAbstention([{ code: 'SNAPSHOT_INVALID', detail: 'Contract snapshot failed schema validation.' }]);
+  }
   const policyResult = contractLeaguePolicySchema.safeParse(policyInput);
-  const reasons: Array<{ code: string; detail: string }> = [];
-
-  if (!snapshotResult.success) reasons.push({ code: 'SNAPSHOT_INVALID', detail: 'Contract snapshot failed schema validation.' });
-  if (!policyResult.success) reasons.push({ code: 'POLICY_INVALID', detail: 'Contract policy failed schema validation.' });
-  if (reasons.length) {
-    return {
-      status: 'ABSTAIN',
-      version: CAP_INTELLIGENCE_VERSION,
-      reasonCodes: reasons.map((item) => item.code),
-      details: reasons.map((item) => item.detail),
-    };
+  if (!policyResult.success) {
+    return capHealthAbstention([{ code: 'POLICY_INVALID', detail: 'Contract policy failed schema validation.' }]);
   }
 
   const snapshot = snapshotResult.data;
   const policy = policyResult.data;
+  const reasons: Reason[] = [];
   if (snapshot.validation.status !== 'VALID') reasons.push({ code: 'SNAPSHOT_NOT_DECISION_READY', detail: 'Cap health requires a VALID frozen snapshot.' });
   if (policy.validation.status !== 'VALID') reasons.push({ code: 'POLICY_NOT_DECISION_READY', detail: 'Cap health requires a VALID league policy.' });
   if (snapshot.league.season !== policy.effective.season) reasons.push({ code: 'POLICY_SEASON_MISMATCH', detail: 'Snapshot season and policy season do not match.' });
   if (!context.teamKey.trim()) reasons.push({ code: 'TEAM_KEY_REQUIRED', detail: 'Cap health requires an explicit internal team key.' });
+  if (!context.sourceTeamName.trim()) reasons.push({ code: 'SOURCE_TEAM_NAME_REQUIRED', detail: 'Cap health requires an exact source team name.' });
+  if (reasons.length) return capHealthAbstention(reasons);
 
   const teamMatches = snapshot.teams.filter((team) => team.sourceTeamName === context.sourceTeamName.trim());
   if (teamMatches.length !== 1) {
-    reasons.push({
+    return capHealthAbstention([{
       code: 'TEAM_BINDING_UNRESOLVED',
       detail: 'Cap health requires exactly one snapshot team matching sourceTeamName.',
-    });
+    }]);
   }
-
-  if (reasons.length) {
-    return {
-      status: 'ABSTAIN',
-      version: CAP_INTELLIGENCE_VERSION,
-      reasonCodes: [...new Set(reasons.map((item) => item.code))],
-      details: reasons.map((item) => item.detail),
-    };
-  }
-
   const team = teamMatches[0];
+  if (!team) {
+    return capHealthAbstention([{ code: 'TEAM_BINDING_UNRESOLVED', detail: 'Bound source team is unavailable.' }]);
+  }
+
   const applicableRules = policy.cap.compliance.filter((rule) => rule.phases.includes(context.phase));
   const seasons = [...team.cap]
     .sort((a, b) => a.season - b.season)
@@ -278,6 +275,55 @@ export type CapLiquidityCandidateResult = {
   ccfValueLost: null;
 };
 
+function unavailableLiquidity(
+  candidate: CapLiquidityCandidate,
+  status: 'ILLEGAL' | 'ABSTAIN',
+  sourceFingerprint: string,
+  reasonCodes: string[],
+): CapLiquidityCandidateResult {
+  return {
+    candidateId: candidate.candidateId,
+    kind: candidate.kind,
+    status,
+    sourceFingerprint,
+    reasonCodes,
+    reliefBySeason: [],
+    currentSeasonRelief: null,
+    totalPositiveRelief: 0,
+    firstPositiveReliefSeason: null,
+    rightsConsumed: 0,
+    followUpActions: [],
+    ccfValueLost: null,
+  };
+}
+
+function finalizeLiquidity(
+  candidate: CapLiquidityCandidate,
+  currentSeason: number | null,
+  sourceFingerprint: string,
+  reliefBySeason: Array<{ season: number; capRoomDelta: number; deadCapDelta: number }>,
+  rightsConsumed: number,
+  followUpActions: string[],
+): CapLiquidityCandidateResult {
+  const positive = reliefBySeason.filter((item) => item.capRoomDelta > 0.000001);
+  return {
+    candidateId: candidate.candidateId,
+    kind: candidate.kind,
+    status: 'READY',
+    sourceFingerprint,
+    reasonCodes: [],
+    reliefBySeason,
+    currentSeasonRelief: currentSeason === null
+      ? null
+      : reliefBySeason.find((item) => item.season === currentSeason)?.capRoomDelta ?? 0,
+    totalPositiveRelief: money(positive.reduce((sum, item) => sum + item.capRoomDelta, 0)),
+    firstPositiveReliefSeason: positive.length ? Math.min(...positive.map((item) => item.season)) : null,
+    rightsConsumed,
+    followUpActions,
+    ccfValueLost: null,
+  };
+}
+
 export function certifyCapLiquidityCandidates(
   snapshotInput: unknown,
   policyInput: unknown,
@@ -287,77 +333,71 @@ export function certifyCapLiquidityCandidates(
   const currentSeason = snapshotResult.success ? snapshotResult.data.league.season : null;
 
   const results = candidates.map((candidate): CapLiquidityCandidateResult => {
-    const result = candidate.kind === 'TRANSACTION'
-      ? simulateKnownAtContractTransaction(snapshotInput, policyInput, candidate.context, candidate.action)
-      : simulateKnownAtContractRestructure(snapshotInput, policyInput, candidate.context, candidate.action);
+    if (candidate.kind === 'TRANSACTION') {
+      const result = simulateKnownAtContractTransaction(
+        snapshotInput,
+        policyInput,
+        candidate.context,
+        candidate.action,
+      );
+      if (result.status === 'ABSTAIN') {
+        return unavailableLiquidity(candidate, 'ABSTAIN', result.fingerprint, result.reasonCodes);
+      }
+      if (!result.legal) {
+        return unavailableLiquidity(
+          candidate,
+          'ILLEGAL',
+          result.fingerprint,
+          result.violations.map((item) => item.code),
+        );
+      }
+      const reliefBySeason = (result.teamEffects
+        .find((effect) => effect.teamKey === candidate.targetTeamKey)?.seasons ?? [])
+        .map((season) => ({
+          season: season.season,
+          capRoomDelta: money(season.after.capRemaining - season.before.capRemaining),
+          deadCapDelta: money(season.after.deadCap - season.before.deadCap),
+        }));
+      return finalizeLiquidity(
+        candidate,
+        currentSeason,
+        result.fingerprint,
+        reliefBySeason,
+        result.rightEffects.reduce((sum, item) => sum + item.quantityConsumed, 0),
+        result.followUpActions,
+      );
+    }
 
+    const result = simulateKnownAtContractRestructure(
+      snapshotInput,
+      policyInput,
+      candidate.context,
+      candidate.action,
+    );
     if (result.status === 'ABSTAIN') {
-      return {
-        candidateId: candidate.candidateId,
-        kind: candidate.kind,
-        status: 'ABSTAIN',
-        sourceFingerprint: result.fingerprint,
-        reasonCodes: result.reasonCodes,
-        reliefBySeason: [],
-        currentSeasonRelief: null,
-        totalPositiveRelief: 0,
-        firstPositiveReliefSeason: null,
-        rightsConsumed: 0,
-        followUpActions: [],
-        ccfValueLost: null,
-      };
+      return unavailableLiquidity(candidate, 'ABSTAIN', result.fingerprint, result.reasonCodes);
     }
-
     if (!result.legal) {
-      return {
-        candidateId: candidate.candidateId,
-        kind: candidate.kind,
-        status: 'ILLEGAL',
-        sourceFingerprint: result.fingerprint,
-        reasonCodes: result.violations.map((item) => item.code),
-        reliefBySeason: [],
-        currentSeasonRelief: null,
-        totalPositiveRelief: 0,
-        firstPositiveReliefSeason: null,
-        rightsConsumed: 0,
-        followUpActions: [],
-        ccfValueLost: null,
-      };
+      return unavailableLiquidity(
+        candidate,
+        'ILLEGAL',
+        result.fingerprint,
+        result.violations.map((item) => item.code),
+      );
     }
-
-    const reliefBySeason = candidate.kind === 'TRANSACTION'
-      ? (result.teamEffects.find((effect) => effect.teamKey === candidate.targetTeamKey)?.seasons ?? []).map((season) => ({
-        season: season.season,
-        capRoomDelta: money(season.after.capRemaining - season.before.capRemaining),
-        deadCapDelta: money(season.after.deadCap - season.before.deadCap),
-      }))
-      : result.seasonEffects.map((season) => ({
-        season: season.season,
-        capRoomDelta: money(season.after.capRemaining - season.before.capRemaining),
-        deadCapDelta: 0,
-      }));
-
-    const positive = reliefBySeason.filter((item) => item.capRoomDelta > 0.000001);
-    const rightsConsumed = candidate.kind === 'TRANSACTION'
-      ? result.rightEffects.reduce((sum, item) => sum + item.quantityConsumed, 0)
-      : result.rightEffect?.quantityConsumed ?? 0;
-
-    return {
-      candidateId: candidate.candidateId,
-      kind: candidate.kind,
-      status: 'READY',
-      sourceFingerprint: result.fingerprint,
-      reasonCodes: [],
+    const reliefBySeason = result.seasonEffects.map((season) => ({
+      season: season.season,
+      capRoomDelta: money(season.after.capRemaining - season.before.capRemaining),
+      deadCapDelta: 0,
+    }));
+    return finalizeLiquidity(
+      candidate,
+      currentSeason,
+      result.fingerprint,
       reliefBySeason,
-      currentSeasonRelief: currentSeason === null
-        ? null
-        : reliefBySeason.find((item) => item.season === currentSeason)?.capRoomDelta ?? 0,
-      totalPositiveRelief: money(positive.reduce((sum, item) => sum + item.capRoomDelta, 0)),
-      firstPositiveReliefSeason: positive.length ? Math.min(...positive.map((item) => item.season)) : null,
-      rightsConsumed,
-      followUpActions: candidate.kind === 'TRANSACTION' ? result.followUpActions : [],
-      ccfValueLost: null,
-    };
+      result.rightEffect?.quantityConsumed ?? 0,
+      [],
+    );
   });
 
   return results.sort((a, b) => {
