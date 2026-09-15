@@ -7,6 +7,7 @@ import {
 } from "../marketPerception";
 
 const AS_OF = "2026-09-15T12:00:00Z";
+const MARKET_POOL = "dynasty-sf-ppr-player-market-v1";
 
 function policy(): CCFMarketPerceptionPolicy {
   return {
@@ -46,6 +47,7 @@ function signal(
     direction: 1,
     magnitude: 0.8,
     marketLevelPercentile: 0.6,
+    marketLevelComparisonPoolId: MARKET_POOL,
     ...overrides,
   };
 }
@@ -53,6 +55,7 @@ function signal(
 function twoSourceLevelSignals(
   playerId: string,
   level: number,
+  comparisonPoolId = MARKET_POOL,
 ): CCFMarketSignalEvidence[] {
   return [
     signal({
@@ -65,6 +68,7 @@ function twoSourceLevelSignals(
       direction: 0,
       magnitude: 0,
       marketLevelPercentile: level,
+      marketLevelComparisonPoolId: comparisonPoolId,
     }),
     signal({
       signalId: `${playerId}-adp`,
@@ -76,6 +80,7 @@ function twoSourceLevelSignals(
       direction: 0,
       magnitude: 0,
       marketLevelPercentile: level,
+      marketLevelComparisonPoolId: comparisonPoolId,
     }),
   ];
 }
@@ -90,6 +95,16 @@ describe("CCF market perception intelligence", () => {
             observedAt: "2026-09-15T12:00:30Z",
           }),
         ],
+        AS_OF,
+        policy(),
+      ),
+    ).toThrow(CCFMarketPerceptionContractError);
+  });
+
+  it("requires an explicit comparison pool for normalized market levels", () => {
+    expect(() =>
+      buildCCFMarketPerceptionSnapshot(
+        [signal({ marketLevelComparisonPoolId: undefined })],
         AS_OF,
         policy(),
       ),
@@ -142,6 +157,32 @@ describe("CCF market perception intelligence", () => {
     expect(snapshot.fast.independenceRatio).toBeCloseTo(2 / 3);
     expect(snapshot.fast.directionalPressure).toBeCloseTo(0.7);
     expect(snapshot.marketLevelPercentile).toBeCloseTo(0.675);
+    expect(snapshot.marketLevelComparisonPoolId).toBe(MARKET_POOL);
+  });
+
+  it("rejects market-level aggregation across incompatible comparison pools", () => {
+    expect(() =>
+      buildCCFMarketPerceptionSnapshot(
+        [
+          signal({
+            signalId: "crowd-level",
+            sourceId: "crowd-origin",
+            sourceFamily: "crowd_market_value",
+            signalKind: "market_level",
+            marketLevelComparisonPoolId: "pool-a",
+          }),
+          signal({
+            signalId: "adp-level",
+            sourceId: "adp-origin",
+            sourceFamily: "startup_adp",
+            signalKind: "market_level",
+            marketLevelComparisonPoolId: "pool-b",
+          }),
+        ],
+        AS_OF,
+        policy(),
+      ),
+    ).toThrow(CCFMarketPerceptionContractError);
   });
 
   it("measures recent perception acceleration without turning it into recommendation authority", () => {
@@ -214,6 +255,8 @@ describe("CCF market perception intelligence", () => {
     expect(snapshot.fast.independentSourceCount).toBe(1);
     expect(snapshot.fast.status).toBe("insufficient");
     expect(snapshot.status).toBe("insufficient");
+    expect(snapshot.marketLevelPercentile).toBeNull();
+    expect(snapshot.marketLevelComparisonPoolId).toBeNull();
     expect(snapshot.momentumDelta).toBeNull();
   });
 
@@ -262,7 +305,7 @@ describe("CCF market perception intelligence", () => {
     ).toThrow(CCFMarketPerceptionContractError);
   });
 
-  it("builds a same-format, same-as-of market neighborhood without emitting a buy or sell call", () => {
+  it("builds a same-format, same-as-of, same-pool market neighborhood without emitting a buy or sell call", () => {
     const snapshots = [
       buildCCFMarketPerceptionSnapshot(
         twoSourceLevelSignals("player-a", 0.8),
@@ -283,11 +326,29 @@ describe("CCF market perception intelligence", () => {
 
     const neighborhood = buildCCFMarketNeighborhood("player-b", snapshots, 1);
 
+    expect(neighborhood.marketLevelComparisonPoolId).toBe(MARKET_POOL);
     expect(neighborhood.above.map((entry) => entry.playerId)).toEqual(["player-a"]);
     expect(neighborhood.target.playerId).toBe("player-b");
     expect(neighborhood.below.map((entry) => entry.playerId)).toEqual(["player-c"]);
     expect(neighborhood.diagnosticOnly).toBe(true);
     expect(neighborhood.recommendationAuthority).toBe("none");
+  });
+
+  it("rejects mixed comparison pools in a market neighborhood", () => {
+    const first = buildCCFMarketPerceptionSnapshot(
+      twoSourceLevelSignals("player-a", 0.8, "pool-a"),
+      AS_OF,
+      policy(),
+    );
+    const second = buildCCFMarketPerceptionSnapshot(
+      twoSourceLevelSignals("player-b", 0.6, "pool-b"),
+      AS_OF,
+      policy(),
+    );
+
+    expect(() => buildCCFMarketNeighborhood("player-a", [first, second], 1)).toThrow(
+      CCFMarketPerceptionContractError,
+    );
   });
 
   it("rejects mixed decision timestamps in a market neighborhood", () => {
