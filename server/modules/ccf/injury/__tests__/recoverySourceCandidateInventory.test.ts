@@ -37,10 +37,11 @@ describe("CCF recovery source candidate inventory", () => {
       status: "candidate",
       temporalMode: "current_snapshot_only",
       archiveStrategy: "provider_archive",
+      parserVersion: "ccf-nfl-official-inactives-candidate-v1",
+      sourceLocatorTemplate: "https://amp.nfl.com/news/{inactive-report-article-slug}",
       pointInTimeSemanticsDocumented: false,
       rawTraceSupported: false,
     });
-    expect(activation?.parserVersion).toBeNull();
     expect(activation?.licenseOrTermsRef).toBeNull();
     expect(activation?.reliabilityReviewRef).toBeNull();
   });
