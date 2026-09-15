@@ -170,6 +170,42 @@ describe("CCF-wide predictive validation protocol", () => {
     ).toThrow(/tiberOffRequired/);
   });
 
+  it("keeps external challengers and diagnostic oracles out of promotion-critical gates", () => {
+    const p = protocol();
+    expect(() =>
+      validateCCFPredictiveValidationProtocol({
+        ...p,
+        promotionCriteria: [
+          {
+            ...p.promotionCriteria[0],
+            comparatorArm: "tiber_challenger",
+          },
+        ],
+      }),
+    ).toThrow(/promotion comparator must be CCF-owned/);
+  });
+
+  it("rejects final protocols that inspected outcomes before freeze or use negative thresholds", () => {
+    expect(() =>
+      validateCCFPredictiveValidationProtocol(
+        protocol({ outcomeAccessedBeforeFreeze: true as unknown as false }),
+      ),
+    ).toThrow(/outcomeAccessedBeforeFreeze/);
+
+    const p = protocol();
+    expect(() =>
+      validateCCFPredictiveValidationProtocol({
+        ...p,
+        promotionCriteria: [
+          {
+            ...p.promotionCriteria[0],
+            minimumAbsoluteImprovement: -0.1,
+          },
+        ],
+      }),
+    ).toThrow(/non-negative/);
+  });
+
   it("fingerprints equivalent set-like protocol fields deterministically", () => {
     const first = protocol();
     const reordered = {
@@ -306,7 +342,7 @@ describe("miss attribution", () => {
     expect(() =>
       validateCCFMissAttributionRecord({
         ...attribution(),
-        modelUpdateAuthorized: true as false,
+        modelUpdateAuthorized: true as unknown as false,
       }),
     ).toThrow(/cannot itself authorize a model update/);
   });
