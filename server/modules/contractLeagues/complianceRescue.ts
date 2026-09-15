@@ -47,6 +47,7 @@ export type ComplianceRescueResult =
  */
 export function findCertifiedSingleActionComplianceRescue(
   capHealth: CapHealthResult,
+  currentSeason: number,
   candidates: CapLiquidityCandidateResult[],
 ): ComplianceRescueResult {
   if (capHealth.status !== 'READY') {
@@ -57,13 +58,21 @@ export function findCertifiedSingleActionComplianceRescue(
       detail: 'Compliance rescue requires READY multi-year cap health.',
     };
   }
-  const current = capHealth.seasons.find((season) => season.season === Math.min(...capHealth.seasons.map((item) => item.season))) ?? null;
+  if (!Number.isInteger(currentSeason) || currentSeason < 2000 || currentSeason > 2200) {
+    return {
+      status: 'UNAVAILABLE',
+      version: COMPLIANCE_RESCUE_VERSION,
+      reasonCode: 'CURRENT_SEASON_INVALID',
+      detail: 'Compliance rescue requires an explicit current calendar season.',
+    };
+  }
+  const current = capHealth.seasons.find((season) => season.season === currentSeason) ?? null;
   if (!current) {
     return {
       status: 'UNAVAILABLE',
       version: COMPLIANCE_RESCUE_VERSION,
       reasonCode: 'CURRENT_CAP_SEASON_UNAVAILABLE',
-      detail: 'No current cap-health season is available.',
+      detail: 'No cap-health row exists for the explicit current season.',
     };
   }
   const activeViolationRules = current.compliance.filter((rule) =>
