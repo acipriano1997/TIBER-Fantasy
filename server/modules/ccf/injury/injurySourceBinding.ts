@@ -27,6 +27,7 @@ export type CCFRecoverySourcePromotionBlocker =
   | "status_rejected"
   | "status_research_only"
   | "challenger_inference_not_eligible"
+  | "social_media_speculation_not_eligible"
   | "temporal_mode_not_archived_point_in_time"
   | "archive_strategy_missing"
   | "license_or_terms_missing"
@@ -104,6 +105,9 @@ export function evaluateCCFRecoverySourcePromotionReadiness(
   if (binding.status === "research_only") blockers.push("status_research_only");
   if (binding.authority === "challenger_inference") {
     blockers.push("challenger_inference_not_eligible");
+  }
+  if (binding.sourceClass === "social_media_speculation") {
+    blockers.push("social_media_speculation_not_eligible");
   }
   if (binding.temporalMode !== "archived_point_in_time") {
     blockers.push("temporal_mode_not_archived_point_in_time");
