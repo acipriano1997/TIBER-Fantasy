@@ -33,7 +33,7 @@ Do not commit private roster/contract data, Drive file IDs, private source URLs,
 - Platform adapters own platform league identity/settings and NFL roster state when available.
 - Private workbooks may supplement contract economics and contract-specific states that the platform does not represent.
 - League constitutions/rules sources own custom league-policy truth when platform settings are insufficient.
-- TIBER-Fantasy owns the user-facing normalized snapshot boundary, eventual application persistence, the versioned contract-league policy representation, and the deterministic transaction-consequence layer.
+- TIBER-Fantasy owns the user-facing normalized snapshot boundary, application persistence, the versioned contract-league policy representation, and the deterministic transaction-consequence layer.
 
 ## State vs policy
 
@@ -61,6 +61,25 @@ A policy profile answers **what transformations are legal and how they change st
 - lifecycle deadlines and rule-effective dates.
 
 `contract-league-snapshot.v1` should remain stable rather than absorbing policy merely because a private league or external platform exposes a new rule. Policy must be a separately versioned, provenance-aware follow-on boundary.
+
+## Persistence boundary
+
+Validated contract snapshots now have an append-only application persistence boundary:
+
+- table: `contract_league_snapshots` in the modular `shared/contractLeagueSchema.ts` schema file;
+- service: `server/modules/contractLeagues/persistence.ts`;
+- canonicalization/fingerprint contract: `server/modules/contractLeagues/persistenceContract.ts`;
+- identity: an explicit internal `leagueKey` supplied by the caller, never guessed from workbook labels;
+- idempotency: `(leagueKey, fingerprint)` uniquely identifies the same normalized decision-relevant state;
+- lineage: materially new state inserts a new row and records `supersedesSnapshotId`; there is no application update path;
+- replay: every persisted row retains the validated normalized payload and validation/provenance metadata;
+- authority: `VALID` snapshots are eligible for the default decision read path, while `PARTIAL` snapshots remain replayable/auditable but cannot silently become recommendation authority;
+- rejection: a `REJECTED` snapshot cannot be persisted as decision state;
+- privacy: persisted source references are opaque private tokens. Public workbook URLs/IDs and private contents do not belong in repository fixtures or logs.
+
+The fingerprint intentionally excludes volatile import/provenance timestamps and source display/locator changes, and normalizes non-semantic source ordering. Re-importing unchanged logical state therefore resolves to the existing immutable row instead of creating false history.
+
+Drizzle Kit is configured to include both `shared/schema.ts` and `shared/contractLeagueSchema.ts`. The application schema boundary is implemented, but database activation still requires the normal generated-Drizzle migration and database certification path; no hand-written raw SQL migration is authorized by this module.
 
 ## Scoring and lineup decisions
 
@@ -106,6 +125,24 @@ War Room / what-if simulations are read-only hypothetical state. They must:
 
 ## Current state
 
-This module currently defines the normalized snapshot contract plus a fail-closed adapter into the generic fantasy-scoring translator. Persistence, private-source import, platform identity binding, versioned league-policy representation, legal lineup optimization, deterministic transaction consequences, market valuation, and Contract League War Room behavior are follow-on work.
+Implemented on the contract-league foundation branch:
+
+- normalized `contract-league-snapshot.v1` boundary;
+- fail-closed adapter into the generic fantasy-scoring translator;
+- append-only/idempotent snapshot persistence contract and service;
+- `VALID`-only default decision retrieval;
+- synthetic contract/scoring/persistence regression tests;
+- modular Drizzle schema inclusion for the contract snapshot table.
+
+Still gated follow-on work:
+
+- generated migration + database certification for the persistence table;
+- private-source workbook import for both leagues;
+- verified platform identity binding;
+- versioned league-policy representation;
+- legal scoring-aware lineup optimization;
+- deterministic transaction consequences;
+- market valuation;
+- Contract League War Room behavior.
 
 The durable follow-on scope lives in `.claude/tasks/contract-league-persistence-and-scoring.md`.
