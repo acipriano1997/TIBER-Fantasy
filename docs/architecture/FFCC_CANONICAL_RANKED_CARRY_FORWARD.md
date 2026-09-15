@@ -78,7 +78,7 @@ Advance from native weather evidence contract to live ingestion, immutable histo
 
 ## 6. Injury & Recovery Intelligence — **P1 / ACTIVE FOUNDATION, OPEN**
 
-The CCF-native evidence-contract foundation is implemented on stacked branch `ccf/injury-recovery-intelligence-v0`. It keeps Football Unwritten separate and does not activate recommendation authority.
+The CCF-native evidence, source-binding, and historical-validation foundations are implemented on stacked branch `ccf/injury-recovery-intelligence-v0`. They keep Football Unwritten separate and do not activate recommendation authority.
 
 ### Implemented foundation
 
@@ -89,31 +89,46 @@ The CCF-native evidence-contract foundation is implemented on stacked branch `cc
 5. Source credibility is represented as an ordinal audit hierarchy without unvalidated numeric weights.
 6. Observed workload changes can be compared deterministically without claiming medical causality or assigning reinjury probability.
 7. Legacy Start/Sit `injuryTag` logic and legacy consensus fixed injury profiles are explicitly non-authoritative for CCF.
+8. `ccf-recovery-source-binding-v1` now requires provider/product identity, terms/license reference, parser identity, archived point-in-time support, an archive strategy, raw traceability, reliability review, and explicit source authority before a source can be production eligible.
+9. Minimum source coverage now fails closed unless production-eligible official injury designation, official practice participation, official game activation, and observed workload evidence are all present.
+10. Recovery source-binding plans receive deterministic fingerprints so historical/model runs can prove the exact source contract used.
+11. `ccf-recovery-validation-protocol-v1` now freezes dataset/source/scoring identity, chronological train/validation/test windows, research questions, comparison arms, primary/secondary metrics, subgroup policy, sample policy, and promotion criteria before evaluation.
+12. Recovery validation requires native-no-recovery, eligible-raw-evidence, and learned-recovery-feature arms; legacy/external signals remain optional challengers.
+13. Promotion protocols require a held-out test window, predeclared improvement thresholds, TIBER-off replay, and retention of failed candidates/negative results.
+14. Source-binding and historical-validation architecture is documented in `docs/architecture/CCF_INJURY_RECOVERY_SOURCE_BINDING_AND_VALIDATION.md`.
 
 ### Persistent future obligations
 
-1. Bind promoted point-in-time official injury designations, practice participation, and game activation sources.
-2. Bind procedure/treatment confirmation evidence when reliably known and permitted, preserving exact provenance and uncertainty.
-3. Bind observed snaps, routes, targets/touches, designed/high-leverage/goal-line usage, pass protection, and relevant special-teams exposure.
-4. Bind credible position-relevant performance proxies only where source quality/licensing support them; do not pretend CCF has private medical testing.
-5. Define evidence-type stale/recheck policy and integrate Season Intelligence Events / News Intelligence without duplicate truth.
-6. Extend the frozen Canonical Decision Packet to carry materially relevant recovery evidence and the same frozen snapshot to all challenger models.
-7. Persist recovery evidence/assessments in immutable decision/evidence ledgers.
-8. Fit post-return iterative/Bayesian updating from point-in-time historical data; update usage/role evidence faster than noisy one-game box scores where validation supports it.
-9. Separate P(play), expected snap/route/touch opportunity, expected efficiency, ceiling, bust/near-zero risk, and setback uncertainty in native lineup decisions.
-10. Build injury-class priors only as distributions/ranges with minimum-sample and weak-evidence safeguards; no fixed `injury = N weeks` tables.
-11. Evaluate position-specific effects (WR speed/cutting, RB acceleration/contact, QB platform/scramble, TE receiving+blocking) only through empirical promotion gates.
-12. Evaluate treatment/procedure distinctions, age interaction, recurrence history, compensatory/opposite-limb context, and workload ramp only where observed evidence supports incremental value.
-13. Add era conditioning only if historical-depth tests show material value.
-14. Explicitly include failed/diminished/recurring returns and negative evidence to reduce survivorship bias; famous comeback outliers remain tails.
-15. Test indirect OL/defensive injury effects on opposing/offensive fantasy environment where material.
-16. Extend recovery-aware evidence into waivers, trades, dynasty and—only if already authorized—DFS/Beat Vegas as contextual evidence, never hidden recommendation authority.
-17. Run point-in-time chronological OOS tests for active-vs-workload separation, practice-to-snap progression, time-to-normalization, position differences, role indicators vs time-since-injury, uncertainty calibration, abstention, and outlier sensitivity.
-18. Compare CCF without recovery features vs eligible raw evidence vs learned recovery features; require calibration, subgroup stability, minimum sample support, and incremental decision value before promotion.
-19. Preserve failed recovery-feature candidates and negative results in the append-only backtest history.
-20. Maintain the safety boundary: fantasy decision support only; no diagnosis, undisclosed-medical-fact inference, treatment advice, or fabricated individualized medical probabilities.
+1. Build the concrete recovery source inventory from sources actually available to FFCC/TIBER-Data; classify every candidate as `candidate`, `research_only`, `production_eligible`, or `rejected` rather than certifying providers by name without evidence.
+2. For each candidate, verify terms/license, historical archive behavior, field semantics, correction behavior, parser/version identity, raw trace, missingness, and point-in-time semantics; fingerprint the resulting binding plan.
+3. Bind promoted point-in-time official injury designations, practice participation, game activation, and observed workload, then pass the minimum-source-coverage gate.
+4. Bind procedure/treatment confirmation evidence only when reliably known and permitted, preserving exact provenance and uncertainty.
+5. Bind richer observed snaps/routes/targets/touches/designed/high-leverage/goal-line usage, pass protection and special-teams exposure only where definitions/source quality support them.
+6. Bind credible position-relevant performance proxies only where source quality/licensing support them; do not pretend CCF has private medical testing.
+7. Define evidence-type stale/recheck policy and integrate Season Intelligence Events / News Intelligence without duplicate truth.
+8. Extend the frozen Canonical Decision Packet to carry materially relevant recovery evidence and the same frozen snapshot to all challenger models.
+9. Persist recovery evidence/assessments in immutable decision/evidence ledgers.
+10. Construct the first player × game × decision-as-of historical recovery dataset using immutable pre-decision freezes and separate outcome storage; fingerprint dataset and scoring profile.
+11. Measure historical coverage before choosing minimum overall/subgroup sample thresholds; then freeze those thresholds before the final holdout is inspected.
+12. Freeze the first production recovery validation manifest with chronological train/validation/test windows, primary metrics, comparison arms and explicit promotion thresholds before final test access.
+13. Run the baseline comparison: native CCF without recovery features vs eligible raw recovery evidence; determine whether recovery information itself adds stable value before fitting more elaborate mechanisms.
+14. Fit post-return iterative/Bayesian updating only on training data; update usage/role evidence faster than noisy one-game box scores only if validation supports it.
+15. Separate P(play), expected snap/route/touch opportunity, expected efficiency, ceiling, bust/near-zero risk, and setback uncertainty in native lineup decisions.
+16. Build injury-class priors only as distributions/ranges with minimum-sample and weak-evidence safeguards; no fixed `injury = N weeks` tables.
+17. Evaluate position-specific effects (WR speed/cutting, RB acceleration/contact, QB platform/scramble, TE receiving+blocking) only through empirical promotion gates.
+18. Evaluate treatment/procedure distinctions, age interaction, recurrence history, compensatory/opposite-limb context, and workload ramp only where observed evidence supports incremental value.
+19. Add era conditioning only if historical-depth tests show material value.
+20. Explicitly include failed/diminished/recurring/non-return outcomes and negative evidence to reduce survivorship bias; famous comeback outliers remain tails.
+21. Test indirect OL/defensive injury effects on opposing/offensive fantasy environment where material.
+22. Extend recovery-aware evidence into waivers, trades, dynasty and—only if already authorized—DFS/Beat Vegas as contextual evidence, never hidden recommendation authority.
+23. Run point-in-time chronological OOS tests for active-vs-workload separation, practice-to-snap progression, time-to-normalization, position differences, role indicators vs time-since-injury, uncertainty calibration, abstention, and outlier sensitivity.
+24. Compare CCF without recovery features vs eligible raw evidence vs learned recovery features; require calibration, subgroup stability, minimum sample support, and incremental decision value before promotion.
+25. Preserve failed recovery-feature candidates and negative results in the append-only backtest history.
+26. Maintain the safety boundary: fantasy decision support only; no diagnosis, undisclosed-medical-fact inference, treatment advice, or fabricated individualized medical probabilities.
 
-Detailed architecture and audit: `docs/architecture/CCF_INJURY_RECOVERY_INTELLIGENCE_V0.md`.
+Detailed architecture and audit:
+- `docs/architecture/CCF_INJURY_RECOVERY_INTELLIGENCE_V0.md`
+- `docs/architecture/CCF_INJURY_RECOVERY_SOURCE_BINDING_AND_VALIDATION.md`
 
 ## 7. Recommendation Authority Gate — **P1 / OPEN**
 
@@ -200,6 +215,6 @@ This document is **Fantasy Football Command Center only**. Football Unwritten ta
 
 PR #25 adds strict, fingerprinted eight-surface declared-lineage validation, transitive dependency checks, native-family enforcement, canonical model-certification matching, and census/registry completeness checks. Regression coverage includes relabeling, omission, cycles, malformed inputs, temporal violations, and missing certification. No production recommendation is activated.
 
-The stacked injury/recovery v0 branch adds the governed recovery evidence contract, explicit return-stage separation, source/status/model-treatment guardrails, native-only assessment authority, workload-change comparison without medical causality, focused tests, and the detailed persistent queue above. It does not fit injury priors or activate recommendation logic.
+The stacked injury/recovery v0 branch now adds the governed recovery evidence contract, source-binding eligibility/fingerprint contract, minimum-source-coverage gate, frozen historical-validation protocol, explicit return-stage separation, source/status/model-treatment guardrails, native-only assessment authority, workload-change comparison without medical causality, focused tests, and the detailed persistent queue above. It still does not fit injury priors or activate recommendation logic.
 
-P0 independence and historical backtesting remain **OPEN**. Next: bind genuine runtime/source artifacts, freeze the first production-native candidate and point-in-time dataset, and execute the predeclared chronological OOS protocol. No historical performance scores or certification records were invented. ESPN live-session verification still requires the user's local Chrome/ESPN session.
+P0 independence and historical backtesting remain **OPEN**. Next: inventory and verify concrete source providers, freeze the first source-binding plan and historical recovery dataset, predeclare the first executable recovery validation manifest, and execute the chronological OOS protocol. No historical performance scores or certification records were invented. ESPN live-session verification still requires the user's local Chrome/ESPN session.
