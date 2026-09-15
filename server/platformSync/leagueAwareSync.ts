@@ -8,11 +8,11 @@ import {
   type UnifiedLeagueContextV1,
 } from '../leagueContext/leagueContextV1';
 import type { ContractWorkbookSnapshotV1 } from '../leagueContext/contractWorkbookSnapshot';
+import type { DevyRightsSnapshotV1 } from '../leagueContext/devyRightsSnapshot';
 
 export type LeagueSupplementRefresh = {
   contractWorkbookSnapshot?: ContractWorkbookSnapshotV1 | null;
-  devyRightsAsOf?: string | Date | null;
-  devyRightsAvailable?: boolean;
+  devyRightsSnapshot?: DevyRightsSnapshotV1 | null;
 };
 
 export type LeagueAwareSyncOptions = {
@@ -28,9 +28,10 @@ export type LeagueAwareSyncData = SyncData & {
  *
  * PlatformSyncManager remains responsible for platform retrieval. This wrapper
  * immediately converts every normalized league into Unified League Context v1,
- * preserving exact platform scoring and attaching only explicitly refreshed
- * supplemental sources. Contract/Devy supplements are never inferred from
- * another league or treated as live merely because a registry link exists.
+ * preserving exact platform scoring and attaching only explicitly refreshed,
+ * normalized supplemental snapshots. Contract/Devy supplements are never
+ * inferred from another league or treated as live merely because a registry
+ * link exists.
  */
 export async function syncUserDataWithLeagueContext(
   userId: string,
@@ -52,8 +53,7 @@ export async function syncUserDataWithLeagueContext(
         scoringAsOf: asOf,
         rosterPositions: league.rosterPositions,
         contractWorkbookSnapshot: supplement?.contractWorkbookSnapshot ?? null,
-        devyRightsAsOf: supplement?.devyRightsAsOf ?? null,
-        devyRightsAvailable: supplement?.devyRightsAvailable ?? false,
+        devyRightsSnapshot: supplement?.devyRightsSnapshot ?? null,
         builtAt: asOf,
       });
     }),
