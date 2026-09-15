@@ -9,7 +9,7 @@ on:
 
 permissions:
   contents: read
-  statuses: write
+  pull-requests: write
 
 concurrency:
   group: ccf-independence-${{ github.workflow }}-${{ github.ref }}
@@ -54,17 +54,10 @@ jobs:
               echo '```'
             } >> "$GITHUB_STEP_SUMMARY"
 
-            index=0
-            while IFS= read -r line && [ "$index" -lt 8 ]; do
-              description=$(printf '%s' "$line" | cut -c1-135)
-              gh api --method POST \
-                -H 'Accept: application/vnd.github+json' \
-                "/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
-                -f state='error' \
-                -f context="ccf-typecheck/${index}" \
-                -f description="$description" >/dev/null
-              index=$((index + 1))
-            done <<< "$ccf_errors"
+            if [ "${GITHUB_EVENT_NAME}" = "pull_request" ]; then
+              printf 'Temporary CI diagnostic for exact head `%s`:\n\n```text\n%s\n```\n' "$GITHUB_SHA" "$ccf_errors" > /tmp/ccf-pr-diagnostic.md
+              gh pr comment "${{ github.event.pull_request.number }}" --body-file /tmp/ccf-pr-diagnostic.md || true
+            fi
             exit 1
           fi
 
