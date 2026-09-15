@@ -23,6 +23,18 @@ export type CCFRecoveryArchiveStrategy =
   | "provider_archive"
   | "none";
 
+export type CCFRecoveryPermissionStatus =
+  | "unreviewed"
+  | "evaluation_only"
+  | "permitted_for_intended_use"
+  | "prohibited";
+
+export type CCFRecoveryReliabilityStatus =
+  | "unreviewed"
+  | "incomplete"
+  | "passed"
+  | "failed";
+
 export type CCFRecoverySourcePromotionBlocker =
   | "status_rejected"
   | "status_research_only"
@@ -31,11 +43,13 @@ export type CCFRecoverySourcePromotionBlocker =
   | "temporal_mode_not_archived_point_in_time"
   | "archive_strategy_missing"
   | "license_or_terms_missing"
+  | "permission_not_cleared"
   | "parser_version_missing"
   | "source_locator_missing"
   | "point_in_time_semantics_undocumented"
   | "raw_trace_missing"
-  | "reliability_review_missing";
+  | "reliability_review_missing"
+  | "reliability_review_not_passed";
 
 export interface CCFRecoverySourceBinding {
   bindingVersion: "ccf-recovery-source-binding-v1";
@@ -49,11 +63,13 @@ export interface CCFRecoverySourceBinding {
   temporalMode: CCFSourceTemporalMode;
   archiveStrategy: CCFRecoveryArchiveStrategy;
   licenseOrTermsRef: string | null;
+  permissionStatus: CCFRecoveryPermissionStatus;
   parserVersion: string | null;
   sourceLocatorTemplate: string | null;
   pointInTimeSemanticsDocumented: boolean;
   rawTraceSupported: boolean;
   reliabilityReviewRef: string | null;
+  reliabilityStatus: CCFRecoveryReliabilityStatus;
   notes: string[];
 }
 
@@ -114,6 +130,9 @@ export function evaluateCCFRecoverySourcePromotionReadiness(
   }
   if (binding.archiveStrategy === "none") blockers.push("archive_strategy_missing");
   if (!binding.licenseOrTermsRef?.trim()) blockers.push("license_or_terms_missing");
+  if (binding.permissionStatus !== "permitted_for_intended_use") {
+    blockers.push("permission_not_cleared");
+  }
   if (!binding.parserVersion?.trim()) blockers.push("parser_version_missing");
   if (!binding.sourceLocatorTemplate?.trim()) blockers.push("source_locator_missing");
   if (!binding.pointInTimeSemanticsDocumented) {
@@ -121,6 +140,9 @@ export function evaluateCCFRecoverySourcePromotionReadiness(
   }
   if (!binding.rawTraceSupported) blockers.push("raw_trace_missing");
   if (!binding.reliabilityReviewRef?.trim()) blockers.push("reliability_review_missing");
+  if (binding.reliabilityStatus !== "passed") {
+    blockers.push("reliability_review_not_passed");
+  }
 
   return {
     bindingId: binding.bindingId,
@@ -163,6 +185,12 @@ export function validateCCFRecoverySourceBinding(
     );
   }
 
+  if (binding.sourceClass === "social_media_speculation" && binding.status === "production_eligible") {
+    throw new CCFRecoverySourceBindingError(
+      `${binding.bindingId} social-media speculation cannot be production eligible`,
+    );
+  }
+
   if (binding.status === "production_eligible") {
     if (binding.temporalMode !== "archived_point_in_time") {
       throw new CCFRecoverySourceBindingError(
@@ -175,9 +203,19 @@ export function validateCCFRecoverySourceBinding(
       );
     }
     requireText(`${binding.bindingId}.licenseOrTermsRef`, binding.licenseOrTermsRef);
+    if (binding.permissionStatus !== "permitted_for_intended_use") {
+      throw new CCFRecoverySourceBindingError(
+        `${binding.bindingId} production eligibility requires permission cleared for the intended use`,
+      );
+    }
     requireText(`${binding.bindingId}.parserVersion`, binding.parserVersion);
     requireText(`${binding.bindingId}.sourceLocatorTemplate`, binding.sourceLocatorTemplate);
     requireText(`${binding.bindingId}.reliabilityReviewRef`, binding.reliabilityReviewRef);
+    if (binding.reliabilityStatus !== "passed") {
+      throw new CCFRecoverySourceBindingError(
+        `${binding.bindingId} production eligibility requires a passed reliability review`,
+      );
+    }
     if (!binding.pointInTimeSemanticsDocumented) {
       throw new CCFRecoverySourceBindingError(
         `${binding.bindingId} production eligibility requires documented point-in-time semantics`,
@@ -188,12 +226,6 @@ export function validateCCFRecoverySourceBinding(
         `${binding.bindingId} production eligibility requires raw-trace support`,
       );
     }
-  }
-
-  if (binding.sourceClass === "social_media_speculation" && binding.status === "production_eligible") {
-    throw new CCFRecoverySourceBindingError(
-      `${binding.bindingId} social-media speculation cannot be production eligible`,
-    );
   }
 
   return binding;
