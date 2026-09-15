@@ -20,7 +20,8 @@ export interface CCFCanonicalOpportunityPlay {
   countsAsOffensivePlay: boolean;
   dropback: boolean;
   rushAttempt: boolean;
-  designedRush: boolean;
+  /** Explicitly a designed quarterback rush, never a generic rushing play. */
+  designedQbRush: boolean;
   scramble: boolean;
   rusherId: string | null;
   targetId: string | null;
@@ -74,7 +75,7 @@ export interface CCFPlayerGameOpportunity {
   receptions: number;
   touches: number;
   airYards: number;
-  designedRushes: number;
+  designedQbRushes: number;
   scrambles: number;
   redZoneCarries: number;
   redZoneTargets: number;
@@ -98,6 +99,7 @@ export interface CCFPlayerGameOpportunity {
   redZoneOpportunityShare: number | null;
   goalLineOpportunityShare: number | null;
   twoMinuteOpportunityShare: number | null;
+  /** Includes player numerator evidence plus team denominator evidence for shares. */
   sourceRefs: string[];
 }
 
@@ -107,6 +109,7 @@ export interface CCFGameOpportunityLedger {
   season: number;
   week: number;
   asOf: string;
+  /** Latest known time across the promoted source state and all supplied plays. */
   knownAt: string;
   sourceId: string;
   producerFamily: "ccf_native_derived";
@@ -191,7 +194,7 @@ function createPlayer(playerId: string, team: string): MutablePlayerOpportunity 
     targets: 0,
     receptions: 0,
     airYards: 0,
-    designedRushes: 0,
+    designedQbRushes: 0,
     scrambles: 0,
     redZoneCarries: 0,
     redZoneTargets: 0,
@@ -250,7 +253,7 @@ function validatePlay(
     if (
       play.dropback ||
       play.rushAttempt ||
-      play.designedRush ||
+      play.designedQbRush ||
       play.scramble ||
       play.rusherId != null ||
       play.targetId != null ||
@@ -292,14 +295,14 @@ function validatePlay(
       `play ${play.eventId} scramble requires dropback, rushAttempt, and rusherId`,
     );
   }
-  if (play.designedRush && (!play.rushAttempt || play.rusherId == null)) {
+  if (play.designedQbRush && (!play.rushAttempt || play.rusherId == null)) {
     throw new CCFGameOpportunityError(
-      `play ${play.eventId} designedRush requires rushAttempt and rusherId`,
+      `play ${play.eventId} designedQbRush requires rushAttempt and rusherId`,
     );
   }
-  if (play.scramble && play.designedRush) {
+  if (play.scramble && play.designedQbRush) {
     throw new CCFGameOpportunityError(
-      `play ${play.eventId} cannot be both scramble and designedRush`,
+      `play ${play.eventId} cannot be both scramble and designedQbRush`,
     );
   }
   if (play.yardline100 != null) {
@@ -368,8 +371,8 @@ export function deriveCCFGameOpportunityLedger(
 
   const teams = new Map<string, MutableTeamOpportunity>();
   const players = new Map<string, MutablePlayerOpportunity>();
-  let latestKnownAtMs = Number.NEGATIVE_INFINITY;
-  let latestKnownAt = input.asOf;
+  let latestKnownAtMs = timestamp("sourceState.knownAt", input.sourceState.knownAt);
+  let latestKnownAt = input.sourceState.knownAt;
 
   const teamFor = (team: string): MutableTeamOpportunity => {
     const existing = teams.get(team);
@@ -418,7 +421,7 @@ export function deriveCCFGameOpportunityLedger(
       team.rushAttempts += 1;
       player.carries += 1;
       player.sourceRefs.add(play.sourceRef);
-      if (play.designedRush) player.designedRushes += 1;
+      if (play.designedQbRush) player.designedQbRushes += 1;
       if (play.scramble) player.scrambles += 1;
       if (isRedZone) {
         team.redZoneOpportunities += 1;
@@ -501,7 +504,7 @@ export function deriveCCFGameOpportunityLedger(
         receptions: player.receptions,
         touches: player.carries + player.receptions,
         airYards: player.airYards,
-        designedRushes: player.designedRushes,
+        designedQbRushes: player.designedQbRushes,
         scrambles: player.scrambles,
         redZoneCarries: player.redZoneCarries,
         redZoneTargets: player.redZoneTargets,
@@ -528,7 +531,7 @@ export function deriveCCFGameOpportunityLedger(
         redZoneOpportunityShare: ratio(redZoneOpportunities, team.redZoneOpportunities),
         goalLineOpportunityShare: ratio(goalLineOpportunities, team.goalLineOpportunities),
         twoMinuteOpportunityShare: ratio(twoMinuteOpportunities, team.twoMinuteOpportunities),
-        sourceRefs: Array.from(player.sourceRefs).sort(),
+        sourceRefs: Array.from(new Set([...player.sourceRefs, ...team.sourceRefs])).sort(),
       };
     });
 
