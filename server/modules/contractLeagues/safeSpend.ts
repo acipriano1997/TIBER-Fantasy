@@ -11,6 +11,13 @@ type SafeSpendConstraint = {
   minimumRemainingCapRoom: number;
 };
 
+type CapacityFactor = {
+  season: number | null;
+  ruleId: string;
+  capacity: number;
+  detail: string;
+};
+
 export type SafeSpendResult =
   | {
     status: 'ABSTAIN';
@@ -24,15 +31,10 @@ export type SafeSpendResult =
     structureId: string;
     years: number;
     startSeason: number;
-    policyCapacityMaximumAnnualValue: number;
+    capCapacityMaximumAnnualValue: number;
     constraintSafeMaximumAnnualValue: number;
     salaryIncrement: number | null;
-    limitingFactors: Array<{
-      season: number | null;
-      ruleId: string;
-      capacity: number;
-      detail: string;
-    }>;
+    limitingFactors: CapacityFactor[];
     legalMaximum: {
       status: 'UNAVAILABLE';
       reasonCode: 'FREE_AGENT_TRANSACTION_ENGINE_REQUIRED';
@@ -78,7 +80,7 @@ function basisShare(
 }
 
 /**
- * Computes a cap-policy capacity envelope for a hypothetical equal annual-value
+ * Computes a cap-capacity envelope for a hypothetical equal annual-value
  * free-agent contract. It does not certify bid legality: nomination windows,
  * roster mutation, award-time validation, and other transaction semantics stay
  * gated on the future deterministic FREE_AGENT/AUCTION action kernel.
@@ -131,7 +133,8 @@ export function calculateSafeSpendEnvelope(input: {
 
   const affectedSeasons = Array.from({ length: input.years }, (_, index) => input.startSeason + index);
   const constraints = new Map((input.constraints ?? []).map((constraint) => [constraint.season, constraint.minimumRemainingCapRoom]));
-  const factors: Array<{ season: number | null; ruleId: string; capacity: number; detail: string }> = [];
+  const baseFactors: CapacityFactor[] = [];
+  const safeFactors: CapacityFactor[] = [];
 
   for (const season of affectedSeasons) {
     const seasonHealth = health.seasons.find((item) => item.season === season);
@@ -145,9 +148,15 @@ export function calculateSafeSpendEnvelope(input: {
       reasons.push({ code: 'SAFE_SPEND_CONSTRAINT_INVALID', detail: `Minimum remaining cap room for ${season} must be non-negative.` });
       continue;
     }
-    factors.push({
+    baseFactors.push({
       season,
       ruleId: 'SOURCE_CAP_REMAINING',
+      capacity: money(Math.max(0, seasonHealth.sourceCapRemaining)),
+      detail: 'Authoritative source cap remaining before user-selected reserve.',
+    });
+    safeFactors.push({
+      season,
+      ruleId: 'SOURCE_CAP_REMAINING_AFTER_SELECTED_RESERVE',
       capacity: money(Math.max(0, seasonHealth.sourceCapRemaining - selectedReserve)),
       detail: `Source cap remaining after preserving ${money(selectedReserve)} of selected room.`,
     });
@@ -160,17 +169,21 @@ export function calculateSafeSpendEnvelope(input: {
       }
       const share = basisShare(rule.basis, structure.guaranteedShare, structure.optionalShare);
       if (share <= 0) continue;
-      factors.push({
+      const factor: CapacityFactor = {
         season,
         ruleId: rule.ruleId,
         capacity: money(Math.max(0, rule.headroom / share)),
         detail: `${rule.basis} headroom translated through contract structure ${structure.id}.`,
-      });
+      };
+      baseFactors.push(factor);
+      safeFactors.push(factor);
     }
   }
 
   if (reasons.length) return abstain(reasons);
-  if (factors.length === 0) return abstain([{ code: 'SAFE_SPEND_CAPACITY_UNAVAILABLE', detail: 'No authoritative capacity constraint could be derived.' }]);
+  if (baseFactors.length === 0 || safeFactors.length === 0) {
+    return abstain([{ code: 'SAFE_SPEND_CAPACITY_UNAVAILABLE', detail: 'No authoritative capacity constraint could be derived.' }]);
+  }
 
   const firstSeasonCeiling = policy.cap.seasonCeilings.find((item) => item.season === input.startSeason)?.ceiling
     ?? policy.cap.defaultCeiling;
@@ -178,24 +191,22 @@ export function calculateSafeSpendEnvelope(input: {
     if (firstSeasonCeiling === null) {
       return abstain([{ code: 'CAP_CEILING_UNAVAILABLE', detail: 'Maximum annual contract share requires a defined cap ceiling.' }]);
     }
-    factors.push({
+    const maxAnnualFactor: CapacityFactor = {
       season: input.startSeason,
       ruleId: 'FREE_AGENT_MAX_ANNUAL_SHARE',
       capacity: money(firstSeasonCeiling * policy.freeAgency.maxAnnualValueShareOfCap),
       detail: 'League free-agency maximum annual-value share of cap.',
-    });
+    };
+    baseFactors.push(maxAnnualFactor);
+    safeFactors.push(maxAnnualFactor);
   }
 
   const increment = policy.freeAgency.salaryIncrement ?? policy.cap.salaryIncrement;
-  const policyCapacity = floorToIncrement(Math.min(...factors.map((item) => item.capacity)), increment);
-
-  const unconstrainedFactors = factors.filter((item) => item.ruleId !== 'SOURCE_CAP_REMAINING');
-  const policyOnly = unconstrainedFactors.length > 0
-    ? floorToIncrement(Math.min(...unconstrainedFactors.map((item) => item.capacity)), increment)
-    : policyCapacity;
-
-  const limitingFactors = factors
-    .filter((factor) => Math.abs(factor.capacity - Math.min(...factors.map((item) => item.capacity))) <= 0.000001);
+  const baseMinimum = Math.min(...baseFactors.map((item) => item.capacity));
+  const safeMinimum = Math.min(...safeFactors.map((item) => item.capacity));
+  const capCapacityMaximumAnnualValue = floorToIncrement(baseMinimum, increment);
+  const constraintSafeMaximumAnnualValue = floorToIncrement(safeMinimum, increment);
+  const limitingFactors = safeFactors.filter((factor) => Math.abs(factor.capacity - safeMinimum) <= 0.000001);
 
   return {
     status: 'READY',
@@ -203,8 +214,8 @@ export function calculateSafeSpendEnvelope(input: {
     structureId: structure.id,
     years: input.years,
     startSeason: input.startSeason,
-    policyCapacityMaximumAnnualValue: policyOnly,
-    constraintSafeMaximumAnnualValue: policyCapacity,
+    capCapacityMaximumAnnualValue,
+    constraintSafeMaximumAnnualValue,
     salaryIncrement: increment,
     limitingFactors,
     legalMaximum: {
