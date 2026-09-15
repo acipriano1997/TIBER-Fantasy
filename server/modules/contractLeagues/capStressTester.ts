@@ -60,6 +60,7 @@ function gated(scenario: CapScenario, code: string, detail: string): CapStressTe
 export function evaluatePlanningOnlyCapScenario(input: {
   snapshot: unknown;
   policy: unknown;
+  leagueKey: string;
   healthContext: CapHealthContext;
   scenario: unknown;
 }): CapStressTesterResult {
@@ -73,6 +74,26 @@ export function evaluatePlanningOnlyCapScenario(input: {
       scenarioFingerprint: null,
       reasonCodes: ['SCENARIO_INVALID'],
       details: ['Cap scenario failed schema validation.'],
+    };
+  }
+
+  const leagueKey = input.leagueKey.trim();
+  if (!leagueKey) {
+    return {
+      status: 'ABSTAIN',
+      version: CAP_STRESS_TESTER_VERSION,
+      scenarioFingerprint: scenario.scenarioFingerprint,
+      reasonCodes: ['LEAGUE_KEY_REQUIRED'],
+      details: ['Planning stress test requires an explicit internal league key.'],
+    };
+  }
+  if (scenario.leagueKey !== leagueKey) {
+    return {
+      status: 'ABSTAIN',
+      version: CAP_STRESS_TESTER_VERSION,
+      scenarioFingerprint: scenario.scenarioFingerprint,
+      reasonCodes: ['SCENARIO_LEAGUE_MISMATCH'],
+      details: ['Scenario belongs to a different internal league key.'],
     };
   }
 
@@ -101,15 +122,6 @@ export function evaluatePlanningOnlyCapScenario(input: {
   }
   const snapshot = snapshotResult.data;
   const policy = policyResult.data;
-  if (scenario.leagueKey !== input.healthContext.teamKey.split(':')[0] && !scenario.leagueKey.trim()) {
-    return {
-      status: 'ABSTAIN',
-      version: CAP_STRESS_TESTER_VERSION,
-      scenarioFingerprint: scenario.scenarioFingerprint,
-      reasonCodes: ['LEAGUE_KEY_REQUIRED'],
-      details: ['Scenario requires an explicit league key.'],
-    };
-  }
 
   const health = buildMultiYearCapHealth(snapshot, policy, input.healthContext);
   if (health.status === 'ABSTAIN') {
