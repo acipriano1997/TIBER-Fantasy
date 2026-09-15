@@ -28,7 +28,7 @@ Finish native CCF independence and recommendation authority without relying on T
 
 ### Pressure-test additions now required
 
-1. Structural authority graph checks implemented for Draft, Lineup/Start-Sit, Waivers, Trades, Keeper, Dynasty, Devy, and Beat Vegas (2026-09-14, PR #25). Trusted per-surface graph extraction, source/runtime bindings, and production enforcement remain **OPEN**.
+1. Structural authority graph checks are implemented for Draft, Lineup/Start-Sit, Waivers, Trades, Keeper, Dynasty, Devy, and Beat Vegas (2026-09-14, PR #25). The generic exact-match trusted-binding gate is implemented locally on 2026-09-15. Genuine operator attestations, per-surface graph extraction, and production enforcement remain **OPEN**; the canonical binding registry stays empty until that evidence exists.
 2. Freeze the legacy Start/Sit path as compatibility/challenger-only until native CCF outcome distributions and decision policy replace it.
 3. Reclassify TIBER-Forecast IRRIS injury/readiness inference as challenger/reference implementation for FFCC; rebuild/refit recommendation-critical injury/readiness inference inside CCF before native promotion.
 4. Audit all open legacy/transition PRs for stale authority semantics so Forecast/FORGE/TIBER-produced inference cannot later be mistaken for CCF-native evidence.
@@ -164,5 +164,16 @@ This document is **Fantasy Football Command Center only**. Football Unwritten ta
 ## 2026-09-14 scoped progress — authority prerequisites
 
 PR #25 adds strict, fingerprinted eight-surface declared-lineage validation, transitive dependency checks, native-family enforcement, canonical model-certification matching, and census/registry completeness checks. Regression coverage includes relabeling, omission, cycles, malformed inputs, temporal violations, and missing certification. No production recommendation is activated. Hosted validation must be read from the exact PR head; no local runtime was available for this continuation.
+
+## 2026-09-15 scoped progress — trusted runtime/source binding prerequisite
+
+The PR #25 continuation adds a separate fingerprinted trusted-binding audit for
+every recommendation-critical node. Exact graph/surface/node, producer,
+producer-family, evidence-kind, provenance, attestation time, support window,
+revocation, and binding-evidence identity must match operator-controlled state.
+The universal release checklist now blocks independently on unbound surfaces.
+The canonical registry remains empty, so this mechanism cannot manufacture
+production readiness. Real source/runtime attestations, trusted per-surface
+extraction, frozen historical certification, and route enforcement remain open.
 
 P0 independence and historical backtesting remain **OPEN**. Next: bind genuine runtime/source artifacts, freeze the first production-native candidate and point-in-time dataset, and execute the predeclared chronological OOS protocol. No historical performance scores or certification records were invented. ESPN live-session verification still requires the user's local Chrome/ESPN session.
