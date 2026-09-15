@@ -9,6 +9,10 @@ import {
   type ContractWorkbookSnapshotV1,
 } from './contractWorkbookSnapshot';
 import {
+  assertDevyRightsSnapshotUsable,
+  type DevyRightsSnapshotV1,
+} from './devyRightsSnapshot';
+import {
   assertScoringCertified,
   certifyScoringSettings,
   type ScoringCertification,
@@ -48,6 +52,7 @@ export type UnifiedLeagueContextV1 = {
   contractProfile: ContractLeagueRuleProfile | null;
   contractWorkbookSnapshot: ContractWorkbookSnapshotV1 | null;
   devyRightsSource: SupplementalLeagueSource | null;
+  devyRightsSnapshot: DevyRightsSnapshotV1 | null;
   sources: LeagueContextSource[];
   issues: LeagueContextIssue[];
   invariants: {
@@ -55,6 +60,7 @@ export type UnifiedLeagueContextV1 = {
     noCrossLeagueContractRuleInheritance: true;
     collegeProspectsNeverBecomePlatformNflRosterPlayers: true;
     liveContractDecisionsRequireFreshWorkbookSnapshot: true;
+    devyOwnershipDecisionsRequireFreshRightsSnapshot: true;
   };
 };
 
@@ -69,8 +75,7 @@ export type BuildUnifiedLeagueContextInput = {
   requiredScoringKeys?: readonly string[];
   rosterPositions?: string[];
   contractWorkbookSnapshot?: ContractWorkbookSnapshotV1 | null;
-  devyRightsAsOf?: string | Date | null;
-  devyRightsAvailable?: boolean;
+  devyRightsSnapshot?: DevyRightsSnapshotV1 | null;
   builtAt?: string | Date;
 };
 
@@ -99,6 +104,22 @@ export async function buildUnifiedLeagueContextV1(
   const devyRightsSource = input.platform === 'sleeper'
     ? await getDevyRightsSource(input.leagueId)
     : null;
+
+  if (input.devyRightsSnapshot) {
+    if (!devyRightsSource) {
+      throw new Error(
+        `Devy rights snapshot supplied for league ${input.leagueId}, but no Devy source is linked.`,
+      );
+    }
+    if (
+      input.devyRightsSnapshot.leagueId !== input.leagueId ||
+      input.devyRightsSnapshot.sourceId !== devyRightsSource.sourceId ||
+      input.devyRightsSnapshot.spreadsheetId !== devyRightsSource.spreadsheetId ||
+      input.devyRightsSnapshot.sheetName !== devyRightsSource.sheetName
+    ) {
+      throw new Error(`Devy rights snapshot does not match the linked source for league ${input.leagueId}.`);
+    }
+  }
 
   const contractProfile = resolveContractLeagueRuleProfile({
     leagueName: input.leagueName,
@@ -145,12 +166,11 @@ export async function buildUnifiedLeagueContextV1(
       sourceId: devyRightsSource.sourceId,
       role: 'devy_rights',
       authority: devyRightsSource.authority,
-      health: evaluateSourceHealth({
-        asOf: input.devyRightsAsOf,
+      health: input.devyRightsSnapshot?.sourceHealth ?? evaluateSourceHealth({
+        available: false,
         checkedAt: builtAt,
-        available: input.devyRightsAvailable === true && Boolean(input.devyRightsAsOf),
         unavailableReason:
-          'Devy rights source is linked but no live sheet snapshot was supplied to this runtime context.',
+          'Devy rights source is linked but no normalized live rights snapshot was supplied.',
       }),
     });
   }
@@ -208,12 +228,12 @@ export async function buildUnifiedLeagueContextV1(
     }
   }
 
-  if (devyRightsSource && input.devyRightsAvailable !== true) {
+  if (devyRightsSource && !input.devyRightsSnapshot) {
     issues.push({
       code: 'DEVY_RIGHTS_NOT_REFRESHED',
       severity: 'warning',
       message:
-        'Devy ownership is linked to Google Drive, but this context does not contain a live rights-sheet snapshot.',
+        'Devy ownership is linked to Google Drive, but this context does not contain a normalized live rights snapshot.',
       source: devyRightsSource.sourceId,
     });
   }
@@ -233,6 +253,7 @@ export async function buildUnifiedLeagueContextV1(
     contractProfile,
     contractWorkbookSnapshot: input.contractWorkbookSnapshot ?? null,
     devyRightsSource,
+    devyRightsSnapshot: input.devyRightsSnapshot ?? null,
     sources,
     issues,
     invariants: {
@@ -240,6 +261,7 @@ export async function buildUnifiedLeagueContextV1(
       noCrossLeagueContractRuleInheritance: true,
       collegeProspectsNeverBecomePlatformNflRosterPlayers: true,
       liveContractDecisionsRequireFreshWorkbookSnapshot: true,
+      devyOwnershipDecisionsRequireFreshRightsSnapshot: true,
     },
   };
 }
@@ -286,11 +308,14 @@ export function assessLeagueDecisionReadiness(
   }
 
   if (input.decisionType === 'devy_rights') {
-    const source = context.sources.find((item) => item.role === 'devy_rights');
     if (!context.devyRightsSource) {
       blockers.push('No Devy rights source is linked to this league.');
-    } else if (!source || source.health.status !== 'healthy') {
-      blockers.push('Devy rights source is not freshly available; ownership-sensitive decisions must abstain.');
+    } else {
+      try {
+        assertDevyRightsSnapshotUsable(context.devyRightsSnapshot);
+      } catch (error) {
+        blockers.push(error instanceof Error ? error.message : String(error));
+      }
     }
   }
 
