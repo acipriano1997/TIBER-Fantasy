@@ -51,6 +51,7 @@ on:
       - 'server/routes/__tests__/sleeperUsageTruthBoundary.test.ts'
       - 'scripts/test-sleeper-sync.sh'
       - 'scripts/tests/sleeper-preflight.test.mjs'
+      - 'docs/sleeper-sync/**'
       - '.github/workflows/sleeper-sync.yml'
   workflow_dispatch:
 
@@ -124,7 +125,7 @@ jobs:
             echo "Repository-wide typecheck is clean."
           fi
 
-      - name: Run focused Sleeper and runtime truth regressions
+      - name: Run existing Sleeper and runtime truth regressions
         run: >-
           npm test --
           server/routes/__tests__/healthRoutes.test.ts
@@ -132,10 +133,12 @@ jobs:
           server/routes/__tests__/sleeperLivePortfolioPreflight.test.ts
           server/services/__tests__/sleeperLeagueContextPreflight.test.ts
           server/services/__tests__/sleeperScoringCoverageAudit.test.ts
-          server/services/__tests__/sleeperActionSafety.test.ts
           server/services/sleeperSyncV2/__tests__/schedulerTargeting.test.ts
           server/config/__tests__/season.test.ts
           server/services/__tests__/leagueDashboardTruthBoundary.test.ts
+
+      - name: Run Sleeper action safety regressions
+        run: npm test -- server/services/__tests__/sleeperActionSafety.test.ts
 
       - name: Build release artifact
         run: sh build.sh
