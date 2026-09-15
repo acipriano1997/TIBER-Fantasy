@@ -926,6 +926,13 @@ Workflow: Creates PRs on GitHub, merged by Architect J after review
 
 - Hosted follow-up: initial revision dcbde24 failed focused TypeScript on Set spread (TS2802); replaced with Array.from without changing compiler settings or gate strictness. Other three workflows passed. Fresh full checks pending on the compatibility fix.
 
+## 2026-09-15 — PR #33 predictive-validation CI repair
+
+- Replaced the direct `MapIterator` loop in `promotionEvaluation.ts` with the repository-compatible `Array.from` form; promotion semantics are unchanged.
+- Removed temporary automatic PR-comment diagnostics and the associated pull-request write permission from `ccf-independence.yml`; retained the job-summary diagnostics and new predictive-validation suites.
+- Validation: predictive subset 23/23; exact expanded CCF set 34 suites / 211 tests; zero CCF/touched-file TypeScript diagnostics with 508 unrelated repository diagnostics; both builds green with the existing OLC warning; diff clean.
+- No predictive result, threshold, model promotion, recommendation authority, merge, deployment, or Football Unwritten work occurred.
+
 ## 2026-09-15 — CCF trusted authority binding prerequisite
 
 - Continued FFCC PR #25 after locally verifying its existing source-qualification and eight-surface authority hardening.
@@ -940,3 +947,9 @@ Workflow: Creates PRs on GitHub, merged by Architect J after review
 - Reconciled the draft injury/recovery source branch with the latest trusted authority and generic source-qualification foundation while retaining its permission/access-gated recovery-source inventory.
 - Validation: exact branch CCF gate 31 suites / 197 tests; zero CCF or touched-file TypeScript diagnostics against 508 unrelated baseline diagnostics; server and deployment builds green with the existing OLC warning; diff checks clean.
 - No recovery source promotion, fabricated evidence, recommendation activation, merge, deployment, or publication occurred.
+
+## 2026-09-15 — CCF predictive stack reconciliation
+
+- Reconciled the predictive-validation branch with the repaired recovery/source and trusted-authority base, retaining the compiler-compatible evaluator and least-privilege CI diagnostics.
+- Validation: exact expanded CCF gate 34 suites / 221 tests; zero CCF/touched-file TypeScript diagnostics against 508 unrelated baseline diagnostics; both builds green with the existing OLC warning; conflict-marker and diff checks clean.
+- No source/model promotion, fabricated certification, recommendation activation, deployment, or publication occurred.

@@ -118,6 +118,40 @@ export const CCF_BACKTEST_PROGRESS_HISTORY_V1: readonly CCFBacktestProgressRecor
     claim:
       "Native leakage-safe backtest/calibration tooling exists, but no frozen production CCF candidate has yet completed a point-in-time historical OOS run; numeric performance claims are therefore intentionally absent.",
   },
+  {
+    id: "2026-09-15-predictive-validation-error-intelligence",
+    recordedAt: "2026-09-15T05:45:00.000Z",
+    stage: "native_scaffold",
+    status: "not_run",
+    modelVersion: null,
+    calibrationVersion: null,
+    comparisonIdentity: {
+      protocolVersion: "ccf-predictive-validation-protocol-v1",
+      scoringProfileHash: null,
+      supportedPopulation: "QB/RB/WR/TE weekly fantasy decision candidate",
+      testWindow: null,
+      datasetFingerprint: null,
+    },
+    metrics: { ...EMPTY_CCF_BACKTEST_METRICS },
+    simpleBaselineMetrics: { ...EMPTY_CCF_BACKTEST_METRICS },
+    challengerMetrics: { ...EMPTY_CCF_BACKTEST_METRICS },
+    tiberRole: "challenger_only",
+    evidenceRefs: [
+      "server/modules/ccf/certification/predictiveValidationProtocol.ts",
+      "server/modules/ccf/certification/pairedUncertainty.ts",
+      "server/modules/ccf/certification/decisionRegret.ts",
+      "server/modules/ccf/certification/missAttribution.ts",
+      "server/modules/ccf/certification/featureAblation.ts",
+      "server/modules/ccf/certification/calibration.ts",
+      "server/modules/ccf/certification/selectivePrediction.ts",
+      "server/modules/ccf/certification/quantileScoring.ts",
+      "server/modules/ccf/certification/rankMetrics.ts",
+      "server/modules/ccf/certification/promotionEvaluation.ts",
+      "docs/architecture/CCF_PREDICTIVE_VALIDATION_AND_ERROR_INTELLIGENCE_V0.md",
+    ],
+    claim:
+      "Added CCF-wide preregistration, paired block uncertainty, decision-regret, calibration/sharpness and proper-scoring diagnostics, selective-prediction risk/coverage, rank metrics, feature ablation, deterministic promotion evaluation, and miss attribution; no production historical OOS run has been executed and no predictive improvement is claimed.",
+  },
 ] as const;
 
 function validMetric(value: number | null): boolean {

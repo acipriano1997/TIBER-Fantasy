@@ -1,7 +1,7 @@
 # CCF Injury & Recovery — Concrete Source Candidate Inventory
 
 **Status:** AUDITED / ALL FOUR MINIMUM ROLES HAVE VIABLE CURRENT CANDIDATES / PRODUCTION COVERAGE NOT READY  
-**As of:** 2026-09-15  
+**As of:** 2026-09-15
 **Scope:** Fantasy Football Command Center / CCF only. Football Unwritten remains separate.
 
 ## Verdict
@@ -46,9 +46,9 @@ A terms URL is not permission clearance. A reliability-review note is not a pass
 
 ### 1. Sportradar NFL Official API — Weekly Injuries
 
-**Classification:** `candidate`  
-**Permission:** `evaluation_only`  
-**Reliability:** `incomplete`  
+**Classification:** `candidate`
+**Permission:** `evaluation_only`
+**Reliability:** `incomplete`
 **Roles:** official injury designation; official practice participation; structural/reporting context.
 
 Why it leads the live pregame path:
@@ -69,9 +69,9 @@ Still required:
 
 ### 2. Sportradar NFL Official API — Game Roster
 
-**Classification:** `candidate`  
-**Permission:** `evaluation_only`  
-**Reliability:** `incomplete`  
+**Classification:** `candidate`
+**Permission:** `evaluation_only`
+**Reliability:** `incomplete`
 **Role:** official game activation/inactive state.
 
 Why it leads activation:
@@ -85,9 +85,9 @@ Still required: exact intended-use authorization, real-payload parser, immutable
 
 ### 3. SportsDataIO NFL PlayerGame / snap counts
 
-**Classification:** `candidate`  
-**Permission:** `evaluation_only` until an FFCC-specific license/use basis is bound  
-**Reliability:** `incomplete`  
+**Classification:** `candidate`
+**Permission:** `evaluation_only` until an FFCC-specific license/use basis is bound
+**Reliability:** `incomplete`
 **Role:** observed workload.
 
 Why it now leads workload:
@@ -112,7 +112,7 @@ Still required:
 
 ### 4. nflverse injury reports — historical only
 
-**Classification:** `research_only`  
+**Classification:** `research_only`
 **Live use:** not eligible after 2024.
 
 The historical adapter remains useful for bounded source-semantics and historical research. It preserves upstream `date_modified` separately from CCF `knownAt` and fails closed on 2025+ seasons.
@@ -121,8 +121,8 @@ A current historical release cannot establish what CCF knew at an earlier checkp
 
 ### 5. nflverse / Pro Football Reference snap counts — permission-conflicted reference path
 
-**Classification:** `research_only`  
-**Permission:** `conflicted`  
+**Classification:** `research_only`
+**Permission:** `conflicted`
 **Reliability:** `incomplete`.
 
 CCF has already built useful provenance infrastructure here:
@@ -138,7 +138,7 @@ However, the data lineage is explicitly Pro Football Reference. Current Sports R
 
 ### 6. NFL.com public inactive reports
 
-**Classification:** `rejected` for automated/systematic production ingestion under current terms.  
+**Classification:** `rejected` for automated/systematic production ingestion under current terms.
 **Permission:** `prohibited` absent express consent or a separately licensed path.
 
 The rejected route remains machine-readable to prevent accidental reintroduction. No scraping workaround, hidden endpoint, or credential reverse-engineering is authorized.
