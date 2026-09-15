@@ -16,7 +16,7 @@ function tail(overrides: Partial<WeeklyTailOutlook> = {}): WeeklyTailOutlook {
     supportedPopulation: 'NFL WR PPR weekly',
     quantiles: { p10: 8, p25: 11, p50: 15, p75: 21, p90: 28, p95: 32 },
     sourceReceipts: [{
-      owner: 'TIBER-Forecast',
+      owner: 'CCF-Forecast',
       artifactOrEndpoint: 'weekly-tail-v2',
       schemaOrModelVersion: 'forecast-weekly-tail-v2',
       runOrContentHash: 'run-a',
@@ -78,7 +78,7 @@ function receipt(overrides: Partial<WeeklyTailOutlook['sourceReceipts'][number]>
 }
 
 describe('Weekly Decision source-lineage boundary', () => {
-  test('accepts a promoted fresh supported TIBER-Forecast receipt bound to the same artifact clocks', () => {
+  test('accepts a promoted fresh supported CCF-Forecast receipt bound to the same artifact clocks', () => {
     const decision = evaluateWeeklyDecision(context(tail({
       sourceReceipts: [receipt()],
       quantiles: { p10: 7, p25: 10, p50: 14, p75: 20, p90: 27, p95: 31 },
@@ -88,7 +88,7 @@ describe('Weekly Decision source-lineage boundary', () => {
     expect(decision.missingInputs).toEqual([]);
   });
 
-  test('rejects a packet that launders tail authority through a non-Forecast owner', () => {
+  test('rejects a packet that launders tail authority through a non-CCF owner', () => {
     const decision = evaluateWeeklyDecision(context(tail({
       sourceReceipts: [receipt({ owner: 'TIBER-Fantasy' })],
     })));
@@ -97,7 +97,7 @@ describe('Weekly Decision source-lineage boundary', () => {
     expect(decision.missingInputs).toContain('bench:authoritative_forecast_receipt_missing');
   });
 
-  test('rejects a Forecast receipt whose model version does not match the admitted tail packet', () => {
+  test('rejects a CCF forecast receipt whose model version does not match the admitted tail packet', () => {
     const decision = evaluateWeeklyDecision(context(tail({
       sourceReceipts: [receipt({ schemaOrModelVersion: 'different-model' })],
     })));
