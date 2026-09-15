@@ -1,6 +1,6 @@
 # CCF Injury & Recovery — Concrete Source Candidate Inventory
 
-**Status:** AUDITED / MINIMUM PRODUCTION SOURCE COVERAGE NOT READY  
+**Status:** AUDITED / ALL FOUR MINIMUM ROLES HAVE VIABLE CANDIDATES / PRODUCTION COVERAGE NOT READY  
 **As of:** 2026-09-14  
 **Scope:** Fantasy Football Command Center / CCF only. Football Unwritten remains separate.
 
@@ -8,189 +8,191 @@
 
 **Minimum recovery production source coverage: FAIL / NOT READY.**
 
-The source-discovery audit found an official NFL.com game-day inactive-report surface, but the current NFL.com Terms and Conditions prohibit systematic retrieval or compilation absent express prior written consent. The automated acquisition/parser prototype created during discovery was therefore removed rather than normalized into the source spine.
+The source-discovery gap is now closed without weakening permission standards. All four required roles have a viable candidate, but **zero bindings are production eligible**.
 
-The four required roles remain:
+The four required roles are:
 
 1. official injury designation;
 2. official practice participation;
 3. official game activation/inactive state;
 4. observed workload.
 
-Current viable discovery coverage is **3 / 4**: injury designation, practice participation, and observed workload have concrete candidates. Final official game activation remains **UNBOUND** under a permitted automated data path. The NFL.com official inactive surface is retained in the inventory as a `rejected` automated-source path so the same terms mistake is not repeated.
+The leading activation candidate is now Sportradar's authenticated **NFL Official API — Game Roster** feed. Sportradar documents the feed as the declared game roster and states inactive players are entered around 90 minutes before kickoff. It provides a formal trial/production license path, unlike scraping the public NFL.com site. The NFL.com public inactive-report route remains recorded as `rejected` for automated/systematic FFCC ingestion under current terms.
 
-**Zero bindings are production eligible.** `assertCCFRecoveryMinimumSourceCoverage()` must continue to fail until every required role has point-in-time, raw-trace, parser, terms/permission, archive, and reliability proof.
+`assertCCFRecoveryMinimumSourceCoverage()` must continue to fail until every required role has permission, point-in-time, raw-trace, parser, archive, reliability, and identity proof.
 
 ## Classification rules
 
-- `candidate`: plausible source with a concrete dataset/product and enough semantics plus permission posture to investigate further.
+- `candidate`: plausible source with a concrete dataset/product, usable semantics, and a permission path worth validating.
 - `research_only`: usable for bounded research/reference but missing production requirements or not intended to satisfy the minimum spine.
 - `production_eligible`: every `ccf-recovery-source-binding-v1` requirement is proven.
 - `rejected`: unsuitable for the required use, including permission/terms conflicts.
 
-A source being official does **not** automatically make it production eligible. CCF still requires a lawful/permitted acquisition path, stable identity, immutable raw capture, decision-time temporal proof, parser version, correction semantics, and reliability review.
+A source being official or licensed does **not** automatically make it production eligible.
 
 ## Inventory
 
-### 1. nflverse / nflreadpy injury reports
+### 1. nflverse injury reports
 
 **Current classification:** `candidate`  
-**Candidate recovery roles:** official injury designation; official practice participation; structural/reporting context.
+**Candidate roles:** official injury designation; official practice participation; structural/reporting context.
 
-Evidence:
-- `nflreadpy.load_injuries()` exposes historical injury/status reports.
-- Documented fields include report injury/status, practice injury/status, and `date_modified`.
-- CCF has a bounded candidate adapter that preserves upstream `date_modified` separately from CCF `knownAt`.
+CCF already has a bounded adapter that preserves upstream `date_modified` separately from CCF `knownAt`.
+
+Permission evidence:
+- the `nflverse-data` repository declares **CC BY 4.0**;
+- the binding now records the exact repository license reference rather than leaving permission unspecified.
+
+Still required before promotion:
+- confirm the bound release artifact is covered as expected and implement attribution handling;
+- persist immutable raw snapshots with hashes, retrieval times, parser identity, and archive references;
+- audit historical `date_modified` meaning, revisions/corrections, and missingness;
+- replay representative historical weeks against exact archived bytes;
+- prove decision-checkpoint `knownAt <= asOf` rather than backdating from current files.
+
+### 2. Sportradar NFL Official API — Game Roster
+
+**Current classification:** `candidate`  
+**Candidate role:** official game activation/inactive state.
+
+Why it is the leading candidate:
+- Sportradar documents Game Roster as the declared game roster for a specific NFL game;
+- player game status includes `deactivated`;
+- the NFL game-status workflow states inactive players are entered around 90 minutes before scheduled kickoff;
+- the API is authenticated and explicitly supports `trial` and `production` access rather than requiring public-site scraping;
+- Sportradar publishes current master terms covering both free trials and paid order-form service.
 
 Why it is **not yet production eligible**:
-- immutable raw snapshots are not yet persisted under a certified binding;
-- historical `date_modified` has not been proven sufficient as decision-time source-known evidence;
-- revision/correction behavior is not yet audited;
-- exact bound-dataset terms/license evidence is not frozen;
-- historical archive replay has not been demonstrated.
+- FFCC does not currently have a Sportradar API key/account binding in the repository;
+- free-trial use is for internal evaluation, not automatic production authorization;
+- production use requires the appropriate customer/order-form license and any approvals required by that agreement;
+- no CCF parser/version has been verified against a live authorized payload;
+- no immutable CCF pre-lock archive exists;
+- historical provider responses may represent final state rather than prove the exact state known at a historical lineup checkpoint;
+- update/correction behavior, identity joins, coverage, and missingness have not been empirically audited by CCF.
 
 Required next proof:
-1. persist raw bytes/content hash/source URL/retrieval time/parser version;
-2. audit `date_modified` semantics and corrections;
-3. freeze exact terms/license reference;
-4. replay multiple historical weeks from immutable snapshots;
-5. prove `knownAt <= asOf` at actual fantasy decision checkpoints.
+1. obtain authorized trial/production access suitable for the intended use;
+2. freeze the exact agreement/order/addendum references applicable to FFCC;
+3. capture representative authorized Game Roster payloads before kickoff;
+4. implement and version a fail-closed parser only against real authorized payloads;
+5. persist raw bytes/content hashes/retrieval times/game IDs/player IDs/parser version;
+6. archive the feed at decision time going forward;
+7. determine whether historical data can prove pre-lock state or is suitable only for labels/outcomes;
+8. audit postgame corrections and daily change-log behavior.
 
-### 2. NFL.com official inactive reports
+### 3. NFL.com public inactive reports
 
-**Current classification:** `rejected` for automated/systematic production ingestion under current terms  
-**Potential recovery role:** official game activation/inactive state.
+**Current classification:** `rejected` for automated/systematic production ingestion under current terms.
 
-Evidence:
-- NFL.com operates an official `Inactive Reports` surface and retains weekly inactive-report articles.
-- Those reports are semantically attractive because they state the official game-day inactive list rather than requiring inference from later participation.
-
-Terms result:
-- the current NFL.com Terms and Conditions permit individual non-commercial informational use but prohibit systematic retrieval or compilation absent express prior written consent;
-- FFCC requires repeatable automated acquisition, archival, and historical compilation to satisfy its production evidence contract;
-- therefore the current public web surface cannot be used as the automated production feed without written consent or a separately licensed data path.
+NFL.com is semantically authoritative, but its current terms prohibit systematic retrieval or compilation absent express prior written consent. FFCC requires repeatable automated acquisition and historical compilation, so the public web route is not an eligible production feed without written consent or a separately licensed path.
 
 Repository consequence:
-- the discovery parser/fetch prototype was removed;
-- the source remains recorded as `rejected` in the machine-readable inventory to prevent accidental reintroduction;
-- no NFL.com page timestamp is promoted to CCF `knownAt`;
+- the discovery fetch/parser prototype was removed;
+- the rejected route remains in the machine-readable inventory to prevent accidental reintroduction;
 - no scraping workaround, hidden endpoint, or credential reverse-engineering is authorized.
 
-A future binding may reconsider NFL data only if FFCC obtains explicit permission or accesses a separately licensed/programmatic product whose terms cover the intended automated use.
-
-### 3. nflverse / PFR snap counts
+### 4. nflverse / PFR snap counts
 
 **Current classification:** `candidate`  
-**Candidate recovery role:** observed workload.
+**Candidate role:** observed workload.
 
-Evidence:
-- nflverse exposes game-level offensive, defensive, and special-teams snaps and percentages sourced from Pro Football Reference;
-- CCF has a bounded candidate adapter that labels this evidence as post-game observed.
+CCF already has a bounded adapter and marks this as post-game observed evidence.
 
-Why it is **not yet production eligible**:
-- no immutable point-in-time archive binding exists yet;
-- snap counts are post-game outcomes and can only affect later decisions;
-- historical publication/update timing and revision behavior are not frozen;
-- exact downstream permission/attribution obligations require explicit review.
+Permission/update evidence:
+- the bound data is distributed through `nflverse-data`, whose repository declares **CC BY 4.0**;
+- nflverse documents snap-count polling four times daily.
 
-Required next proof:
-1. persist raw bytes/hash/provider timestamps/parser version;
-2. enforce publication-aware `knownAt`;
-3. audit corrections and player/game identity joins;
-4. freeze exact terms/license/attribution reference;
-5. prove week-N workload cannot leak into week-N pregame decisions.
+Still required before promotion:
+- freeze attribution and upstream PFR implications for the intended use;
+- persist immutable snapshots and hashes;
+- determine actual publication/update timing and correction behavior;
+- enforce `knownAt` so a game's workload cannot affect that same game's pre-lock decision;
+- audit identity joins and missingness.
 
-### 4. nflverse participation data
+### 5. nflverse participation data
 
-**Current classification:** `candidate` / enrichment only  
-**Candidate recovery roles:** observed football participation; richer workload/role support.
+**Current classification:** `candidate` / enrichment only.
 
-Potential use after validation:
-- route/participation derivation where definitions and coverage support it;
-- actual-play involvement;
-- post-return role restoration research.
+Potential uses include richer observed involvement and post-return role restoration. It does not substitute for official pregame activation simply because a player later appears in participation data.
 
-It does **not** substitute for official pre-game activation evidence simply because a player later appears in participation data.
+### 6. Existing CCF nflverse weekly player-stat adapter
 
-### 5. Existing CCF nflverse weekly player-stat adapter
+**Current classification:** `research_only` for minimum recovery coverage.
 
-**Current classification:** `research_only` for recovery source binding in its current form.
+Useful for post-game outcomes and opportunity labels under proper timing, but carries/targets do not establish snap/route restoration by themselves.
 
-Use now:
-- post-game opportunity/outcome labels under correct timing;
-- baseline research;
-- not minimum workload certification by itself because carries/targets do not establish snap/route restoration.
-
-### 6. TIBER-Data public ingestion path
+### 7. TIBER-Data public ingestion path
 
 **Current classification:** `research_only` for recovery.
 
-TIBER-Data patterns can inform evidence transport, but CCF recommendation authority cannot depend on TIBER and current coverage must not be overstated.
+Transport patterns may be reused, but recommendation authority and native evidence binding remain CCF-owned.
 
-### 7. Legacy FFCC `injuries` table
+### 8. Legacy FFCC `injuries` table
 
 **Current classification:** `research_only` / compatibility schema.
 
-A database row is not provenance. Historical values cannot be presumed known at decision time, and compatibility data must not silently become native CCF evidence.
+A database row is not provenance. Historical values cannot be presumed known at decision time.
 
-### 8. TIBER-Data depth-chart official-source registry
+### 9. TIBER-Data depth-chart official-source registry
 
 **Current classification:** `research_only` / adjacent evidence.
 
-Useful for role context, but not authority for injury, practice, or final activation unless a separate matching source contract proves that role.
+Useful for role context, not injury/practice/final-activation authority unless separately proven.
 
 ## Current minimum-spine matrix
 
-| Required role | Best current path | Classification | Gate result |
+| Required role | Leading candidate | Classification | Gate result |
 |---|---|---:|---:|
-| Official injury designation | nflverse injury reports | candidate | FAIL — not PIT/archive/terms certified |
-| Official practice participation | nflverse injury reports | candidate | FAIL — not PIT/archive/terms certified |
-| Official game activation/inactive | no permitted bound feed; NFL.com public web path terms-blocked | missing / NFL.com rejected | FAIL — source still unbound |
-| Observed workload | nflverse/PFR snap counts | candidate | FAIL — not PIT/archive/terms certified |
+| Official injury designation | nflverse injury reports | candidate | FAIL — not PIT/archive/reliability certified |
+| Official practice participation | nflverse injury reports | candidate | FAIL — not PIT/archive/reliability certified |
+| Official game activation/inactive | Sportradar NFL Official API Game Roster | candidate | FAIL — access/license binding, parser, archive, PIT replay incomplete |
+| Observed workload | nflverse/PFR snap counts | candidate | FAIL — not PIT/archive/reliability certified |
 
-**Viable discovery coverage:** 3 / 4 required roles.  
+**Viable discovery coverage:** 4 / 4 required roles.  
 **Production coverage:** 0 / 4 required roles.  
 **Overall production gate:** `FAIL / NOT READY`.
 
 ## Point-in-time snapshot hardening completed during this audit
 
 The shared `ccf-source-snapshot-v1` semantics now distinguish:
-- `ccf_capture` — CCF may not claim `knownAt` before the bytes were actually retrieved;
+- `ccf_capture` — CCF may not claim `knownAt` before bytes were actually retrieved;
 - `provider_archive_proven` — a historical source version may receive an earlier `knownAt` only when an immutable archived version has an exact proven availability time plus a durable proof reference.
 
-`Last-Modified`, article timestamps, or other upstream metadata alone cannot backdate CCF knowledge. This shared hardening applies beyond recovery and prevents later-corrected source state from leaking into historical decision freezes.
+HTTP `Last-Modified`, article timestamps, provider update language, or current historical files alone cannot backdate CCF knowledge. This prevents revised source state from leaking into historical decision freezes.
 
 ## What should happen next
 
 ### Immediate non-Work implementation lane
 
-1. Audit exact nflverse/nflreadpy and PFR-derived dataset terms, archive behavior, update timing, and correction semantics.
-2. Add immutable raw-snapshot persistence/binding for injury/practice and snap-count candidates using the hardened source-snapshot contract.
-3. Search for a **permitted programmatic source** for official game-day activation/inactives. Prefer explicit licensed/API access or written permission over scraping public pages.
-4. Keep all candidate adapters fail-closed and non-authoritative until source bindings pass.
-5. Add source-specific historical replay fixtures only from data that FFCC is permitted to retain and use.
+1. Finish nflverse injury/practice and snap-count source qualification: exact release semantics, attribution, corrections, missingness, archive behavior, and update timing.
+2. Add immutable raw-snapshot capture/binding around authorized candidate fetches using the hardened source-snapshot contract.
+3. Preserve Sportradar as the leading activation candidate, but do not write a production parser against guessed payloads or claim access that FFCC does not have.
+4. When authorized Sportradar access exists, capture representative pregame payloads and build the parser from those real samples.
+5. Keep NFL.com public-page automation rejected unless express permission is obtained.
+6. Keep all candidate adapters non-authoritative until source bindings pass.
 
 ### Historical-certification lane
 
 Only after all four required bindings are production eligible:
 - freeze the source-binding-plan fingerprint;
 - build player × game × decision-as-of recovery rows;
-- measure coverage, missingness, update latency, and correction frequency;
+- measure coverage, missingness, latency, and correction frequency;
 - freeze minimum sample/subgroup thresholds;
 - freeze the first validation manifest;
 - run native-no-recovery vs eligible-raw-recovery baseline before any learned recovery model;
-- retain failed/negative/non-return outcomes and tail cases rather than training only on successful returns.
+- retain failed/negative/non-return outcomes and tail cases.
 
 ## Explicit non-promotions
 
 This inventory does **not** certify:
 - nflverse injury/practice data as historically leak-proof;
-- NFL.com public inactive pages as an automated FFCC data source;
-- publication/update timestamps as automatically safe CCF `knownAt` values;
+- Sportradar Game Roster as an authorized FFCC production feed yet;
+- any provider's current historical response as proof of what CCF knew at a prior decision time;
+- NFL.com public inactive pages as an automated FFCC source;
 - PFR snap counts as pre-decision information;
 - roster status as final game-day activation;
 - the legacy `injuries` table as native CCF truth;
-- any source-specific model weight;
 - any recovery feature as recommendation-critical.
 
-The correct current answer is: **recovery architecture and three source roles have credible implementation candidates, but final official activation remains unbound under a permitted automated source, and no recovery source has yet earned production eligibility.**
+The correct current answer is: **all four required recovery source roles now have viable candidates, but no binding has yet earned production eligibility; the activation gap is a licensing/access-and-point-in-time certification problem rather than a source-discovery problem.**
