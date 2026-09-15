@@ -33,9 +33,9 @@ export interface CCFNflverseInjurySourceProvenance {
   knownAt: string;
   etag: string | null;
   lastModified: string | null;
-  /** General nflverse licensing is documented upstream; exact bound-dataset
-   * terms still require explicit recovery source-binding review. */
   licenseStatus: "candidate_review_required";
+  licenseRef: "https://github.com/nflverse/nflverse-data/blob/main/LICENSE.md";
+  availability: "historical_through_2024";
   temporalMode: "current_snapshot_only";
 }
 
@@ -93,10 +93,17 @@ const REQUIRED_COLUMNS = [
 ] as const;
 
 const DEFAULT_POSITIONS: CCFNflverseInjuryPosition[] = ["QB", "RB", "WR", "TE"];
+const NFLVERSE_INJURY_FIRST_SEASON = 2009;
+const NFLVERSE_INJURY_LAST_AVAILABLE_SEASON = 2024;
 
 export function nflverseInjuriesUrl(season: number): string {
-  if (!Number.isInteger(season) || season < 2009 || season > 2100) {
+  if (!Number.isInteger(season) || season < NFLVERSE_INJURY_FIRST_SEASON || season > 2100) {
     throw new CCFNflverseInjurySourceError("season must be an integer within [2009, 2100]");
+  }
+  if (season > NFLVERSE_INJURY_LAST_AVAILABLE_SEASON) {
+    throw new CCFNflverseInjurySourceError(
+      `nflverse injury coverage is unavailable after ${NFLVERSE_INJURY_LAST_AVAILABLE_SEASON}; upstream documents that the injury data source died after the 2024 season`,
+    );
   }
   return `https://github.com/nflverse/nflverse-data/releases/download/injuries/injuries_${season}.csv`;
 }
@@ -246,6 +253,8 @@ export async function fetchNflverseInjuries(
       etag: response.headers.get("etag"),
       lastModified: response.headers.get("last-modified"),
       licenseStatus: "candidate_review_required",
+      licenseRef: "https://github.com/nflverse/nflverse-data/blob/main/LICENSE.md",
+      availability: "historical_through_2024",
       temporalMode: "current_snapshot_only",
     },
   };
