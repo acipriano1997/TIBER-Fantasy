@@ -706,3 +706,14 @@ Every agent should append an entry here after completing work.
 - Carry forward: native runtime bindings, frozen production candidate/dataset, chronological OOS certification, and user's real local Chrome/ESPN verification.
 
 - Hosted follow-up: initial revision dcbde24 failed focused TypeScript on Set spread (TS2802); replaced with Array.from without changing compiler settings or gate strictness. Other three workflows passed. Fresh full checks pending on the compatibility fix.
+
+### 2026-09-15 — Codex: CCF trusted authority binding prerequisite
+- **What changed:** Added a fail-closed operator-owned binding layer between declared eight-surface authority graphs and release eligibility. Every critical node must match one exact active graph/surface/node, producer, producer-family, evidence-kind, provenance, attestation/support-window, and binding-evidence record. The canonical registry intentionally remains empty.
+- **Files modified:** `server/modules/ccf/independence/authorityGraph.ts`, `releaseChecklist.ts`, focused authority/checklist tests, CCF authority/release/queue docs, `replit.md`, and agent logs.
+- **Validation:** Exact CCF independence workflow passed 24 suites / 142 tests after the change; focused authority/checklist replay passed 39/39 after the compiler-compatible fix; scoped CCF typecheck had zero diagnostics while the repository retained 508 unrelated baseline diagnostics; server and deployment-equivalent builds passed with the existing OLC duplicate-member warning; diff check passed.
+- **Notes:** This closes the generic declared-label-versus-binding equality gap but does not register genuine production bindings, validate referenced artifact contents, certify a model, activate a route, merge, deploy, or grant recommendation authority. Trusted per-surface extraction and real source/runtime attestations remain open.
+
+### 2026-09-15 — Codex: CCF recovery stack authority-base repair
+- **What changed:** Reconciled the draft injury/recovery source branch with the latest trusted authority and generic source-qualification foundation while preserving its current recovery-source candidates and explicit permission/reliability blockers.
+- **Validation:** The exact branch CCF workflow passed 31 suites / 197 tests; CCF and touched-file TypeScript diagnostics remained zero while the repository retained 508 unrelated baseline diagnostics; both builds passed with the existing OLC duplicate-member warning; diff checks passed.
+- **Notes:** This is branch-stack maintenance only. No external recovery source was promoted, no evidence was fabricated, and no recommendation authority, merge, deployment, or publication occurred.

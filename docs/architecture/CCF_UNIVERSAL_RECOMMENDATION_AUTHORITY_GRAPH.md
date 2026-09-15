@@ -162,6 +162,20 @@ Changes to native models/policies should be supported by repeated or mechanistic
 
 The 2026-09-14 implementation in `server/modules/ccf/independence/authorityGraph.ts` validates declared graphs for all eight registered surfaces (`beat_vegas` is the machine identifier). It validates runtime schema, fingerprints normalized lineage, traverses every root dependency regardless of criticality labels, and rejects missing/duplicate references, cycles, skipped stages, disconnected critical nodes, inadmissible producer families, and invalid provenance/time metadata.
 
+The 2026-09-15 follow-up adds a separate trusted-binding prerequisite. Every
+recommendation-critical node must match exactly one operator-controlled binding
+for its graph, surface, stage, producer, producer family, evidence kind, and
+provenance reference. Bindings have independent attestation/support windows,
+revocation state, evidence references, and deterministic bundle fingerprints.
+Changed producer text or provenance cannot be rescued by preserving a
+caller-supplied `ccf_native_*` label. Missing, malformed, duplicate, ambiguous,
+revoked, future-attested, expired, mismatched, and orphan bindings all fail
+closed.
+
+`CCF_TRUSTED_AUTHORITY_BINDINGS_V1` intentionally remains empty. Only reviewed
+operator-owned code/config may populate it; request payloads and submitted
+graphs are never trusted binding evidence.
+
 A model must identify a matching, previously recorded certified release in the canonical CCF backtest progression ledger, including model/calibration versions, scoring profile, population, evidence references, and finite model/baseline errors. Missing or duplicate surface graphs block universal release. Fixture graphs and caller-supplied test history do not grant production authority. The evaluator always returns `recommendationAuthority: false`.
 
-This is a structural release prerequisite, not complete production enforcement: declared provenance is not authenticated source evidence, metadata timestamps do not establish freshness, and a matching ledger record does not independently verify its underlying certification artifacts. Trusted source/runtime bindings, per-surface graph extraction, frozen production backtests, and route cutover remain OPEN. No model or predictive performance is certified by these graph tests.
+This is a structural release prerequisite, not complete production enforcement. The binding mechanism exists, but no production bindings are registered; binding evidence does not itself validate source contents or certification artifacts. Genuine source/runtime attestation, per-surface graph extraction, frozen production backtests, and route cutover remain OPEN. No model or predictive performance is certified by these graph tests.

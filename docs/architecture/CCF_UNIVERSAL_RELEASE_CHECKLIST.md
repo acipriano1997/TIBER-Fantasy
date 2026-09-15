@@ -11,12 +11,13 @@ The executable checklist requires all of these prerequisites before reporting pr
 
 1. the complete required weekly census is present, with unique keys, and every critical dependency is `eligible_native` **and** belongs to a permitted CCF-native producer family;
 2. the complete canonical required capability registry is present, with unique IDs and all required entries still required and `native_certified`;
-3. exactly one eligible declared authority graph covers each of the eight decision surfaces; and
-4. every critical model matches a previously recorded certified native release in the canonical backtest ledger, including model/calibration and scoring/population identity.
+3. exactly one eligible declared authority graph covers each of the eight decision surfaces;
+4. every critical node matches exactly one active, temporally eligible operator-owned trusted binding; and
+5. every critical model matches a previously recorded certified native release in the canonical backtest ledger, including model/calibration and scoring/population identity.
 
-The additive v1 checklist fields `authority`, `summary.authoritySurfaceBlockers`, and `summary.uncertifiedModelSurfaces` expose these graph/model prerequisites. Without supplied production graphs, all eight surfaces are explicitly blocked. Relabeling external dependencies, dropping required rows, or clearing required flags cannot satisfy the checklist.
+The additive v1 checklist fields `authority`, `summary.authoritySurfaceBlockers`, `summary.trustedBindingSurfaceBlockers`, and `summary.uncertifiedModelSurfaces` expose these graph/binding/model prerequisites. Without supplied production graphs and operator-owned bindings, all eight surfaces are explicitly blocked. Relabeling external dependencies, changing producer/provenance text, dropping required rows, or clearing required flags cannot satisfy the checklist.
 
-These checks do not authenticate declared source/runtime provenance, validate the contents of referenced certification artifacts, or activate recommendation routes. Graph regression fixtures are not predictive evidence. Production runtime binding and the full historical certification protocol remain required.
+The trusted-binding contract authenticates exact equality only against the operator registry supplied by trusted code. The canonical registry is intentionally empty until genuine source/runtime attestations exist. These checks do not validate the contents of referenced source or certification artifacts or activate recommendation routes. Graph/binding regression fixtures are not predictive evidence. Production attestations and the full historical certification protocol remain required.
 
 External consensus, TIBER model outputs, Rookie Alpha, and FORGE final grades/ranks remain challenger evidence and cannot satisfy a native gate.
 
