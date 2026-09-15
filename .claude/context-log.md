@@ -712,3 +712,19 @@ Every agent should append an entry here after completing work.
 - **Files modified:** `server/modules/ccf/certification/promotionEvaluation.ts`, `.github/workflows/ccf-independence.yml`, and agent logs.
 - **Validation:** Exact expanded CCF workflow set passed 34 suites / 211 tests; predictive-validation subset passed 3 suites / 23 tests; CCF-scoped TypeScript diagnostics are zero while the repository retains 508 unrelated baseline diagnostics; server and deployment-equivalent builds passed with the existing OLC duplicate-member warning; `git diff --check` passed.
 - **Notes:** Compatibility/CI repair only. No protocol thresholds, evidence, outcomes, metrics, authority, model status, merge, deployment, or Football Unwritten work changed.
+
+### 2026-09-15 — Codex: CCF trusted authority binding prerequisite
+- **What changed:** Added a fail-closed operator-owned binding layer between declared eight-surface authority graphs and release eligibility. Every critical node must match one exact active graph/surface/node, producer, producer-family, evidence-kind, provenance, attestation/support-window, and binding-evidence record. The canonical registry intentionally remains empty.
+- **Files modified:** `server/modules/ccf/independence/authorityGraph.ts`, `releaseChecklist.ts`, focused authority/checklist tests, CCF authority/release/queue docs, `replit.md`, and agent logs.
+- **Validation:** Exact CCF independence workflow passed 24 suites / 142 tests after the change; focused authority/checklist replay passed 39/39 after the compiler-compatible fix; scoped CCF typecheck had zero diagnostics while the repository retained 508 unrelated baseline diagnostics; server and deployment-equivalent builds passed with the existing OLC duplicate-member warning; diff check passed.
+- **Notes:** This closes the generic declared-label-versus-binding equality gap but does not register genuine production bindings, validate referenced artifact contents, certify a model, activate a route, merge, deploy, or grant recommendation authority. Trusted per-surface extraction and real source/runtime attestations remain open.
+
+### 2026-09-15 — Codex: CCF recovery stack authority-base repair
+- **What changed:** Reconciled the draft injury/recovery source branch with the latest trusted authority and generic source-qualification foundation while preserving its current recovery-source candidates and explicit permission/reliability blockers.
+- **Validation:** The exact branch CCF workflow passed 31 suites / 197 tests; CCF and touched-file TypeScript diagnostics remained zero while the repository retained 508 unrelated baseline diagnostics; both builds passed with the existing OLC duplicate-member warning; diff checks passed.
+- **Notes:** This is branch-stack maintenance only. No external recovery source was promoted, no evidence was fabricated, and no recommendation authority, merge, deployment, or publication occurred.
+
+### 2026-09-15 — Codex: CCF predictive stack reconciliation
+- **What changed:** Reconciled the predictive-validation branch with the repaired injury/recovery and trusted-authority base. Preserved the predictive CI compatibility fix, read-only workflow permissions, source qualification gates, recovery-source blockers, and trusted binding requirements.
+- **Validation:** The exact expanded CCF workflow passed 34 suites / 221 tests; CCF and touched-file TypeScript diagnostics remained zero against 508 unrelated repository diagnostics; both builds passed with the existing OLC duplicate-member warning; conflict-marker and diff checks passed.
+- **Notes:** Stack repair only. No source/model was promoted, no certification metrics were invented, and no recommendation activation, deployment, or publication occurred.

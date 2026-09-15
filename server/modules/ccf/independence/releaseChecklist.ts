@@ -50,6 +50,7 @@ export interface CCFUniversalReleaseChecklist {
     criticalDependencyBlockers: number;
     scaffoldedButUncertified: number;
     authoritySurfaceBlockers: number;
+    trustedBindingSurfaceBlockers: number;
     uncertifiedModelSurfaces: number;
   };
   capabilities: CCFCapabilityReleaseChecklistItem[];
@@ -106,13 +107,19 @@ export function buildCCFUniversalReleaseChecklist(
 
   return {
     version: "ccf-universal-release-checklist-v1",
-    promotable: canClaimAllTiberCapabilityMigrationComplete() && criticalDependencyBlockers === 0 && authority.modelCertificationComplete,
+    promotable: canClaimAllTiberCapabilityMigrationComplete()
+      && criticalDependencyBlockers === 0
+      && authority.trustedBindingsComplete
+      && authority.modelCertificationComplete,
     authority,
     summary: {
       capabilityBlockers,
       criticalDependencyBlockers,
       scaffoldedButUncertified,
       authoritySurfaceBlockers: authority.surfaces.filter((surface) => !surface.lineageEligible).length,
+      trustedBindingSurfaceBlockers: authority.surfaces.filter(
+        (surface) => !surface.trustedBindingEligible,
+      ).length,
       uncertifiedModelSurfaces: authority.surfaces.filter((surface) => !surface.modelCertificationEligible).length,
     },
     capabilities,
@@ -127,6 +134,7 @@ export function assertCCFUniversalReleaseReady(authorityGraphs: readonly unknown
       `CCF universal release blocked: ${checklist.summary.capabilityBlockers} capability blockers, ` +
         `${checklist.summary.criticalDependencyBlockers} critical dependency blockers, ` +
         `${checklist.summary.authoritySurfaceBlockers} surface lineage blockers, ` +
+        `${checklist.summary.trustedBindingSurfaceBlockers} trusted-binding surface blockers, ` +
         `${checklist.summary.uncertifiedModelSurfaces} uncertified model surfaces`,
     );
   }

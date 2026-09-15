@@ -932,3 +932,24 @@ Workflow: Creates PRs on GitHub, merged by Architect J after review
 - Removed temporary automatic PR-comment diagnostics and the associated pull-request write permission from `ccf-independence.yml`; retained the job-summary diagnostics and new predictive-validation suites.
 - Validation: predictive subset 23/23; exact expanded CCF set 34 suites / 211 tests; zero CCF/touched-file TypeScript diagnostics with 508 unrelated repository diagnostics; both builds green with the existing OLC warning; diff clean.
 - No predictive result, threshold, model promotion, recommendation authority, merge, deployment, or Football Unwritten work occurred.
+
+## 2026-09-15 — CCF trusted authority binding prerequisite
+
+- Continued FFCC PR #25 after locally verifying its existing source-qualification and eight-surface authority hardening.
+- Added an operator-owned trusted-binding contract and deterministic bundle fingerprint. Critical graph nodes now require one exact, active, temporally eligible binding; producer/provenance relabeling, malformed/duplicate/ambiguous/orphan/revoked/future/expired bindings fail closed.
+- Wired trusted-binding completeness into the universal release checklist as a distinct blocker. The canonical registry is deliberately empty, so no production surface can pass by fixture or declaration alone.
+- Added adversarial regression coverage and updated the canonical FFCC queue/authority/release documentation.
+- Validation: exact CCF workflow passed 24 suites / 142 tests after the change; focused post-fix replay passed 39/39; no CCF-scoped TypeScript diagnostics while the repository retained 508 unrelated baseline diagnostics; server and deployment-equivalent builds passed with the existing OLC warning; diff check passed.
+- No production binding, model certification, recommendation authority, merge, deployment, or Football Unwritten work occurred.
+
+## 2026-09-15 — CCF recovery stack authority-base repair
+
+- Reconciled the draft injury/recovery source branch with the latest trusted authority and generic source-qualification foundation while retaining its permission/access-gated recovery-source inventory.
+- Validation: exact branch CCF gate 31 suites / 197 tests; zero CCF or touched-file TypeScript diagnostics against 508 unrelated baseline diagnostics; server and deployment builds green with the existing OLC warning; diff checks clean.
+- No recovery source promotion, fabricated evidence, recommendation activation, merge, deployment, or publication occurred.
+
+## 2026-09-15 — CCF predictive stack reconciliation
+
+- Reconciled the predictive-validation branch with the repaired recovery/source and trusted-authority base, retaining the compiler-compatible evaluator and least-privilege CI diagnostics.
+- Validation: exact expanded CCF gate 34 suites / 221 tests; zero CCF/touched-file TypeScript diagnostics against 508 unrelated baseline diagnostics; both builds green with the existing OLC warning; conflict-marker and diff checks clean.
+- No source/model promotion, fabricated certification, recommendation activation, deployment, or publication occurred.

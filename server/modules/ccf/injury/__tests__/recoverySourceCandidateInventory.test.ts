@@ -40,6 +40,7 @@ describe("CCF recovery source candidate inventory", () => {
       bindingId: "sportradar-nfl-weekly-injuries-designation-candidate-v1",
       provider: "Sportradar",
       datasetOrProduct: "NFL Official API - Weekly Injuries",
+      permissionStatus: "evaluation_only",
       parserVersion: null,
       status: "candidate",
     });
@@ -47,6 +48,7 @@ describe("CCF recovery source candidate inventory", () => {
       bindingId: "sportradar-nfl-weekly-injuries-practice-candidate-v1",
       provider: "Sportradar",
       datasetOrProduct: "NFL Official API - Weekly Injuries",
+      permissionStatus: "evaluation_only",
       parserVersion: null,
       status: "candidate",
     });
@@ -75,6 +77,7 @@ describe("CCF recovery source candidate inventory", () => {
       datasetOrProduct: "NFL Official API - Game Roster",
       authority: "raw_fact",
       status: "candidate",
+      permissionStatus: "evaluation_only",
       temporalMode: "current_snapshot_only",
       archiveStrategy: "none",
       parserVersion: null,
@@ -83,6 +86,42 @@ describe("CCF recovery source candidate inventory", () => {
     });
     expect(activation?.sourceLocatorTemplate).toContain("api.sportradar.com/nfl/official/");
     expect(activation?.licenseOrTermsRef).toContain("developer.sportradar.com");
+  });
+
+  it("uses SportsDataIO as the leading workload candidate with an explicit model-license path", () => {
+    const workload = CCF_RECOVERY_SOURCE_CANDIDATE_INVENTORY.bindings.find(
+      (binding) =>
+        binding.sourceClass === "observed_game_usage" &&
+        binding.status === "candidate",
+    );
+
+    expect(workload).toMatchObject({
+      bindingId: "sportsdataio-nfl-player-game-snap-counts-candidate-v1",
+      provider: "SportsDataIO",
+      datasetOrProduct: "NFL PlayerGame / Snap Counts",
+      authority: "observed_football_evidence",
+      status: "candidate",
+      permissionStatus: "evaluation_only",
+      reliabilityStatus: "incomplete",
+    });
+    expect(workload?.licenseOrTermsRef).toContain("sportsdata.io");
+    expect(workload?.notes.some((note) => /statistical\/ML model inputs/i.test(note))).toBe(true);
+  });
+
+  it("keeps PFR-derived nflverse snap counts off the production path while intended-use rights conflict", () => {
+    const pfr = CCF_RECOVERY_SOURCE_CANDIDATE_INVENTORY.bindings.find(
+      (binding) => binding.bindingId === "nflverse-pfr-snap-counts-reference-v1",
+    );
+
+    expect(pfr).toMatchObject({
+      provider: "nflverse / Pro Football Reference",
+      sourceClass: "observed_game_usage",
+      status: "research_only",
+      permissionStatus: "conflicted",
+      temporalMode: "archived_point_in_time",
+      rawTraceSupported: true,
+    });
+    expect(pfr?.notes.some((note) => /Do not use.*production model fitting/i.test(note))).toBe(true);
   });
 
   it("retains NFL.com public inactive reports as a terms-blocked rejected path", () => {
@@ -94,6 +133,7 @@ describe("CCF recovery source candidate inventory", () => {
       sourceClass: "official_game_activation",
       provider: "NFL.com",
       status: "rejected",
+      permissionStatus: "prohibited",
       archiveStrategy: "none",
       parserVersion: null,
     });

@@ -26,6 +26,7 @@ export type CCFRecoveryArchiveStrategy =
 export type CCFRecoveryPermissionStatus =
   | "unreviewed"
   | "evaluation_only"
+  | "conflicted"
   | "permitted_for_intended_use"
   | "prohibited";
 

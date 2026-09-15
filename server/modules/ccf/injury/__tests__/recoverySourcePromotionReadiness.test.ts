@@ -73,6 +73,19 @@ describe("CCF recovery source promotion readiness", () => {
     ]);
   });
 
+  it("keeps evaluation-only and conflicted permission states non-promotable", () => {
+    expect(
+      evaluateCCFRecoverySourcePromotionReadiness(
+        readyCandidate({ permissionStatus: "evaluation_only" }),
+      ).blockers,
+    ).toEqual(["permission_not_cleared"]);
+    expect(
+      evaluateCCFRecoverySourcePromotionReadiness(
+        readyCandidate({ permissionStatus: "conflicted" }),
+      ).blockers,
+    ).toEqual(["permission_not_cleared"]);
+  });
+
   it("never marks rejected, research-only, challenger, or speculative sources promotable", () => {
     expect(
       evaluateCCFRecoverySourcePromotionReadiness(
@@ -124,6 +137,19 @@ describe("CCF recovery source promotion readiness", () => {
     ).toEqual(licensedCurrentCandidateBlockers);
 
     expect(
+      byId.get("sportsdataio-nfl-player-game-snap-counts-candidate-v1")?.blockers,
+    ).toEqual([
+      "temporal_mode_not_archived_point_in_time",
+      "archive_strategy_missing",
+      "permission_not_cleared",
+      "parser_version_missing",
+      "source_locator_missing",
+      "point_in_time_semantics_undocumented",
+      "raw_trace_missing",
+      "reliability_review_not_passed",
+    ]);
+
+    expect(
       byId.get("nflverse-injuries-official-designation-historical-v1")?.blockers,
     ).toEqual([
       "status_research_only",
@@ -135,7 +161,8 @@ describe("CCF recovery source promotion readiness", () => {
       "reliability_review_not_passed",
     ]);
 
-    expect(byId.get("nflverse-pfr-snap-counts-candidate-v1")?.blockers).toEqual([
+    expect(byId.get("nflverse-pfr-snap-counts-reference-v1")?.blockers).toEqual([
+      "status_research_only",
       "permission_not_cleared",
       "reliability_review_not_passed",
     ]);

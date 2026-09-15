@@ -92,4 +92,4 @@ TIBER Management Dashboard is now the first product-shell step toward “sync my
 - This boundary does not alter artifact bytes, scoring/direction thresholds, databases, auth, or deployment.
 
 ### CCF authority prerequisites — 2026-09-14
-The independence release checklist now requires complete native-family census/registry evidence and all eight declared surface graphs with matching canonical model-certification records. Graph validation is not a production authority receipt: trusted runtime/source binding and frozen historical certification remain open. See `docs/architecture/CCF_UNIVERSAL_RECOMMENDATION_AUTHORITY_GRAPH.md`.
+The independence release checklist now requires complete native-family census/registry evidence, all eight declared surface graphs, exact operator-owned trusted bindings for every critical node, and matching canonical model-certification records. The trusted binding registry intentionally remains empty until genuine source/runtime attestations exist; graph/binding validation is not a production authority receipt, and frozen historical certification remains open. See `docs/architecture/CCF_UNIVERSAL_RECOMMENDATION_AUTHORITY_GRAPH.md`.

@@ -8,6 +8,8 @@ const NFLVERSE_DATA_LICENSE_REF =
   "https://github.com/nflverse/nflverse-data/blob/main/LICENSE.md (CC BY 4.0 repository license)";
 const SPORTRADAR_TERMS_REF =
   "https://developer.sportradar.com/sportradar-updates/page/terms-and-conditions";
+const SPORTSDATAIO_RIGHTS_REF =
+  "https://sportsdata.io/help/data-rights-and-licensing-questions";
 
 /**
  * Concrete inventory of recovery-source capabilities that are actually
@@ -18,7 +20,7 @@ const SPORTRADAR_TERMS_REF =
  */
 export const CCF_RECOVERY_SOURCE_CANDIDATE_INVENTORY: CCFRecoverySourceBindingPlan = {
   contractVersion: "ccf-recovery-source-binding-plan-v1",
-  asOf: "2026-09-14T00:00:00Z",
+  asOf: "2026-09-15T10:30:00Z",
   bindings: [
     {
       bindingVersion: "ccf-recovery-source-binding-v1",
@@ -107,6 +109,33 @@ export const CCF_RECOVERY_SOURCE_CANDIDATE_INVENTORY: CCFRecoverySourceBindingPl
     },
     {
       bindingVersion: "ccf-recovery-source-binding-v1",
+      bindingId: "sportsdataio-nfl-player-game-snap-counts-candidate-v1",
+      sourceClass: "observed_game_usage",
+      provider: "SportsDataIO",
+      datasetOrProduct: "NFL PlayerGame / Snap Counts",
+      dimensions: ["workload"],
+      authority: "observed_football_evidence",
+      status: "candidate",
+      temporalMode: "current_snapshot_only",
+      archiveStrategy: "none",
+      licenseOrTermsRef: SPORTSDATAIO_RIGHTS_REF,
+      permissionStatus: "evaluation_only",
+      parserVersion: null,
+      sourceLocatorTemplate: null,
+      pointInTimeSemanticsDocumented: false,
+      rawTraceSupported: false,
+      reliabilityReviewRef:
+        "SportsDataIO NFL data dictionary + workflow + data-rights docs audited 2026-09-15",
+      reliabilityStatus: "incomplete",
+      notes: [
+        "SportsDataIO documents OffensiveSnapsPlayed, DefensiveSnapsPlayed, SpecialTeamsSnapsPlayed, team snap totals, and SnapCountsConfirmed on NFL PlayerGame data going back to 2012.",
+        "Its NFL workflow states snap counts are available the morning after games and describes the weekly stat-correction cycle.",
+        "Its licensing guidance explicitly supports commercial licenses that may permit storage plus statistical/ML model inputs and derived analytics, subject to the exact licensed feeds and use case.",
+        "FFCC does not currently claim a SportsDataIO production agreement, exact endpoint binding, parser, immutable raw archive, or completed empirical coverage/correction audit.",
+      ],
+    },
+    {
+      bindingVersion: "ccf-recovery-source-binding-v1",
       bindingId: "nflverse-injuries-official-designation-historical-v1",
       sourceClass: "official_injury_designation",
       provider: "nflverse",
@@ -187,31 +216,31 @@ export const CCF_RECOVERY_SOURCE_CANDIDATE_INVENTORY: CCFRecoverySourceBindingPl
     },
     {
       bindingVersion: "ccf-recovery-source-binding-v1",
-      bindingId: "nflverse-pfr-snap-counts-candidate-v1",
+      bindingId: "nflverse-pfr-snap-counts-reference-v1",
       sourceClass: "observed_game_usage",
       provider: "nflverse / Pro Football Reference",
       datasetOrProduct: "snap_counts",
       dimensions: ["workload"],
       authority: "observed_football_evidence",
-      status: "candidate",
+      status: "research_only",
       temporalMode: "archived_point_in_time",
       archiveStrategy: "immutable_snapshot",
       licenseOrTermsRef: NFLVERSE_DATA_LICENSE_REF,
-      permissionStatus: "unreviewed",
+      permissionStatus: "conflicted",
       parserVersion: "ccf-nflverse-snap-counts-candidate-v1",
       sourceLocatorTemplate:
         "https://github.com/nflverse/nflverse-data/releases/download/snap_counts/snap_counts_{season}.csv",
       pointInTimeSemanticsDocumented: true,
       rawTraceSupported: true,
       reliabilityReviewRef:
-        "nflverse snap-count dictionary/update schedule/license reviewed 2026-09-14; upstream PFR attribution/corrections/missingness still incomplete",
+        "nflverse distribution/license and Sports Reference data-use terms audited 2026-09-15; intended-use rights unresolved",
       reliabilityStatus: "incomplete",
       notes: [
-        "Post-game observed workload only; never eligible for that same game's pre-lock decision.",
-        "CCF has a prospective fetch-and-archive path that preserves the exact CSV bytes and source-snapshot manifest before parsed workload evidence is exposed.",
-        "Prospective knownAt is the CCF retrieval time; upstream Last-Modified and nflverse polling cadence cannot backdate knowledge.",
-        "Repository-level licensing is documented, but upstream PFR implications and intended-use permission still require explicit clearance.",
-        "Correction behavior and missingness review remain incomplete, so reliability has not passed.",
+        "The nflverse release is distributed under the nflverse-data CC BY 4.0 repository license and CCF can prospectively archive exact release bytes.",
+        "The snap-count lineage is explicitly Pro Football Reference. Current Sports Reference terms restrict use of its data for AI/ML prediction and certain substitute data-store uses without permission.",
+        "The interaction between the downstream nflverse license and upstream Sports Reference intended-use restrictions is not assumed resolved by CCF.",
+        "Do not use this binding for production model fitting, calibration, or recommendation-critical features unless intended-use permission is explicitly cleared.",
+        "The adapter/archive path remains useful for provenance engineering and bounded non-authoritative inspection.",
       ],
     },
     {
