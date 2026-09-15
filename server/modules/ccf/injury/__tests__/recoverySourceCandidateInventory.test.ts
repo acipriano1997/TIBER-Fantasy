@@ -24,12 +24,25 @@ describe("CCF recovery source candidate inventory", () => {
     ).toEqual([]);
   });
 
-  it("does not pretend the missing game-activation source exists", () => {
-    expect(
-      CCF_RECOVERY_SOURCE_CANDIDATE_INVENTORY.bindings.some(
-        (binding) => binding.sourceClass === "official_game_activation",
-      ),
-    ).toBe(false);
+  it("tracks official NFL inactive reports as an unpromoted game-activation candidate", () => {
+    const activation = CCF_RECOVERY_SOURCE_CANDIDATE_INVENTORY.bindings.find(
+      (binding) => binding.sourceClass === "official_game_activation",
+    );
+
+    expect(activation).toMatchObject({
+      bindingId: "nfl-official-inactive-report-candidate-v1",
+      provider: "NFL.com",
+      datasetOrProduct: "Inactive Reports",
+      authority: "raw_fact",
+      status: "candidate",
+      temporalMode: "current_snapshot_only",
+      archiveStrategy: "provider_archive",
+      pointInTimeSemanticsDocumented: false,
+      rawTraceSupported: false,
+    });
+    expect(activation?.parserVersion).toBeNull();
+    expect(activation?.licenseOrTermsRef).toBeNull();
+    expect(activation?.reliabilityReviewRef).toBeNull();
   });
 
   it("keeps the minimum source coverage gate failing until promotion proof exists", () => {
