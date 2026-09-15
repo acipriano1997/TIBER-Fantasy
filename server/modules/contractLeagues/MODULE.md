@@ -41,4 +41,4 @@ A scoring profile must be explicit. Decision code must not silently substitute g
 
 ## Current state
 
-This module currently defines the normalized snapshot contract only. Persistence, private-source import, platform identity binding, and lineup optimization are follow-on work and must retain the fail-closed rules above.
+This module currently defines the normalized snapshot contract plus a fail-closed adapter into the generic fantasy-scoring translator. Persistence, private-source import, platform identity binding, and legal lineup optimization are follow-on work and must retain the fail-closed rules above.
