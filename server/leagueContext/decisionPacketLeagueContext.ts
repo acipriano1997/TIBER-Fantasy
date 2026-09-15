@@ -29,6 +29,14 @@ export type DecisionPacketLeagueContextV1 = {
     salaryCap: number;
     rookieDraftRounds: number;
   };
+  devyRights: null | {
+    spreadsheetId: string;
+    sheetName: string;
+    ownerHandle: string;
+    asOf: string;
+    rightCount: number;
+    unresolvedIdentityCount: number;
+  };
   supplementalSources: Array<{
     sourceId: string;
     role: UnifiedLeagueContextV1['sources'][number]['role'];
@@ -61,21 +69,32 @@ function fingerprint(value: unknown): string {
 /**
  * Creates the immutable league/rules portion of Canonical Decision Packet v1.
  * The caller freezes the overall packet; this projection ensures every model
- * receives identical league-scoring/contract/source readiness evidence.
+ * receives identical league-scoring/contract/Devy/source-readiness evidence.
  */
 export function toDecisionPacketLeagueContext(
   context: UnifiedLeagueContextV1,
   input: { decisionType: LeagueDecisionType; contractRule?: string },
 ): DecisionPacketLeagueContextV1 {
   const readiness = assessLeagueDecisionReadiness(context, input);
-  const snapshot = context.contractWorkbookSnapshot;
-  const contract = context.contractProfile && snapshot
+  const contractSnapshot = context.contractWorkbookSnapshot;
+  const contract = context.contractProfile && contractSnapshot
     ? {
         profileId: context.contractProfile.id,
-        workbookId: snapshot.workbookId,
-        workbookAsOf: snapshot.asOf,
-        salaryCap: snapshot.salaryCap,
+        workbookId: contractSnapshot.workbookId,
+        workbookAsOf: contractSnapshot.asOf,
+        salaryCap: contractSnapshot.salaryCap,
         rookieDraftRounds: context.contractProfile.verifiedCore.rookieDraftRounds,
+      }
+    : null;
+  const devySnapshot = context.devyRightsSnapshot;
+  const devyRights = devySnapshot
+    ? {
+        spreadsheetId: devySnapshot.spreadsheetId,
+        sheetName: devySnapshot.sheetName,
+        ownerHandle: devySnapshot.ownerHandle,
+        asOf: devySnapshot.asOf,
+        rightCount: devySnapshot.rights.length,
+        unresolvedIdentityCount: devySnapshot.rights.filter((right) => right.identityStatus !== 'resolved').length,
       }
     : null;
 
@@ -97,6 +116,7 @@ export function toDecisionPacketLeagueContext(
     rosterPositions: [...context.rosterPositions],
     capabilities: [...context.capabilities],
     contract,
+    devyRights,
     supplementalSources: context.sources.map((source) => ({
       sourceId: source.sourceId,
       role: source.role,
