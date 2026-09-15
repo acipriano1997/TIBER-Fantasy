@@ -1,12 +1,19 @@
 import {
   fingerprintCCFPredictiveValidationProtocol,
   validateCCFPredictiveValidationProtocol,
+  type CCFPredictiveMetric,
   type CCFPredictivePromotionCriterion,
+  type CCFPredictiveTarget,
+  type CCFPredictiveValidationArm,
   type CCFPredictiveValidationProtocol,
 } from "./predictiveValidationProtocol";
 
 export interface CCFPromotionCriterionEvidence {
   criterionId: string;
+  target: CCFPredictiveTarget;
+  metric: CCFPredictiveMetric;
+  comparatorArm: CCFPredictiveValidationArm;
+  candidateArm: "native_candidate";
   candidateValue: number;
   comparatorValue: number;
   pairedSampleSize: number;
@@ -50,6 +57,24 @@ function relativeImprovement(absoluteImprovement: number, comparatorValue: numbe
   return denominator > 0 ? absoluteImprovement / denominator : null;
 }
 
+function assertEvidenceIdentity(
+  criterion: CCFPredictivePromotionCriterion,
+  row: CCFPromotionCriterionEvidence,
+): void {
+  if (row.target !== criterion.target) {
+    throw new Error(`${criterion.criterionId} target does not match frozen criterion`);
+  }
+  if (row.metric !== criterion.metric) {
+    throw new Error(`${criterion.criterionId} metric does not match frozen criterion`);
+  }
+  if (row.comparatorArm !== criterion.comparatorArm) {
+    throw new Error(`${criterion.criterionId} comparatorArm does not match frozen criterion`);
+  }
+  if (row.candidateArm !== criterion.candidateArm) {
+    throw new Error(`${criterion.criterionId} candidateArm does not match frozen criterion`);
+  }
+}
+
 export function evaluateCCFPredictivePromotion(
   protocol: CCFPredictiveValidationProtocol,
   evidence: readonly CCFPromotionCriterionEvidence[],
@@ -87,6 +112,7 @@ export function evaluateCCFPredictivePromotion(
   const criterionResults = protocol.promotionCriteria.map((criterion) => {
     const row = evidenceById.get(criterion.criterionId);
     if (!row) throw new Error(`missing criterion evidence ${criterion.criterionId}`);
+    assertEvidenceIdentity(criterion, row);
 
     const absoluteImprovement = improvement(criterion, row.candidateValue, row.comparatorValue);
     const relative = relativeImprovement(absoluteImprovement, row.comparatorValue);
