@@ -32,7 +32,7 @@ function play(
     countsAsOffensivePlay: true,
     dropback: false,
     rushAttempt: false,
-    designedRush: false,
+    designedQbRush: false,
     scramble: false,
     rusherId: null,
     targetId: null,
@@ -43,7 +43,7 @@ function play(
     twoMinute: false,
     offenseScoreDifferential: 0,
     knownAt: "2026-09-14T23:30:00Z",
-    sourceRef: "fixture://pbp/2026_01_BBB_AAA",
+    sourceRef: "fixture://pbp/2026_01_BBB_AAA/a",
     ...overrides,
   };
 }
@@ -96,7 +96,7 @@ function input(
       }),
       play("p5", {
         rushAttempt: true,
-        designedRush: true,
+        designedQbRush: true,
         rusherId: "QB1",
         down: 1,
         yardline100: 4,
@@ -107,6 +107,7 @@ function input(
         down: 3,
         yardline100: 40,
         offenseScoreDifferential: 3,
+        sourceRef: "fixture://pbp/2026_01_BBB_AAA/b",
       }),
       play("p7", {
         offenseTeam: "BBB",
@@ -117,7 +118,7 @@ function input(
         down: 1,
         yardline100: 35,
         offenseScoreDifferential: -7,
-        sourceRef: "fixture://pbp/2026_01_BBB_AAA",
+        sourceRef: "fixture://pbp/2026_01_BBB_AAA/b",
       }),
     ],
     ...overrides,
@@ -183,11 +184,15 @@ describe("CCF game opportunity derivation", () => {
       twoMinuteTargets: 1,
       opportunitiesWhileTrailing: 1,
     });
+    expect(wr?.sourceRefs).toEqual([
+      "fixture://pbp/2026_01_BBB_AAA/a",
+      "fixture://pbp/2026_01_BBB_AAA/b",
+    ]);
 
     const qb = ledger.players.find((player) => player.playerId === "QB1");
     expect(qb).toMatchObject({
       carries: 2,
-      designedRushes: 1,
+      designedQbRushes: 1,
       scrambles: 1,
       goalLineCarries: 1,
       twoMinuteCarries: 1,
@@ -203,6 +208,19 @@ describe("CCF game opportunity derivation", () => {
     expect(fingerprintCCFGameOpportunityLedger(original)).toBe(
       fingerprintCCFGameOpportunityLedger(reversed),
     );
+  });
+
+  it("uses the later of source promotion state and play evidence as ledger knownAt", () => {
+    const ledger = deriveCCFGameOpportunityLedger(
+      input({
+        sourceState: {
+          ...SOURCE_STATE,
+          knownAt: "2026-09-15T01:00:00Z",
+          supportWindow: { validFrom: "2026-09-15T01:00:00Z", validThrough: null },
+        },
+      }),
+    );
+    expect(ledger.knownAt).toBe("2026-09-15T01:00:00Z");
   });
 
   it("fails closed when the game evidence is incomplete", () => {
@@ -258,6 +276,22 @@ describe("CCF game opportunity derivation", () => {
         input({ plays: [play("bad-completion", { completedPass: true })] }),
       ),
     ).toThrow(/completedPass requires targetId/);
+
+    expect(() =>
+      deriveCCFGameOpportunityLedger(
+        input({
+          plays: [
+            play("qb-classification-conflict", {
+              dropback: true,
+              rushAttempt: true,
+              rusherId: "QB1",
+              scramble: true,
+              designedQbRush: true,
+            }),
+          ],
+        }),
+      ),
+    ).toThrow(/cannot be both scramble and designedQbRush/);
   });
 
   it("does not coerce zero-denominator shares into fake neutral values", () => {
