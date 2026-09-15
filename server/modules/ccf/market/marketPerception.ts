@@ -261,7 +261,7 @@ function latestPerKind(
       latest.set(signal.signalKind, signal);
     }
   }
-  return [...latest.values()];
+  return Array.from(latest.values());
 }
 
 function buildSourceComposites(
@@ -275,7 +275,7 @@ function buildSourceComposites(
   }
 
   const composites: SourceComposite[] = [];
-  for (const [sourceId, sourceSignals] of bySource.entries()) {
+  for (const [sourceId, sourceSignals] of Array.from(bySource.entries())) {
     const sourceFamilies = new Set(sourceSignals.map((signal) => signal.sourceFamily));
     if (sourceFamilies.size !== 1) {
       throw new CCFMarketPerceptionContractError(
@@ -306,7 +306,7 @@ function buildSourceComposites(
             0,
           ) / levelSignals.length;
     const marketLevelComparisonPoolId =
-      comparisonPoolIds.size === 0 ? null : [...comparisonPoolIds][0];
+      comparisonPoolIds.size === 0 ? null : Array.from(comparisonPoolIds)[0];
 
     composites.push({
       sourceId,
@@ -314,7 +314,7 @@ function buildSourceComposites(
       directionalValue,
       marketLevelPercentile,
       marketLevelComparisonPoolId,
-      sourceRefs: [...new Set(collapsed.map((signal) => signal.sourceRef))].sort(),
+      sourceRefs: Array.from(new Set(collapsed.map((signal) => signal.sourceRef))).sort(),
     });
   }
 
@@ -366,7 +366,7 @@ function summarizeWindow(
     );
   }
   const marketLevelComparisonPoolId =
-    comparisonPoolIds.size === 0 ? null : [...comparisonPoolIds][0];
+    comparisonPoolIds.size === 0 ? null : Array.from(comparisonPoolIds)[0];
   const totalLevelWeight = levelComposites.reduce(
     (sum, source) => sum + policy.sourceFamilyWeights[source.sourceFamily],
     0,
@@ -401,12 +401,12 @@ function summarizeWindow(
     independenceRatio:
       windowSignals.length === 0 ? 0 : independentSourceCount / windowSignals.length,
     sourceWeightConcentration,
-    sourceFamilies: [
-      ...new Set(weightedComposites.map((source) => source.sourceFamily)),
-    ].sort(),
-    sourceRefs: [
-      ...new Set(weightedComposites.flatMap((source) => source.sourceRefs)),
-    ].sort(),
+    sourceFamilies: Array.from(
+      new Set(weightedComposites.map((source) => source.sourceFamily)),
+    ).sort(),
+    sourceRefs: Array.from(
+      new Set(weightedComposites.flatMap((source) => source.sourceRefs)),
+    ).sort(),
   };
 }
 
@@ -554,7 +554,7 @@ export function buildCCFMarketNeighborhood(
       "market neighborhood requires an eligible market comparison pool",
     );
   }
-  const marketLevelComparisonPoolId = [...comparisonPoolIds][0];
+  const marketLevelComparisonPoolId = Array.from(comparisonPoolIds)[0];
 
   eligible.sort((left, right) => {
     const levelDiff = right.marketLevelPercentile - left.marketLevelPercentile;
