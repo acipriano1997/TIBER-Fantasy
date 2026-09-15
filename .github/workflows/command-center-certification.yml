@@ -62,5 +62,6 @@ jobs:
           server/leagueContext/__tests__/devyRightsSnapshot.test.ts
           server/leagueContext/__tests__/formatIsolation.test.ts
           server/leagueContext/__tests__/weeklyDecisionBinding.test.ts
+          server/leagueContext/__tests__/commandCenterLegacyQuarantine.test.ts
       - name: Build application
         run: sh build.sh
