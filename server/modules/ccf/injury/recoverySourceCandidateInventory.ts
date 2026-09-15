@@ -6,6 +6,8 @@ import {
 
 const NFLVERSE_DATA_LICENSE_REF =
   "https://github.com/nflverse/nflverse-data/blob/main/LICENSE.md (CC BY 4.0 repository license)";
+const SPORTRADAR_TERMS_REF =
+  "https://developer.sportradar.com/sportradar-updates/page/terms-and-conditions";
 
 /**
  * Concrete inventory of recovery-source capabilities that are actually
@@ -20,48 +22,53 @@ export const CCF_RECOVERY_SOURCE_CANDIDATE_INVENTORY: CCFRecoverySourceBindingPl
   bindings: [
     {
       bindingVersion: "ccf-recovery-source-binding-v1",
-      bindingId: "nflverse-injuries-official-designation-candidate-v1",
+      bindingId: "sportradar-nfl-weekly-injuries-designation-candidate-v1",
       sourceClass: "official_injury_designation",
-      provider: "nflverse",
-      datasetOrProduct: "injuries",
+      provider: "Sportradar",
+      datasetOrProduct: "NFL Official API - Weekly Injuries",
       dimensions: ["structural", "participation"],
       authority: "reported_evidence",
       status: "candidate",
       temporalMode: "current_snapshot_only",
       archiveStrategy: "none",
-      licenseOrTermsRef: NFLVERSE_DATA_LICENSE_REF,
-      parserVersion: "ccf-nflverse-injuries-candidate-v1",
+      licenseOrTermsRef: SPORTRADAR_TERMS_REF,
+      parserVersion: null,
       sourceLocatorTemplate:
-        "https://github.com/nflverse/nflverse-data/releases/download/injuries/injuries_{season}.csv",
+        "https://api.sportradar.com/nfl/official/{access_level}/v7/{language_code}/seasons/{season_year}/{season_type}/{week}/injuries.json",
       pointInTimeSemanticsDocumented: false,
       rawTraceSupported: false,
-      reliabilityReviewRef: null,
+      reliabilityReviewRef:
+        "Sportradar NFL Weekly Injuries + Data Entry Workflow docs audited 2026-09-14",
       notes: [
-        "Adapter preserves upstream date_modified separately from CCF knownAt.",
-        "The nflverse-data repository declares CC BY 4.0; promotion still requires dataset/provenance review, attribution handling, immutable capture, and historical timestamp/revision audit.",
+        "Weekly Injuries exposes injury designation, injury description, status_date, and player/team identity through the authenticated NFL Official API.",
+        "Sportradar documents game-week injury update timing and recommends periodic pulls during the current week.",
+        "Historical season/week retrieval exists, but a later historical response is not assumed to prove the exact payload known at an earlier fantasy decision checkpoint.",
+        "No CCF API key, live parser, immutable pre-decision archive, correction audit, or production-use authorization is claimed by this candidate record.",
       ],
     },
     {
       bindingVersion: "ccf-recovery-source-binding-v1",
-      bindingId: "nflverse-injuries-practice-participation-candidate-v1",
+      bindingId: "sportradar-nfl-weekly-injuries-practice-candidate-v1",
       sourceClass: "official_practice_participation",
-      provider: "nflverse",
-      datasetOrProduct: "injuries",
+      provider: "Sportradar",
+      datasetOrProduct: "NFL Official API - Weekly Injuries",
       dimensions: ["participation"],
       authority: "reported_evidence",
       status: "candidate",
       temporalMode: "current_snapshot_only",
       archiveStrategy: "none",
-      licenseOrTermsRef: NFLVERSE_DATA_LICENSE_REF,
-      parserVersion: "ccf-nflverse-injuries-candidate-v1",
+      licenseOrTermsRef: SPORTRADAR_TERMS_REF,
+      parserVersion: null,
       sourceLocatorTemplate:
-        "https://github.com/nflverse/nflverse-data/releases/download/injuries/injuries_{season}.csv",
+        "https://api.sportradar.com/nfl/official/{access_level}/v7/{language_code}/seasons/{season_year}/{season_type}/{week}/injuries.json",
       pointInTimeSemanticsDocumented: false,
       rawTraceSupported: false,
-      reliabilityReviewRef: null,
+      reliabilityReviewRef:
+        "Sportradar NFL Weekly Injuries + Data Entry Workflow docs audited 2026-09-14",
       notes: [
-        "Practice status is a separate evidence role from final game activation.",
-        "The nflverse-data repository declares CC BY 4.0; historical point-in-time eligibility and upstream correction semantics remain unproven.",
+        "Weekly Injuries explicitly includes practice participation status in addition to game-status designation.",
+        "Game-week update cadence is documented, but CCF must capture exact bytes at decision time rather than infer earlier state from a later response.",
+        "No CCF API key, live parser, immutable pre-decision archive, correction audit, or production-use authorization is claimed by this candidate record.",
       ],
     },
     {
@@ -75,8 +82,7 @@ export const CCF_RECOVERY_SOURCE_CANDIDATE_INVENTORY: CCFRecoverySourceBindingPl
       status: "candidate",
       temporalMode: "current_snapshot_only",
       archiveStrategy: "none",
-      licenseOrTermsRef:
-        "https://developer.sportradar.com/sportradar-updates/page/terms-and-conditions",
+      licenseOrTermsRef: SPORTRADAR_TERMS_REF,
       parserVersion: null,
       sourceLocatorTemplate:
         "https://api.sportradar.com/nfl/official/{access_level}/v7/{language_code}/games/{game_id}/roster.json",
@@ -89,6 +95,55 @@ export const CCF_RECOVERY_SOURCE_CANDIDATE_INVENTORY: CCFRecoverySourceBindingPl
         "The feed exposes player game status including deactivated and uses a formal authenticated trial/production API rather than public-page scraping.",
         "Free-trial terms permit internal evaluation only; production use requires an appropriate customer/order-form license and any use-specific approvals required by the agreement.",
         "No CCF API key, parser, immutable archive, historical pre-lock replay, correction audit, or production-use authorization is claimed by this candidate record.",
+      ],
+    },
+    {
+      bindingVersion: "ccf-recovery-source-binding-v1",
+      bindingId: "nflverse-injuries-official-designation-historical-v1",
+      sourceClass: "official_injury_designation",
+      provider: "nflverse",
+      datasetOrProduct: "injuries",
+      dimensions: ["structural", "participation"],
+      authority: "reported_evidence",
+      status: "research_only",
+      temporalMode: "current_snapshot_only",
+      archiveStrategy: "none",
+      licenseOrTermsRef: NFLVERSE_DATA_LICENSE_REF,
+      parserVersion: "ccf-nflverse-injuries-candidate-v1",
+      sourceLocatorTemplate:
+        "https://github.com/nflverse/nflverse-data/releases/download/injuries/injuries_{season}.csv",
+      pointInTimeSemanticsDocumented: false,
+      rawTraceSupported: false,
+      reliabilityReviewRef:
+        "nflverse injury availability schedule audited 2026-09-14: source ended after 2024",
+      notes: [
+        "nflverse documents that its injury-data source died after the 2024 season and currently provides no 2025+ injury data.",
+        "The CCF adapter now fails closed for seasons after 2024 and is retained only for historical research/source-semantics work.",
+        "Upstream date_modified is preserved separately from CCF knownAt and is not historical PIT proof by itself.",
+      ],
+    },
+    {
+      bindingVersion: "ccf-recovery-source-binding-v1",
+      bindingId: "nflverse-injuries-practice-participation-historical-v1",
+      sourceClass: "official_practice_participation",
+      provider: "nflverse",
+      datasetOrProduct: "injuries",
+      dimensions: ["participation"],
+      authority: "reported_evidence",
+      status: "research_only",
+      temporalMode: "current_snapshot_only",
+      archiveStrategy: "none",
+      licenseOrTermsRef: NFLVERSE_DATA_LICENSE_REF,
+      parserVersion: "ccf-nflverse-injuries-candidate-v1",
+      sourceLocatorTemplate:
+        "https://github.com/nflverse/nflverse-data/releases/download/injuries/injuries_{season}.csv",
+      pointInTimeSemanticsDocumented: false,
+      rawTraceSupported: false,
+      reliabilityReviewRef:
+        "nflverse injury availability schedule audited 2026-09-14: source ended after 2024",
+      notes: [
+        "Historical practice fields remain useful for research through 2024 but cannot satisfy the live 2026 source spine.",
+        "The adapter fails closed for seasons after 2024.",
       ],
     },
     {
