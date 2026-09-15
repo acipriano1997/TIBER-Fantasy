@@ -78,6 +78,8 @@ jobs:
           server/modules/ccf/certification/__tests__/calibration.test.ts
           server/modules/ccf/certification/__tests__/subgroupStability.test.ts
           server/modules/ccf/certification/__tests__/historicalFreeze.test.ts
+          server/modules/ccf/certification/__tests__/historicalDatasetManifest.test.ts
+          server/modules/ccf/certification/__tests__/historicalDatasetProtocolBinding.test.ts
           server/modules/ccf/certification/__tests__/backtestProgressHistory.test.ts
           server/modules/ccf/certification/__tests__/predictiveValidation.test.ts
           server/modules/ccf/certification/__tests__/forecastMetrics.test.ts
