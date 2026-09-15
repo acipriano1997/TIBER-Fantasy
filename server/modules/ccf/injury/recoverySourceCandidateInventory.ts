@@ -63,6 +63,33 @@ export const CCF_RECOVERY_SOURCE_CANDIDATE_INVENTORY: CCFRecoverySourceBindingPl
     },
     {
       bindingVersion: "ccf-recovery-source-binding-v1",
+      bindingId: "sportradar-nfl-official-game-roster-candidate-v1",
+      sourceClass: "official_game_activation",
+      provider: "Sportradar",
+      datasetOrProduct: "NFL Official API - Game Roster",
+      dimensions: ["participation"],
+      authority: "raw_fact",
+      status: "candidate",
+      temporalMode: "current_snapshot_only",
+      archiveStrategy: "none",
+      licenseOrTermsRef:
+        "https://developer.sportradar.com/sportradar-updates/page/terms-and-conditions",
+      parserVersion: null,
+      sourceLocatorTemplate:
+        "https://api.sportradar.com/nfl/official/{access_level}/v7/{language_code}/games/{game_id}/roster.json",
+      pointInTimeSemanticsDocumented: false,
+      rawTraceSupported: false,
+      reliabilityReviewRef:
+        "Sportradar NFL Game Roster + Game Status Workflow docs audited 2026-09-14",
+      notes: [
+        "Sportradar documents the Game Roster as the declared game roster and states NFL inactive players are entered around 90 minutes before scheduled kickoff.",
+        "The feed exposes player game status including deactivated and uses a formal authenticated trial/production API rather than public-page scraping.",
+        "Free-trial terms permit internal evaluation only; production use requires an appropriate customer/order-form license and any use-specific approvals required by the agreement.",
+        "No CCF API key, parser, immutable archive, historical pre-lock replay, correction audit, or production-use authorization is claimed by this candidate record.",
+      ],
+    },
+    {
+      bindingVersion: "ccf-recovery-source-binding-v1",
       bindingId: "nfl-official-inactive-report-terms-blocked-v1",
       sourceClass: "official_game_activation",
       provider: "NFL.com",
@@ -72,7 +99,8 @@ export const CCF_RECOVERY_SOURCE_CANDIDATE_INVENTORY: CCFRecoverySourceBindingPl
       status: "rejected",
       temporalMode: "current_snapshot_only",
       archiveStrategy: "none",
-      licenseOrTermsRef: "https://www.nfl.com/legal/terms/ (systematic retrieval/compilation requires express prior written consent)",
+      licenseOrTermsRef:
+        "https://www.nfl.com/legal/terms/ (systematic retrieval/compilation requires express prior written consent)",
       parserVersion: null,
       sourceLocatorTemplate: "https://www.nfl.com/inactives/",
       pointInTimeSemanticsDocumented: false,
