@@ -2,6 +2,10 @@ import fs from "fs/promises";
 import os from "os";
 import path from "path";
 import { fetchAndArchiveNflverseSchedule } from "../archivedNflverseSchedule";
+import {
+  refCCFNflverseScheduleIdentityPolicyReceipt,
+  type CCFNflverseScheduleIdentityPolicyReceipt,
+} from "../nflverseScheduleIdentity";
 import { buildCCFNflverseScheduleReliabilityObservation } from "../nflverseScheduleReliability";
 
 const HEADER = "game_id,season,game_type,week,gameday,gametime,away_team,home_team";
@@ -10,7 +14,23 @@ const WEEK2_ROWS = [
   "2026_02_SF_LA,2026,REG,2,2026-09-20,16:25,SF,LA",
 ];
 
-const IDENTITY_REF = "ccf://identity/nflverse-schedule-game-id-v1";
+const IDENTITY_POLICY: CCFNflverseScheduleIdentityPolicyReceipt = {
+  contractVersion: "ccf-nflverse-schedule-identity-policy-v1",
+  receiptId: "nflverse-schedule-provider-native-identity-v1",
+  sourceSystem: "nflverse",
+  gameIdNamespace: "nflverse_game_id",
+  teamIdNamespace: "nflverse_team_abbreviation",
+  identityScope: "provider_native_schedule",
+  crossProviderCanonicalClaim: false,
+  knownAt: "2026-09-16T15:00:00Z",
+  frozenAt: "2026-09-16T15:30:00Z",
+  evidenceRefs: [
+    "fixture://nflverse/schedule-game-id-contract",
+    "fixture://nflverse/schedule-team-abbreviation-contract",
+  ],
+  notes: ["synthetic test policy; no cross-provider canonical game identity claim"],
+};
+const IDENTITY_REF = refCCFNflverseScheduleIdentityPolicyReceipt(IDENTITY_POLICY);
 const CRITICAL_FIELD_REF = "ccf://policy/nflverse-schedule-critical-fields-v1";
 const CORRECTION_REF = "ccf://policy/nflverse-schedule-corrections-v1";
 const CHECKPOINT_REF = "ccf://policy/nflverse-schedule-checkpoints-v1";
@@ -53,14 +73,14 @@ describe("nflverse archived schedule reliability observations", () => {
       sourceId: "nflverse-schedules-v1",
       checkpointId,
       scheduledFor,
-      identityBindingRef: IDENTITY_REF,
+      identityPolicyReceipt: IDENTITY_POLICY,
       criticalFieldPolicyRef: CRITICAL_FIELD_REF,
       correctionPolicyRef: CORRECTION_REF,
       checkpointPolicyRef: CHECKPOINT_REF,
     });
   }
 
-  it("derives valid kickoff and provider-identity quality from the archived capture", async () => {
+  it("derives valid kickoff and provider-native identity quality from the archived capture", async () => {
     const snapshot = await archived(csv(), "2026-09-16T16:01:00Z");
     const observation = observe(
       snapshot,
@@ -91,6 +111,28 @@ describe("nflverse archived schedule reliability observations", () => {
       CORRECTION_REF,
       CHECKPOINT_REF,
     ]));
+  });
+
+  it("rejects a schedule identity policy frozen after the archived capture", async () => {
+    const snapshot = await archived(csv(), "2026-09-16T16:01:00Z");
+    const futurePolicy: CCFNflverseScheduleIdentityPolicyReceipt = {
+      ...IDENTITY_POLICY,
+      knownAt: "2026-09-17T15:00:00Z",
+      frozenAt: "2026-09-17T15:30:00Z",
+    };
+
+    expect(() =>
+      buildCCFNflverseScheduleReliabilityObservation({
+        snapshot,
+        sourceId: "nflverse-schedules-v1",
+        checkpointId: "week-2-wed",
+        scheduledFor: "2026-09-16T16:00:00Z",
+        identityPolicyReceipt: futurePolicy,
+        criticalFieldPolicyRef: CRITICAL_FIELD_REF,
+        correctionPolicyRef: CORRECTION_REF,
+        checkpointPolicyRef: CHECKPOINT_REF,
+      }),
+    ).toThrow(/identity_policy_(known|frozen)_after_as_of/);
   });
 
   it("marks changed provider bytes reconciled only with archived before/after witnesses", async () => {
