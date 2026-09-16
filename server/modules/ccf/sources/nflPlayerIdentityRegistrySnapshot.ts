@@ -149,6 +149,92 @@ function canonicalSnapshotContent(
   })}\n`;
 }
 
+function contentSha256(content: string): string {
+  return crypto.createHash("sha256").update(content, "utf8").digest("hex");
+}
+
+export function assertCCFNFLPlayerIdentityRegistrySnapshotIntegrity(
+  snapshot: CCFNFLPlayerIdentityRegistrySnapshot,
+): CCFNFLPlayerIdentityRegistrySnapshot {
+  if (snapshot.contractVersion !== "ccf-nfl-player-identity-registry-snapshot-v1") {
+    throw new CCFNFLPlayerIdentityRegistrySnapshotError(
+      "unsupported identity registry snapshot version",
+    );
+  }
+  if (
+    snapshot.sourceTable !== "player_identity_map" ||
+    snapshot.schemaAuthorityRef !== CCF_NFL_PLAYER_IDENTITY_REGISTRY_SCHEMA_AUTHORITY_REF ||
+    snapshot.knownAtBasis !== "ccf_capture"
+  ) {
+    throw new CCFNFLPlayerIdentityRegistrySnapshotError(
+      "identity registry snapshot authority metadata is invalid",
+    );
+  }
+  if (!validTimestamp(snapshot.capturedAt) || !validTimestamp(snapshot.knownAt)) {
+    throw new CCFNFLPlayerIdentityRegistrySnapshotError(
+      "snapshot capturedAt and knownAt must be valid timestamps",
+    );
+  }
+
+  const manifest = snapshot.archive.manifest;
+  if (
+    manifest.provider !== "tiber" ||
+    manifest.dataset !== "player_identity_map_gsis_tiber" ||
+    manifest.parserVersion !== CCF_NFL_PLAYER_IDENTITY_REGISTRY_PARSER_VERSION ||
+    manifest.temporalMode !== "archived_point_in_time" ||
+    manifest.knownAtBasis !== "ccf_capture"
+  ) {
+    throw new CCFNFLPlayerIdentityRegistrySnapshotError(
+      "snapshot archive manifest does not describe the governed identity registry capture",
+    );
+  }
+  if (
+    manifest.retrievedAt !== snapshot.capturedAt ||
+    manifest.knownAt !== snapshot.knownAt
+  ) {
+    throw new CCFNFLPlayerIdentityRegistrySnapshotError(
+      "snapshot timestamps must match immutable archive manifest",
+    );
+  }
+  if (!hasText(manifest.archiveRef)) {
+    throw new CCFNFLPlayerIdentityRegistrySnapshotError(
+      "identity registry snapshot requires immutable archiveRef",
+    );
+  }
+
+  const normalized = normalizeRows(snapshot.rows);
+  const expectedContentSha256 = contentSha256(canonicalSnapshotContent(normalized));
+  if (expectedContentSha256 !== manifest.contentSha256) {
+    throw new CCFNFLPlayerIdentityRegistrySnapshotError(
+      "identity registry snapshot rows do not match immutable archived content",
+    );
+  }
+  if (snapshot.rowCount !== normalized.length) {
+    throw new CCFNFLPlayerIdentityRegistrySnapshotError(
+      "identity registry snapshot rowCount does not match rows",
+    );
+  }
+  const resolvedExactCount = normalized.filter(
+    (row) => row.mergedInto == null && row.tiberPlayerId != null,
+  ).length;
+  if (
+    snapshot.resolvedExactCount !== resolvedExactCount ||
+    snapshot.unresolvedCount !== normalized.length - resolvedExactCount
+  ) {
+    throw new CCFNFLPlayerIdentityRegistrySnapshotError(
+      "identity registry snapshot resolution counts do not match rows",
+    );
+  }
+  const expectedSnapshotId = `ccf-nfl-player-identity-registry:${manifest.contentSha256}`;
+  if (snapshot.snapshotId !== expectedSnapshotId) {
+    throw new CCFNFLPlayerIdentityRegistrySnapshotError(
+      "identity registry snapshotId does not match archived content fingerprint",
+    );
+  }
+
+  return snapshot;
+}
+
 export async function materializeCCFNFLPlayerIdentityRegistrySnapshot(
   input: MaterializeCCFNFLPlayerIdentityRegistrySnapshotInput,
 ): Promise<CCFNFLPlayerIdentityRegistrySnapshot> {
@@ -182,7 +268,7 @@ export async function materializeCCFNFLPlayerIdentityRegistrySnapshot(
   ).length;
   const unresolvedCount = rows.length - resolvedExactCount;
 
-  return {
+  return assertCCFNFLPlayerIdentityRegistrySnapshotIntegrity({
     contractVersion: "ccf-nfl-player-identity-registry-snapshot-v1",
     snapshotId: `ccf-nfl-player-identity-registry:${archive.manifest.contentSha256}`,
     capturedAt: input.capturedAt,
@@ -195,13 +281,14 @@ export async function materializeCCFNFLPlayerIdentityRegistrySnapshot(
     unresolvedCount,
     rows,
     archive,
-  };
+  });
 }
 
 export function buildCCFNFLPlayerIdentityLinkageReceiptFromSnapshot(
   snapshot: CCFNFLPlayerIdentityRegistrySnapshot,
   frozenAt: string,
 ): CCFNFLPlayerIdentityReceiptFromSnapshot {
+  assertCCFNFLPlayerIdentityRegistrySnapshotIntegrity(snapshot);
   if (!validTimestamp(frozenAt)) {
     throw new CCFNFLPlayerIdentityRegistrySnapshotError(
       "frozenAt must be a valid timestamp",
@@ -264,8 +351,5 @@ export function buildCCFNFLPlayerIdentityLinkageReceiptFromSnapshot(
 export function fingerprintCCFNFLPlayerIdentityRegistryRows(
   sourceRows: readonly CCFNFLPlayerIdentityRegistrySourceRow[],
 ): string {
-  return crypto
-    .createHash("sha256")
-    .update(canonicalSnapshotContent(normalizeRows(sourceRows)))
-    .digest("hex");
+  return contentSha256(canonicalSnapshotContent(normalizeRows(sourceRows)));
 }
