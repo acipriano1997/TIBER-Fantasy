@@ -6,6 +6,8 @@ import {
 
 const NFLVERSE_DATA_LICENSE_REF =
   "https://github.com/nflverse/nflverse-data/blob/main/LICENSE.md (CC BY 4.0 repository license)";
+const NFLVERSE_DATA_TERMS_REF =
+  "https://nflverse.nflverse.com/ (nflverse terms note NFL data remain governed by their respective owners' terms of use)";
 const SPORTRADAR_TERMS_REF =
   "https://developer.sportradar.com/sportradar-updates/page/terms-and-conditions";
 const SPORTSDATAIO_RIGHTS_REF =
@@ -20,7 +22,7 @@ const SPORTSDATAIO_RIGHTS_REF =
  */
 export const CCF_RECOVERY_SOURCE_CANDIDATE_INVENTORY: CCFRecoverySourceBindingPlan = {
   contractVersion: "ccf-recovery-source-binding-plan-v1",
-  asOf: "2026-09-15T10:30:00Z",
+  asOf: "2026-09-16T11:30:00Z",
   bindings: [
     {
       bindingVersion: "ccf-recovery-source-binding-v1",
@@ -136,55 +138,60 @@ export const CCF_RECOVERY_SOURCE_CANDIDATE_INVENTORY: CCFRecoverySourceBindingPl
     },
     {
       bindingVersion: "ccf-recovery-source-binding-v1",
-      bindingId: "nflverse-injuries-official-designation-historical-v1",
+      bindingId: "nflverse-injuries-official-designation-current-candidate-v2",
       sourceClass: "official_injury_designation",
       provider: "nflverse",
       datasetOrProduct: "injuries",
       dimensions: ["structural", "participation"],
       authority: "reported_evidence",
-      status: "research_only",
+      status: "candidate",
       temporalMode: "current_snapshot_only",
       archiveStrategy: "none",
-      licenseOrTermsRef: NFLVERSE_DATA_LICENSE_REF,
+      licenseOrTermsRef: `${NFLVERSE_DATA_LICENSE_REF}; ${NFLVERSE_DATA_TERMS_REF}`,
       permissionStatus: "unreviewed",
-      parserVersion: "ccf-nflverse-injuries-candidate-v1",
+      parserVersion: "ccf-nflverse-injuries-candidate-v2",
       sourceLocatorTemplate:
         "https://github.com/nflverse/nflverse-data/releases/download/injuries/injuries_{season}.csv",
       pointInTimeSemanticsDocumented: false,
       rawTraceSupported: false,
       reliabilityReviewRef:
-        "nflverse injury availability schedule audited 2026-09-14: source ended after 2024",
-      reliabilityStatus: "failed",
+        "nflverse 2025/2026 injury release assets, injury dictionary, nflverse-rosters update workflow, and producer script audited 2026-09-16; prospective coverage/correction audit pending",
+      reliabilityStatus: "incomplete",
       notes: [
-        "nflverse documents that its injury-data source died after the 2024 season and currently provides no 2025+ injury data.",
-        "The CCF adapter fails closed for seasons after 2024 and is retained only for historical research/source-semantics work.",
-        "Upstream date_modified is preserved separately from CCF knownAt and is not historical PIT proof by itself.",
+        "The earlier 2025 outage assumption is stale: nflverse-data now publishes 2025 and 2026 injury release assets, with the 2026 asset refreshed on 2026-09-15.",
+        "nflverse-rosters currently builds the season file with nflapi::nflapi_injuries and schedules the injury workflow daily at 07:07 UTC from September through February.",
+        "The current nflreadr dictionary defines report_status as the player's game status on the official injury report.",
+        "The public nflreadr availability article still says the post-2024 source is unavailable, so documentation is internally inconsistent; CCF treats the release/workflow evidence as proof of current existence only, not proof of reliability or intended-use rights.",
+        "Upstream date_modified remains evidence metadata only. CCF knownAt is the actual retrieval time unless FFCC has archived an exact prior snapshot.",
+        "Repository distribution is identified as CC BY 4.0, while nflverse also states NFL data remain governed by their respective owners' terms; intended-use permission for FFCC remains unresolved and no production promotion is claimed.",
       ],
     },
     {
       bindingVersion: "ccf-recovery-source-binding-v1",
-      bindingId: "nflverse-injuries-practice-participation-historical-v1",
+      bindingId: "nflverse-injuries-practice-participation-current-candidate-v2",
       sourceClass: "official_practice_participation",
       provider: "nflverse",
       datasetOrProduct: "injuries",
       dimensions: ["participation"],
       authority: "reported_evidence",
-      status: "research_only",
+      status: "candidate",
       temporalMode: "current_snapshot_only",
       archiveStrategy: "none",
-      licenseOrTermsRef: NFLVERSE_DATA_LICENSE_REF,
+      licenseOrTermsRef: `${NFLVERSE_DATA_LICENSE_REF}; ${NFLVERSE_DATA_TERMS_REF}`,
       permissionStatus: "unreviewed",
-      parserVersion: "ccf-nflverse-injuries-candidate-v1",
+      parserVersion: "ccf-nflverse-injuries-candidate-v2",
       sourceLocatorTemplate:
         "https://github.com/nflverse/nflverse-data/releases/download/injuries/injuries_{season}.csv",
       pointInTimeSemanticsDocumented: false,
       rawTraceSupported: false,
       reliabilityReviewRef:
-        "nflverse injury availability schedule audited 2026-09-14: source ended after 2024",
-      reliabilityStatus: "failed",
+        "nflverse 2025/2026 injury release assets, injury dictionary, nflverse-rosters update workflow, and producer script audited 2026-09-16; prospective coverage/correction audit pending",
+      reliabilityStatus: "incomplete",
       notes: [
-        "Historical practice fields remain useful for research through 2024 but cannot satisfy the live 2026 source spine.",
-        "The adapter fails closed for seasons after 2024.",
+        "The current nflreadr dictionary defines practice_status as the player's participation in practice, and the 2026 injuries release is live again.",
+        "The season-level release is a mutable current snapshot rather than an FFCC-certified historical checkpoint archive; exact bytes must be captured prospectively at fantasy-relevant decision times.",
+        "The current public availability article is stale relative to the live release/workflow state, so source reliability and correction behavior require empirical review rather than assumption.",
+        "Intended-use permission is still unresolved; this binding remains a candidate and cannot satisfy production readiness without a separate trusted promotion attestation.",
       ],
     },
     {
