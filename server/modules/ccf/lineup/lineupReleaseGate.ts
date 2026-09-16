@@ -112,7 +112,7 @@ export function auditCCFLineupReleaseGate(
     if (record.status !== "certified") blockers.add(`${required}:not_certified`);
 
     const prefix = `${required}:`;
-    if (![...blockers].some((blocker) => blocker.startsWith(prefix))) {
+    if (!Array.from(blockers).some((blocker) => blocker.startsWith(prefix))) {
       certifiedEvidenceKinds.push(required);
     }
   }
@@ -123,7 +123,7 @@ export function auditCCFLineupReleaseGate(
     }
   }
 
-  const sortedBlockers = [...blockers].sort();
+  const sortedBlockers = Array.from(blockers).sort();
   const complete = certifiedEvidenceKinds.length === CCF_LINEUP_REQUIRED_RELEASE_EVIDENCE.length;
   return {
     version: CCF_LINEUP_RELEASE_GATE_VERSION,
