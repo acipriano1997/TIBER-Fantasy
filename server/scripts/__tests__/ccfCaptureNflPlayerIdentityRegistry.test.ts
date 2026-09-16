@@ -40,14 +40,14 @@ const snapshot = {
 } as unknown as CCFNFLPlayerIdentityRegistrySnapshot;
 
 describe("CCF identity snapshot command", () => {
-  it("emits an auditable non-promotion receipt on success", async () => {
+  it("emits an auditable non-promotion receipt only after persisted verification succeeds", async () => {
     const outcome = await runCCFIdentitySnapshotCommand({
       archiveRootDir: "/archive-root",
       capture: async (root) => {
         expect(root).toBe("/archive-root");
         return snapshot;
       },
-      buildReceipt: (_snapshot, frozenAt) => ({
+      buildReceipt: async (_snapshot, frozenAt) => ({
         receipt: { receiptId: "real-receipt" } as never,
         receiptFingerprint: "f".repeat(64),
         receiptRef: `ccf://nfl-player-identity/sha256/${"f".repeat(64)}`,
@@ -64,11 +64,12 @@ describe("CCF identity snapshot command", () => {
       rowCount: 1,
       resolvedExactCount: 1,
       unresolvedCount: 0,
+      persistedArchiveVerified: true,
       productionPromotionAuthorized: false,
     });
   });
 
-  it("fails closed and never emits promotion authority when capture/materialization fails", async () => {
+  it("fails closed and never emits promotion authority when capture fails", async () => {
     const outcome = await runCCFIdentitySnapshotCommand({
       archiveRootDir: "/archive-root",
       capture: async () => {
@@ -85,6 +86,27 @@ describe("CCF identity snapshot command", () => {
       receipt_kind: "ccf_nfl_player_identity_registry_capture_v1",
       ok: false,
       error: "registry unavailable",
+      persistedArchiveVerified: false,
+      productionPromotionAuthorized: false,
+    });
+  });
+
+  it("fails closed if persisted archive verification rejects receipt materialization", async () => {
+    const outcome = await runCCFIdentitySnapshotCommand({
+      archiveRootDir: "/archive-root",
+      capture: async () => snapshot,
+      buildReceipt: async () => {
+        throw new Error("archive content failed stored-manifest verification");
+      },
+      now: () => "2026-09-16T18:01:00Z",
+    });
+
+    expect(outcome.exitCode).toBe(1);
+    expect(outcome.output).toMatchObject({
+      receipt_kind: "ccf_nfl_player_identity_registry_capture_v1",
+      ok: false,
+      error: "archive content failed stored-manifest verification",
+      persistedArchiveVerified: false,
       productionPromotionAuthorized: false,
     });
   });
