@@ -23,7 +23,7 @@ function tail(overrides: Partial<WeeklyTailOutlook> = {}): WeeklyTailOutlook {
     pathways: null,
     sourceReceipts: [
       {
-        owner: 'TIBER-Forecast',
+        owner: 'CCF-Forecast',
         artifactOrEndpoint: 'weekly-tail-v2',
         schemaOrModelVersion: 'forecast-weekly-tail-v2',
         runOrContentHash: 'run-a',

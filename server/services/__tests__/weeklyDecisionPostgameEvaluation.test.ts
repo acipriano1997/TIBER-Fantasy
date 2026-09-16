@@ -39,7 +39,7 @@ function tail(
     leftTail: null,
     pathways: null,
     sourceReceipts: [{
-      owner: 'TIBER-Forecast',
+      owner: 'CCF-Forecast',
       artifactOrEndpoint: 'weekly-tail-v2',
       schemaOrModelVersion: modelVersion,
       runOrContentHash: runHash,
@@ -348,7 +348,7 @@ describe('Weekly Decision postgame calibration summary', () => {
         calibrationVersion: 'calibration-2026-w2',
         supportedPopulation: 'NFL WR PPR weekly v3',
         sourceReceipts: [{
-          owner: 'TIBER-Forecast',
+          owner: 'CCF-Forecast',
           artifactOrEndpoint: 'weekly-tail-v3',
           schemaOrModelVersion: 'forecast-weekly-tail-v3',
           runOrContentHash: 'run-starter-mixed',
