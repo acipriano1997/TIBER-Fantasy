@@ -260,7 +260,7 @@ export function buildCCFNflverseWeeklyPlayerStatsReliabilityObservation(
     identityEligibleCount,
     identityResolvedCount: identityAudit.resolvedCount,
     criticalFieldEligibleCount: input.snapshot.rows.length,
-    criticalFieldMissingCount,
+    criticalFieldMissingCount: criticalMissingCount,
     duplicateKeyCount: duplicateKeyCount(input.snapshot),
     correctionStatus: revisionStatus,
     evidenceRefs: Array.from(new Set(evidenceRefs)).sort(),
