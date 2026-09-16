@@ -94,6 +94,10 @@ jobs:
           server/modules/ccf/sources/__tests__/nflversePlayByPlay.test.ts
           server/modules/ccf/sources/__tests__/nflverseRecoveryCandidates.test.ts
           server/modules/ccf/sources/__tests__/archivedNflverseSnapCounts.test.ts
+          server/modules/ccf/sources/__tests__/archivedNflverseSchedule.test.ts
+          server/modules/ccf/sources/__tests__/nflverseScheduleIdentity.test.ts
+          server/modules/ccf/sources/__tests__/nflverseScheduleReliability.test.ts
+          server/modules/ccf/sources/__tests__/nflverseScheduleCertificationPolicy.test.ts
           server/modules/ccf/sources/__tests__/archivedNflverseInjuries.test.ts
           server/modules/ccf/sources/__tests__/sourceSnapshot.test.ts
           server/modules/ccf/sources/__tests__/rawSourceArchive.test.ts
@@ -101,9 +105,14 @@ jobs:
           server/modules/ccf/sources/__tests__/sourcePromotionAttestation.test.ts
           server/modules/ccf/sources/__tests__/sourceReliabilityReview.test.ts
           server/modules/ccf/sources/__tests__/nflverseInjuryReliability.test.ts
+          server/modules/ccf/sources/__tests__/nflverseInjuryCertificationPolicy.test.ts
           server/modules/ccf/sources/__tests__/nflPlayerIdentityLinkage.test.ts
+          server/modules/ccf/sources/__tests__/nflPlayerIdentityRegistrySnapshot.test.ts
+          server/modules/ccf/sources/__tests__/nflPlayerIdentityRegistryIntegrity.test.ts
+          server/scripts/__tests__/ccfCaptureNflPlayerIdentityRegistry.test.ts
           server/modules/ccf/sources/__tests__/transactionalArtifactPromotion.test.ts
           server/modules/ccf/sources/__tests__/weeklySourceSpine.test.ts
+          server/modules/ccf/sources/__tests__/weeklySourceScheduleCapability.test.ts
           server/modules/ccf/sources/__tests__/devyIdentityLinkage.test.ts
           server/modules/ccf/weather/__tests__/weatherEvidence.test.ts
           server/modules/ccf/injury/__tests__/injuryRecoveryEvidence.test.ts

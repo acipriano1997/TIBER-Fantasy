@@ -63,6 +63,7 @@ export type CCFSourceEligibilityReason =
   | "not_promoted"
   | "qualification_missing"
   | "qualification_invalid"
+  | "qualification_reviewed_after_as_of"
   | "terms_or_license_missing"
   | "permission_not_cleared"
   | "parser_unversioned"
@@ -180,6 +181,17 @@ export function evaluateCCFSourceStateEligibility(
   const qualificationReason = qualificationEligibilityReason(state.qualification);
   if (qualificationReason != null) {
     return { eligible: false, reason: qualificationReason };
+  }
+
+  // Governance evidence is itself point-in-time evidence. A qualification that
+  // was reviewed after the frozen decision boundary must never retroactively
+  // authorize source evidence that happened to be known earlier.
+  const qualificationReviewedAtMs = timestamp(state.qualification?.reviewedAt);
+  if (qualificationReviewedAtMs == null) {
+    return { eligible: false, reason: "qualification_invalid" };
+  }
+  if (qualificationReviewedAtMs > asOfMs) {
+    return { eligible: false, reason: "qualification_reviewed_after_as_of" };
   }
 
   if (knownAtMs > asOfMs) {

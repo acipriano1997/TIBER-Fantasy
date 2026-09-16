@@ -16,6 +16,7 @@ export const CCF_WEEKLY_SOURCE_CAPABILITIES = [
   "practice_participation",
   "game_activation",
   "observed_workload",
+  "nfl_schedule",
 ] as const;
 
 export type CCFWeeklySourceCapability = typeof CCF_WEEKLY_SOURCE_CAPABILITIES[number];
