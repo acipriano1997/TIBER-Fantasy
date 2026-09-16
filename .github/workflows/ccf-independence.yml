@@ -60,6 +60,7 @@ jobs:
           server/modules/ccf/outcomes/__tests__/fixtureEngine.test.ts
           server/modules/ccf/lineup/__tests__/lineupDecision.test.ts
           server/modules/ccf/lineup/__tests__/lineupReleaseGate.test.ts
+          server/modules/ccf/lineup/__tests__/positionCoverage.test.ts
           server/modules/ccf/independence/__tests__/authorityGraph.test.ts
           server/modules/ccf/independence/__tests__/weeklyDependencyCensus.test.ts
           server/modules/ccf/independence/__tests__/tiberCapabilityMigration.test.ts
