@@ -288,7 +288,7 @@ export function parseNflverseScheduleCsv(
     byGameId.set(game.gameId, game);
   }
 
-  return [...byGameId.values()].sort((a, b) => {
+  return Array.from(byGameId.values()).sort((a, b) => {
     const kickoff = a.kickoffAt.localeCompare(b.kickoffAt);
     return kickoff !== 0 ? kickoff : a.gameId.localeCompare(b.gameId);
   });
