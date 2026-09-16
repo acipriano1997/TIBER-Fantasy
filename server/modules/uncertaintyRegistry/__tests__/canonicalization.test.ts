@@ -20,6 +20,26 @@ describe('USR-0 canonicalization', () => {
     expect(verifyUsrDigest(digested)).toBe(true);
   });
 
+  test('nested record-reference digests remain bound into the parent fingerprint', () => {
+    const left = {
+      schemaVersion: 'fixture.parent',
+      recordId: 'fixture-parent',
+      definitionRef: {
+        schemaVersion: 'fixture.child',
+        recordId: 'fixture-child',
+        recordDigest: `sha256:${'a'.repeat(64)}`,
+      },
+    };
+    const right = {
+      ...left,
+      definitionRef: {
+        ...left.definitionRef,
+        recordDigest: `sha256:${'b'.repeat(64)}`,
+      },
+    };
+    expect(digestUsrValue(left)).not.toBe(digestUsrValue(right));
+  });
+
   test('semantic mutation invalidates a digest', () => {
     const digested = withUsrDigest({ schemaVersion: 'fixture', recordId: 'fixture-2', question: 'before' });
     const tampered = { ...digested, question: 'after' };
