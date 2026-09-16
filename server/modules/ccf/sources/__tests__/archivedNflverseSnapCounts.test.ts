@@ -20,7 +20,7 @@ describe("prospective archived nflverse snap-count capture", () => {
     await fs.rm(archiveRootDir, { recursive: true, force: true });
   });
 
-  it("archives the exact fetched bytes before exposing parsed workload evidence", async () => {
+  it("archives exact fetched bytes and preserves full qualification scope", async () => {
     const fetchImpl = jest.fn(async () =>
       new Response(SNAP_CSV, {
         status: 200,
@@ -40,19 +40,39 @@ describe("prospective archived nflverse snap-count capture", () => {
     });
 
     expect(snapshot.rows).toHaveLength(1);
+    expect(snapshot.positions).toEqual(["QB", "RB", "WR", "TE"]);
     expect(snapshot.rows[0]).toMatchObject({
       pfrPlayerId: "ReceEx00",
       offenseSnaps: 52,
       offensePct: 0.8,
     });
     expect(snapshot.knownAt).toBe("2026-09-14T12:05:00.000Z");
-    expect(snapshot.archive.manifest.temporalMode).toBe("archived_point_in_time");
-    expect(snapshot.archive.manifest.knownAtBasis).toBe("ccf_capture");
-    expect(snapshot.archive.manifest.knownAt).toBe(snapshot.knownAt);
-    expect(snapshot.archive.manifest.sourceLastModified).toBe(
-      "Mon, 14 Sep 2026 11:30:00 GMT",
-    );
+    expect(snapshot.archive.manifest).toMatchObject({
+      provider: "nflverse",
+      dataset: "snap_counts",
+      parserVersion: "ccf-nflverse-snap-counts-candidate-v2",
+      temporalMode: "archived_point_in_time",
+      knownAtBasis: "ccf_capture",
+      knownAt: "2026-09-14T12:05:00.000Z",
+      sourceLastModified: "Mon, 14 Sep 2026 11:30:00 GMT",
+      etag: "snap-etag",
+    });
     expect(await fs.readFile(snapshot.archive.contentPath, "utf8")).toBe(SNAP_CSV);
+  });
+
+  it("preserves filtered position scope so it cannot masquerade as full coverage", async () => {
+    const fetchImpl = jest.fn(async () => new Response(SNAP_CSV, { status: 200 })) as unknown as typeof fetch;
+
+    const snapshot = await fetchAndArchiveNflverseSnapCounts({
+      season: 2026,
+      week: 2,
+      positions: ["WR"],
+      archiveRootDir,
+      fetchImpl,
+      now: () => new Date("2026-09-14T12:05:00Z"),
+    });
+
+    expect(snapshot.positions).toEqual(["WR"]);
   });
 
   it("does not let upstream Last-Modified backdate the prospective CCF capture", async () => {
