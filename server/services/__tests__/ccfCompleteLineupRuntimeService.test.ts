@@ -98,7 +98,9 @@ function player(
     identityStatus: 'canonical',
     availability: 'eligible',
     byeWeek: null,
+    byeWeekKnown: true,
     observedStarterSlotId,
+    lockState: 'unlocked',
     lockAt: null,
     ...overrides,
   };
@@ -200,9 +202,10 @@ describe('CCF complete-lineup runtime composition', () => {
     expect(result.decision?.finalActionAuthority).toBe('human');
   });
 
-  it('binds an elapsed observed starter lock into the exact active-league slot', () => {
+  it('binds an explicitly locked observed starter into the exact active-league slot', () => {
     const input = runtimeInput();
     const wrA = input.roster.find((row) => row.playerId === 'wr-a')!;
+    wrA.lockState = 'locked';
     wrA.lockAt = '2026-09-16T11:00:00.000Z';
     const wrB = input.outcomes.find((row) => row.playerId === 'wr-b')!.outcome;
     Object.assign(wrB, { meanFpts: 50, medianFpts: 50, p10Fpts: 44, p25Fpts: 47, p75Fpts: 53, p90Fpts: 56 });
@@ -213,6 +216,15 @@ describe('CCF complete-lineup runtime composition', () => {
       playerId: 'wr-a',
       locked: true,
     });
+  });
+
+  it('passes unknown legal-state evidence through to fail-closed CCF decision semantics', () => {
+    const input = runtimeInput();
+    input.roster.find((row) => row.playerId === 'wr-b')!.lockState = 'unknown';
+    const result = evaluateCCFCompleteLineupRuntime(input);
+    expect(result.state).toBe('evaluated');
+    expect(result.decision?.status).toBe('insufficient_evidence');
+    expect(result.decision?.missingInputs).toContain('wr-b:lock_state');
   });
 
   it('blocks unsupported active-league positions before constructing a decision packet', () => {
