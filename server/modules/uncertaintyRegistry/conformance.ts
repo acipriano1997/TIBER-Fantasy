@@ -34,7 +34,7 @@ export type UsrHistoryBundleV0 = {
 };
 
 function distinct(values: readonly string[]): string[] {
-  return [...new Set(values)];
+  return Array.from(new Set(values));
 }
 
 export function definitionRecordIdV0(definition: SituationDefinitionV0): string {
