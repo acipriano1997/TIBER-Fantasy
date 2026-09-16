@@ -1,6 +1,7 @@
 import crypto from "crypto";
 
 export type CCFSourceTemporalMode = "current_snapshot_only" | "archived_point_in_time";
+export type CCFSourceKnownAtBasis = "ccf_capture" | "provider_archive_proven";
 
 export interface CCFSourceSnapshotManifest {
   manifestVersion: "ccf-source-snapshot-v1";
@@ -11,6 +12,19 @@ export interface CCFSourceSnapshotManifest {
   parserVersion: string;
   retrievedAt: string;
   knownAt: string;
+  /**
+   * Explains why `knownAt` is trustworthy. `ccf_capture` means CCF only claims
+   * knowledge when it actually retrieved the bytes. `provider_archive_proven`
+   * is reserved for an immutable historical provider version whose publication
+   * time is independently evidenced by `sourceVersionKnownAt` +
+   * `knownAtProofRef`.
+   */
+  knownAtBasis: CCFSourceKnownAtBasis;
+  /** Exact time this immutable provider version is proven to have been available. */
+  sourceVersionKnownAt: string | null;
+  /** Durable evidence supporting a provider-archive historical known-at claim. */
+  knownAtProofRef: string | null;
+  /** HTTP/header metadata only; never sufficient by itself to backdate knownAt. */
   sourceLastModified: string | null;
   etag: string | null;
   contentSha256: string;
@@ -28,6 +42,9 @@ export interface CreateCCFSourceSnapshotManifestInput {
   content: string | Buffer | Uint8Array;
   retrievedAt: string;
   knownAt?: string;
+  knownAtBasis?: CCFSourceKnownAtBasis;
+  sourceVersionKnownAt?: string | null;
+  knownAtProofRef?: string | null;
   sourceLastModified?: string | null;
   etag?: string | null;
   temporalMode?: CCFSourceTemporalMode;
@@ -49,6 +66,11 @@ function parseTimestamp(label: string, value: string): number {
   return parsed;
 }
 
+function requireText(label: string, value: string | null | undefined): string {
+  if (!value?.trim()) throw new CCFSourceSnapshotError(`${label} is required`);
+  return value;
+}
+
 function toBuffer(content: string | Buffer | Uint8Array): Buffer {
   if (typeof content === "string") {
     return Buffer.from(content, "utf8");
@@ -66,12 +88,62 @@ export function createCCFSourceSnapshotManifest(
   if (!input.parserVersion.trim()) throw new CCFSourceSnapshotError("parserVersion is required");
 
   const retrievedAtMs = parseTimestamp("retrievedAt", input.retrievedAt);
-  const knownAt = input.knownAt ?? input.retrievedAt;
-  const knownAtMs = parseTimestamp("knownAt", knownAt);
+  const temporalMode = input.temporalMode ?? "current_snapshot_only";
+  if (temporalMode === "archived_point_in_time" && !input.archiveRef?.trim()) {
+    throw new CCFSourceSnapshotError(
+      "archived_point_in_time snapshots require an immutable archiveRef",
+    );
+  }
 
-  // CCF cannot claim it knew a source snapshot before it actually retrieved it.
-  if (knownAtMs < retrievedAtMs) {
-    throw new CCFSourceSnapshotError("knownAt cannot precede retrievedAt for a newly captured source snapshot");
+  const knownAtBasis = input.knownAtBasis ?? "ccf_capture";
+  let knownAt: string;
+  let sourceVersionKnownAt: string | null = input.sourceVersionKnownAt ?? null;
+  let knownAtProofRef: string | null = input.knownAtProofRef ?? null;
+
+  if (knownAtBasis === "ccf_capture") {
+    knownAt = input.knownAt ?? input.retrievedAt;
+    const knownAtMs = parseTimestamp("knownAt", knownAt);
+
+    // For ordinary captures, CCF cannot claim it knew bytes before retrieval.
+    if (knownAtMs < retrievedAtMs) {
+      throw new CCFSourceSnapshotError(
+        "knownAt cannot precede retrievedAt when knownAtBasis is ccf_capture",
+      );
+    }
+
+    if (sourceVersionKnownAt != null) {
+      parseTimestamp("sourceVersionKnownAt", sourceVersionKnownAt);
+    }
+  } else if (knownAtBasis === "provider_archive_proven") {
+    if (temporalMode !== "archived_point_in_time") {
+      throw new CCFSourceSnapshotError(
+        "provider_archive_proven knownAt requires archived_point_in_time temporal mode",
+      );
+    }
+    requireText("archiveRef", input.archiveRef);
+    sourceVersionKnownAt = requireText("sourceVersionKnownAt", sourceVersionKnownAt);
+    knownAtProofRef = requireText("knownAtProofRef", knownAtProofRef);
+
+    const sourceVersionKnownAtMs = parseTimestamp(
+      "sourceVersionKnownAt",
+      sourceVersionKnownAt,
+    );
+    if (sourceVersionKnownAtMs > retrievedAtMs) {
+      throw new CCFSourceSnapshotError(
+        "sourceVersionKnownAt cannot be later than retrievedAt for provider archive proof",
+      );
+    }
+
+    knownAt = input.knownAt ?? sourceVersionKnownAt;
+    const knownAtMs = parseTimestamp("knownAt", knownAt);
+    if (knownAtMs !== sourceVersionKnownAtMs) {
+      throw new CCFSourceSnapshotError(
+        "provider_archive_proven knownAt must equal the proven sourceVersionKnownAt",
+      );
+    }
+  } else {
+    const exhaustive: never = knownAtBasis;
+    throw new CCFSourceSnapshotError(`unsupported knownAtBasis ${exhaustive}`);
   }
 
   if (input.sourceLastModified != null) {
@@ -83,13 +155,6 @@ export function createCCFSourceSnapshotManifest(
     throw new CCFSourceSnapshotError("source snapshot content must not be empty");
   }
 
-  const temporalMode = input.temporalMode ?? "current_snapshot_only";
-  if (temporalMode === "archived_point_in_time" && !input.archiveRef?.trim()) {
-    throw new CCFSourceSnapshotError(
-      "archived_point_in_time snapshots require an immutable archiveRef",
-    );
-  }
-
   return {
     manifestVersion: "ccf-source-snapshot-v1",
     provider: input.provider,
@@ -99,6 +164,9 @@ export function createCCFSourceSnapshotManifest(
     parserVersion: input.parserVersion,
     retrievedAt: input.retrievedAt,
     knownAt,
+    knownAtBasis,
+    sourceVersionKnownAt,
+    knownAtProofRef,
     sourceLastModified: input.sourceLastModified ?? null,
     etag: input.etag ?? null,
     contentSha256: crypto.createHash("sha256").update(bytes).digest("hex"),
@@ -118,9 +186,10 @@ export function verifyCCFSourceSnapshotContent(
 }
 
 /**
- * Point-in-time eligibility is deliberately based on CCF's `knownAt`, never on
- * an upstream Last-Modified timestamp. A file fetched after the decision time
- * is ineligible even if the provider says the file itself was modified earlier.
+ * Point-in-time eligibility is deliberately based on the manifest `knownAt`.
+ * Header metadata such as Last-Modified never backdates knowledge by itself.
+ * Historical backdating is allowed only when the manifest explicitly carries
+ * a provider-archive proof accepted by the source binding.
  */
 export function assertCCFSourceSnapshotEligibleAt(
   manifest: CCFSourceSnapshotManifest,

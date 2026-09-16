@@ -1,5 +1,9 @@
 import crypto from "crypto";
 import {
+  evaluateCCFSourcePromotionBinding,
+  CCF_TRUSTED_SOURCE_PROMOTIONS_V1,
+} from "./sourcePromotionAttestation";
+import {
   evaluateCCFSourceStateEligibility,
   type CCFSourceEligibilityReason,
   type CCFSourceState,
@@ -44,14 +48,18 @@ export type CCFWeeklySourceBindingBlocker =
   | "raw_archive_missing"
   | "correction_policy_missing"
   | "checkpoint_policy_missing"
-  | "source_ineligible";
+  | "source_ineligible"
+  | "promotion_attestation_ineligible";
 
 export interface CCFWeeklySourceCapabilityAudit {
   capability: CCFWeeklySourceCapability;
   ready: boolean;
   sourceId: string | null;
   sourceEligibilityReason: CCFSourceEligibilityReason | null;
+  promotionAttestationId: string | null;
+  promotionAttestationFingerprint: string | null;
   blockers: CCFWeeklySourceBindingBlocker[];
+  promotionBlockers: string[];
 }
 
 export interface CCFWeeklySourceSpineAudit {
@@ -120,29 +128,30 @@ export function fingerprintCCFWeeklySourceSpinePlan(plan: CCFWeeklySourceSpinePl
   return crypto.createHash("sha256").update(JSON.stringify(canonical)).digest("hex");
 }
 
+function emptyCapabilityAudit(
+  capability: CCFWeeklySourceCapability,
+  blocker: "missing_binding" | "duplicate_binding",
+): CCFWeeklySourceCapabilityAudit {
+  return {
+    capability,
+    ready: false,
+    sourceId: null,
+    sourceEligibilityReason: null,
+    promotionAttestationId: null,
+    promotionAttestationFingerprint: null,
+    blockers: [blocker],
+    promotionBlockers: [],
+  };
+}
+
 function auditBinding(
   capability: CCFWeeklySourceCapability,
   matches: readonly CCFWeeklySourceBinding[],
   asOf: string,
+  trustedPromotions: readonly unknown[],
 ): CCFWeeklySourceCapabilityAudit {
-  if (matches.length === 0) {
-    return {
-      capability,
-      ready: false,
-      sourceId: null,
-      sourceEligibilityReason: null,
-      blockers: ["missing_binding"],
-    };
-  }
-  if (matches.length > 1) {
-    return {
-      capability,
-      ready: false,
-      sourceId: null,
-      sourceEligibilityReason: null,
-      blockers: ["duplicate_binding"],
-    };
-  }
+  if (matches.length === 0) return emptyCapabilityAudit(capability, "missing_binding");
+  if (matches.length > 1) return emptyCapabilityAudit(capability, "duplicate_binding");
 
   const binding = matches[0];
   const blockers: CCFWeeklySourceBindingBlocker[] = [];
@@ -154,18 +163,25 @@ function auditBinding(
   const eligibility = evaluateCCFSourceStateEligibility(binding.sourceState, asOf);
   if (!eligibility.eligible) blockers.push("source_ineligible");
 
+  const promotion = evaluateCCFSourcePromotionBinding(binding, asOf, trustedPromotions);
+  if (!promotion.eligible) blockers.push("promotion_attestation_ineligible");
+
   return {
     capability,
     ready: blockers.length === 0,
     sourceId: binding.sourceState.sourceId,
     sourceEligibilityReason: eligibility.reason,
+    promotionAttestationId: promotion.attestationId,
+    promotionAttestationFingerprint: promotion.attestationFingerprint,
     blockers,
+    promotionBlockers: promotion.blockers,
   };
 }
 
 export function evaluateCCFWeeklySourceSpine(
   input: CCFWeeklySourceSpinePlan,
   asOf: string,
+  trustedPromotions: readonly unknown[] = CCF_TRUSTED_SOURCE_PROMOTIONS_V1,
 ): CCFWeeklySourceSpineAudit {
   const blockers: string[] = [];
   let planFingerprint: string | null = null;
@@ -180,13 +196,9 @@ export function evaluateCCFWeeklySourceSpine(
       productionCoverage: 0,
       requiredCapabilityCount: CCF_WEEKLY_SOURCE_CAPABILITIES.length,
       planFingerprint: null,
-      capabilities: CCF_WEEKLY_SOURCE_CAPABILITIES.map((capability) => ({
-        capability,
-        ready: false,
-        sourceId: null,
-        sourceEligibilityReason: null,
-        blockers: ["missing_binding"],
-      })),
+      capabilities: CCF_WEEKLY_SOURCE_CAPABILITIES.map((capability) =>
+        emptyCapabilityAudit(capability, "missing_binding"),
+      ),
       blockers: ["invalid_as_of"],
     };
   }
@@ -207,6 +219,7 @@ export function evaluateCCFWeeklySourceSpine(
       capability,
       input.bindings.filter((binding) => binding.capability === capability),
       asOf,
+      trustedPromotions,
     ),
   );
 
@@ -215,6 +228,9 @@ export function evaluateCCFWeeklySourceSpine(
   for (const capability of capabilities) {
     for (const blocker of capability.blockers) {
       blockers.push(`${capability.capability}:${blocker}`);
+    }
+    for (const blocker of capability.promotionBlockers) {
+      blockers.push(`${capability.capability}:promotion:${blocker}`);
     }
     if (capability.sourceEligibilityReason && capability.sourceEligibilityReason !== "eligible") {
       blockers.push(`${capability.capability}:source:${capability.sourceEligibilityReason}`);
@@ -239,8 +255,9 @@ export function evaluateCCFWeeklySourceSpine(
 export function assertCCFWeeklySourceSpineReady(
   plan: CCFWeeklySourceSpinePlan,
   asOf: string,
+  trustedPromotions: readonly unknown[] = CCF_TRUSTED_SOURCE_PROMOTIONS_V1,
 ): void {
-  const audit = evaluateCCFWeeklySourceSpine(plan, asOf);
+  const audit = evaluateCCFWeeklySourceSpine(plan, asOf, trustedPromotions);
   if (!audit.productionReady) {
     throw new CCFWeeklySourceSpineError(
       `weekly source spine is not production ready (${audit.productionCoverage}/${audit.requiredCapabilityCount}): ${audit.blockers.join(", ")}`,

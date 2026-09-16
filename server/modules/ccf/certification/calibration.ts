@@ -8,10 +8,12 @@ export interface CCFIntervalCalibrationObservation {
 export interface CCFIntervalCalibrationMetrics {
   sampleSize: number;
   central80Coverage: number | null;
+  central80CoverageError: number | null;
   belowP10Rate: number | null;
   aboveP90Rate: number | null;
   medianMeanError: number | null;
   medianMae: number | null;
+  meanCentral80Width: number | null;
 }
 
 export interface CCFProbabilityCalibrationObservation {
@@ -31,6 +33,11 @@ export interface CCFProbabilityCalibrationBin {
 export interface CCFProbabilityCalibrationMetrics {
   sampleSize: number;
   brierScore: number | null;
+  logLoss: number | null;
+  baseRate: number | null;
+  meanForecast: number | null;
+  expectedCalibrationError: number | null;
+  maximumCalibrationGap: number | null;
   bins: CCFProbabilityCalibrationBin[];
 }
 
@@ -46,10 +53,12 @@ export function evaluateCCFIntervalCalibration(
     return {
       sampleSize: 0,
       central80Coverage: null,
+      central80CoverageError: null,
       belowP10Rate: null,
       aboveP90Rate: null,
       medianMeanError: null,
       medianMae: null,
+      meanCentral80Width: null,
     };
   }
 
@@ -58,6 +67,7 @@ export function evaluateCCFIntervalCalibration(
   let above = 0;
   let signedError = 0;
   let absoluteError = 0;
+  let totalWidth = 0;
 
   for (const row of usable) {
     if (row.actual >= row.p10 && row.actual <= row.p90) covered += 1;
@@ -66,15 +76,19 @@ export function evaluateCCFIntervalCalibration(
     const error = row.p50 - row.actual;
     signedError += error;
     absoluteError += Math.abs(error);
+    totalWidth += row.p90 - row.p10;
   }
 
+  const central80Coverage = covered / usable.length;
   return {
     sampleSize: usable.length,
-    central80Coverage: covered / usable.length,
+    central80Coverage,
+    central80CoverageError: central80Coverage - 0.8,
     belowP10Rate: below / usable.length,
     aboveP90Rate: above / usable.length,
     medianMeanError: signedError / usable.length,
     medianMae: absoluteError / usable.length,
+    meanCentral80Width: totalWidth / usable.length,
   };
 }
 
@@ -119,12 +133,50 @@ export function evaluateCCFProbabilityCalibration(
     });
   }
 
-  const brierScore = usable.length
-    ? usable.reduce(
-        (sum, row) => sum + (row.probability - (row.occurred ? 1 : 0)) ** 2,
-        0,
-      ) / usable.length
+  if (usable.length === 0) {
+    return {
+      sampleSize: 0,
+      brierScore: null,
+      logLoss: null,
+      baseRate: null,
+      meanForecast: null,
+      expectedCalibrationError: null,
+      maximumCalibrationGap: null,
+      bins,
+    };
+  }
+
+  const brierScore = usable.reduce(
+    (sum, row) => sum + (row.probability - (row.occurred ? 1 : 0)) ** 2,
+    0,
+  ) / usable.length;
+  const epsilon = 1e-15;
+  const logLoss = usable.reduce((sum, row) => {
+    const probability = Math.min(1 - epsilon, Math.max(epsilon, row.probability));
+    return sum - (row.occurred ? Math.log(probability) : Math.log(1 - probability));
+  }, 0) / usable.length;
+  const baseRate = usable.reduce((sum, row) => sum + (row.occurred ? 1 : 0), 0) / usable.length;
+  const meanForecast = usable.reduce((sum, row) => sum + row.probability, 0) / usable.length;
+  const populatedBins = bins.filter(
+    (bin): bin is CCFProbabilityCalibrationBin & { calibrationGap: number } =>
+      bin.sampleSize > 0 && bin.calibrationGap != null,
+  );
+  const expectedCalibrationError = populatedBins.reduce(
+    (sum, bin) => sum + (bin.sampleSize / usable.length) * Math.abs(bin.calibrationGap),
+    0,
+  );
+  const maximumCalibrationGap = populatedBins.length
+    ? Math.max(...populatedBins.map((bin) => Math.abs(bin.calibrationGap)))
     : null;
 
-  return { sampleSize: usable.length, brierScore, bins };
+  return {
+    sampleSize: usable.length,
+    brierScore,
+    logLoss,
+    baseRate,
+    meanForecast,
+    expectedCalibrationError,
+    maximumCalibrationGap,
+    bins,
+  };
 }
