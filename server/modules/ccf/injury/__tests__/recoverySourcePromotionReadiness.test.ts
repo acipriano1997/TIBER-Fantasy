@@ -150,11 +150,7 @@ describe("CCF recovery source promotion readiness", () => {
     ]);
 
     const revivedNflverseCandidateBlockers = [
-      "temporal_mode_not_archived_point_in_time",
-      "archive_strategy_missing",
       "permission_not_cleared",
-      "point_in_time_semantics_undocumented",
-      "raw_trace_missing",
       "reliability_review_not_passed",
     ];
 

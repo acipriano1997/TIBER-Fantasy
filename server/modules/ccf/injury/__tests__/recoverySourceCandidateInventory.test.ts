@@ -54,7 +54,7 @@ describe("CCF recovery source candidate inventory", () => {
     });
   });
 
-  it("tracks the reactivated nflverse injury feed as a current-snapshot candidate without production promotion", () => {
+  it("tracks the reactivated nflverse injury feed as prospectively archived without production promotion", () => {
     const nflverse = CCF_RECOVERY_SOURCE_CANDIDATE_INVENTORY.bindings.filter(
       (binding) => binding.provider === "nflverse" && binding.datasetOrProduct === "injuries",
     );
@@ -64,6 +64,10 @@ describe("CCF recovery source candidate inventory", () => {
     expect(nflverse.every((binding) => binding.permissionStatus === "unreviewed")).toBe(true);
     expect(nflverse.every((binding) => binding.reliabilityStatus === "incomplete")).toBe(true);
     expect(nflverse.every((binding) => binding.parserVersion === "ccf-nflverse-injuries-candidate-v2")).toBe(true);
+    expect(nflverse.every((binding) => binding.temporalMode === "archived_point_in_time")).toBe(true);
+    expect(nflverse.every((binding) => binding.archiveStrategy === "immutable_snapshot")).toBe(true);
+    expect(nflverse.every((binding) => binding.pointInTimeSemanticsDocumented)).toBe(true);
+    expect(nflverse.every((binding) => binding.rawTraceSupported)).toBe(true);
     expect(
       nflverse.every((binding) =>
         binding.notes.some((note) => /2026|reactivated|live release|publishes 2025 and 2026/i.test(note)),
@@ -71,7 +75,7 @@ describe("CCF recovery source candidate inventory", () => {
     ).toBe(true);
     expect(
       nflverse.every((binding) =>
-        binding.notes.some((note) => /knownAt|exact bytes|prospectively/i.test(note)),
+        binding.notes.some((note) => /knownAt|exact.*bytes|prospectiv/i.test(note)),
       ),
     ).toBe(true);
   });
