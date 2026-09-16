@@ -122,8 +122,10 @@ describe("nflverse play-by-play source", () => {
   });
 
   it("fails closed when the upstream schema loses a required opportunity column", () => {
-    const csv = fixtureCsv().replace("receiver_player_id,", "");
-    expect(() => parseNflversePlayByPlayCsv(csv, { season: 2026, week: 1 })).toThrow(
+    const headerWithoutReceiver = HEADER.split(",")
+      .filter((column) => column !== "receiver_player_id")
+      .join(",");
+    expect(() => parseNflversePlayByPlayCsv(`${headerWithoutReceiver}\n`, { season: 2026, week: 1 })).toThrow(
       /schema missing required columns: receiver_player_id/,
     );
   });
