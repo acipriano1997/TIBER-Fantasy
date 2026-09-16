@@ -71,6 +71,31 @@ function validateCrosswalkSnapshot(
       "crosswalk snapshot requires immutable archive reference and content hash",
     );
   }
+  if (snapshot.rows.length === 0) {
+    throw new CCFPFRPlayerIdentityBridgeError("crosswalk snapshot rows must not be empty");
+  }
+
+  const seenPfr = new Set<string>();
+  const seenGsis = new Set<string>();
+  for (const row of snapshot.rows) {
+    if (!hasText(row.pfrId) || !hasText(row.gsisId)) {
+      throw new CCFPFRPlayerIdentityBridgeError(
+        "crosswalk snapshot contains an empty PFR or GSIS id",
+      );
+    }
+    if (seenPfr.has(row.pfrId)) {
+      throw new CCFPFRPlayerIdentityBridgeError(
+        `crosswalk snapshot contains duplicate PFR player id ${row.pfrId}`,
+      );
+    }
+    if (seenGsis.has(row.gsisId)) {
+      throw new CCFPFRPlayerIdentityBridgeError(
+        `crosswalk snapshot contains duplicate GSIS player id ${row.gsisId}`,
+      );
+    }
+    seenPfr.add(row.pfrId);
+    seenGsis.add(row.gsisId);
+  }
 }
 
 function bridgeBindingRef(
