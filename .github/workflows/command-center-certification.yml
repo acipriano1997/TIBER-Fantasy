@@ -64,6 +64,7 @@ jobs:
           server/routes/__tests__/weeklyDecisionRuntimeRoutes.test.ts
           server/modules/management/__tests__/forgeTeamDirectionFreshnessPolicy.test.ts
           server/leagueContext/__tests__/leagueContextV1.test.ts
+          server/leagueContext/__tests__/ccfLineupLeagueAdapter.test.ts
           server/leagueContext/__tests__/decisionPacketLeagueContext.test.ts
           server/leagueContext/__tests__/devyRightsSnapshot.test.ts
           server/leagueContext/__tests__/formatIsolation.test.ts
