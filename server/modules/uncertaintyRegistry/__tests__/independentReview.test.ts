@@ -14,6 +14,7 @@ import {
 import {
   classifySituationResolutionV0,
   evaluateWitnessV0,
+  validateScenarioBranchBindingV0,
 } from '../policy';
 import {
   makeDefinition,
@@ -57,12 +58,16 @@ describe('USR-0 independent review merge-gate invariants', () => {
     expect(classifySituationResolutionV0(definition, comparableResults).resolutionState).toBe('RESOLVED');
   });
 
-  test('scenario binding is tied to the exact definition version', () => {
+  test('scenario binding is tied to the exact definition version at both policy and conformance seams', () => {
     const { prior, next } = successorDefinition('reviewbind');
     const binding = makeScenarioBinding(prior, 'reviewbind', 'QUALITATIVE_ONLY');
-    const result = validateScenarioBindingConformanceV0(next, binding);
-    expect(result.valid).toBe(false);
-    expect(result.reasonCodes).toContain('scenario_definition_ref_mismatch');
+    const policyResult = validateScenarioBranchBindingV0(next, binding);
+    expect(policyResult.valid).toBe(false);
+    expect(policyResult.reasonCodes).toContain('scenario_definition_ref_mismatch');
+
+    const conformanceResult = validateScenarioBindingConformanceV0(next, binding);
+    expect(conformanceResult.valid).toBe(false);
+    expect(conformanceResult.reasonCodes).toContain('scenario_definition_ref_mismatch');
   });
 
   test('calendar-invalid RFC3339-looking timestamp fails conformance', () => {
