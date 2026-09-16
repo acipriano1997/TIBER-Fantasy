@@ -97,7 +97,8 @@ describe("governed nflverse schedule candidate", () => {
     expect(snapshot.archive.manifest.temporalMode).toBe("archived_point_in_time");
     expect(snapshot.archive.manifest.knownAtBasis).toBe("ccf_capture");
     expect(snapshot.archive.manifest.knownAt).toBe(snapshot.knownAt);
-    expect(snapshot.archive.manifest.license).toMatch(/^UNREVIEWED:/);
+    expect(snapshot.archive.manifest.license).toMatch(/CC BY 4\.0/);
+    expect(snapshot.archive.manifest.license).toMatch(/intended-use promotion separately unreviewed/);
     expect(await fs.readFile(snapshot.archive.contentPath, "utf8")).toBe(WEEK2_CSV);
 
     expect(() =>
