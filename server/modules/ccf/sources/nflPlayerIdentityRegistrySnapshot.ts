@@ -2,6 +2,7 @@ import crypto from "crypto";
 import { looksLikeTiberPlayerId } from "../../../services/identity/tiberPlayerId";
 import {
   archiveCCFSourceSnapshot,
+  verifyCCFArchivedSourceSnapshot,
   type CCFArchivedSourceSnapshot,
 } from "./rawSourceArchive";
 import {
@@ -248,6 +249,19 @@ export function assertCCFNFLPlayerIdentityRegistrySnapshotIntegrity(
   return snapshot;
 }
 
+/**
+ * Strong integrity boundary for operator/certification paths: validate the
+ * structured snapshot and then re-read the persisted raw archive so an
+ * in-memory manifest cannot stand in for the immutable bytes it claims to cite.
+ */
+export async function assertCCFNFLPlayerIdentityRegistryPersistedIntegrity(
+  snapshot: CCFNFLPlayerIdentityRegistrySnapshot,
+): Promise<CCFNFLPlayerIdentityRegistrySnapshot> {
+  assertCCFNFLPlayerIdentityRegistrySnapshotIntegrity(snapshot);
+  await verifyCCFArchivedSourceSnapshot(snapshot.archive);
+  return snapshot;
+}
+
 export async function materializeCCFNFLPlayerIdentityRegistrySnapshot(
   input: MaterializeCCFNFLPlayerIdentityRegistrySnapshotInput,
 ): Promise<CCFNFLPlayerIdentityRegistrySnapshot> {
@@ -354,6 +368,19 @@ export function buildCCFNFLPlayerIdentityLinkageReceiptFromSnapshot(
     receiptFingerprint: fingerprintCCFNFLPlayerIdentityLinkageReceipt(receipt),
     receiptRef: refCCFNFLPlayerIdentityLinkageReceipt(receipt),
   };
+}
+
+/**
+ * Operator-safe materialization path. Unlike the pure in-memory builder used by
+ * contract tests, this path requires the persisted raw archive to verify before
+ * a linkage receipt can be minted.
+ */
+export async function buildCCFNFLPlayerIdentityLinkageReceiptFromArchivedSnapshot(
+  snapshot: CCFNFLPlayerIdentityRegistrySnapshot,
+  frozenAt: string,
+): Promise<CCFNFLPlayerIdentityReceiptFromSnapshot> {
+  await assertCCFNFLPlayerIdentityRegistryPersistedIntegrity(snapshot);
+  return buildCCFNFLPlayerIdentityLinkageReceiptFromSnapshot(snapshot, frozenAt);
 }
 
 /**
