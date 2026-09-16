@@ -2,6 +2,10 @@ import fs from "fs/promises";
 import os from "os";
 import path from "path";
 import { fetchAndArchiveNflverseInjuries } from "../archivedNflverseInjuries";
+import {
+  refCCFNFLPlayerIdentityLinkageReceipt,
+  type CCFNFLPlayerIdentityLinkageReceipt,
+} from "../nflPlayerIdentityLinkage";
 import { buildCCFNflverseInjuryReliabilityObservation } from "../nflverseInjuryReliability";
 
 const HEADER =
@@ -13,7 +17,6 @@ const BASE_ROWS = [
   "2026,REG,AAA,2,00-0000003,TE,Tight End Three,Tight End,Three,,,,Ankle,,,2026-09-16 12:02:00",
 ];
 
-const IDENTITY_REF = "ccf://identity/gsis-player-v1";
 const DESIGNATION_POLICY_REF = "ccf://policy/injury-designation-fields-v1";
 const PRACTICE_POLICY_REF = "ccf://policy/practice-participation-fields-v1";
 const CORRECTION_REF = "ccf://policy/nflverse-injury-corrections-v1";
@@ -21,6 +24,35 @@ const CHECKPOINT_REF = "ccf://policy/nflverse-injury-checkpoints-v1";
 
 function csv(rows: string[] = BASE_ROWS): string {
   return [HEADER, ...rows].join("\n");
+}
+
+function identityReceipt(
+  allResolved = false,
+  overrides: Partial<CCFNFLPlayerIdentityLinkageReceipt> = {},
+): CCFNFLPlayerIdentityLinkageReceipt {
+  const ids = ["00-0000001", "00-0000002", "00-0000003"];
+  return {
+    contractVersion: "ccf-nfl-player-identity-linkage-v1",
+    receiptId: "nflverse-gsis-week2-v1",
+    sourceSystem: "nflverse",
+    sourceNamespace: "gsis_id",
+    identityRegistryFingerprint: "registry-week2-sha256",
+    identityRegistryKnownAt: "2026-09-16T14:00:00Z",
+    frozenAt: "2026-09-16T14:30:00Z",
+    rows: ids.map((sourcePlayerId, index) => {
+      const resolved = allResolved || index < 2;
+      return {
+        sourcePlayerId,
+        status: resolved ? ("resolved_exact" as const) : ("unresolved" as const),
+        canonicalPlayerId: resolved ? `ccf-player-${index + 1}` : null,
+        bindingMethod: resolved ? ("exact_external_id" as const) : null,
+        knownAt: "2026-09-16T14:00:00Z",
+        evidenceRefs: [`ccf://registry/${sourcePlayerId}`],
+      };
+    }),
+    notes: [],
+    ...overrides,
+  };
 }
 
 describe("nflverse archived injury reliability observations", () => {
@@ -49,16 +81,16 @@ describe("nflverse archived injury reliability observations", () => {
     });
   }
 
-  it("derives designation quality, identity resolution, parser identity and archive evidence", async () => {
+  it("derives designation quality and identity coverage from the frozen identity receipt", async () => {
     const snapshot = await archived(csv(), "2026-09-16T16:01:00Z");
+    const receipt = identityReceipt(false);
     const observation = buildCCFNflverseInjuryReliabilityObservation({
       snapshot,
       capability: "injury_designation",
       sourceId: "nflverse-injuries-designation-v2",
       checkpointId: "week-2-wed",
       scheduledFor: "2026-09-16T16:00:00Z",
-      resolvedSourcePlayerIds: ["00-0000001", "00-0000002"],
-      identityBindingRef: IDENTITY_REF,
+      identityReceipt: receipt,
       criticalFieldPolicyRef: DESIGNATION_POLICY_REF,
       correctionPolicyRef: CORRECTION_REF,
       checkpointPolicyRef: CHECKPOINT_REF,
@@ -80,16 +112,17 @@ describe("nflverse archived injury reliability observations", () => {
       archiveRef: snapshot.archive.manifest.archiveRef,
       contentSha256: snapshot.archive.manifest.contentSha256,
     });
+    expect(observation.notes).toContain("identity_unresolved:1");
     expect(observation.evidenceRefs).toEqual(expect.arrayContaining([
       snapshot.archive.manifest.archiveRef,
-      IDENTITY_REF,
+      refCCFNFLPlayerIdentityLinkageReceipt(receipt),
       DESIGNATION_POLICY_REF,
       CORRECTION_REF,
       CHECKPOINT_REF,
     ]));
   });
 
-  it("derives practice-participation missingness independently from designation", async () => {
+  it("derives practice-participation missingness independently with fully resolved identities", async () => {
     const snapshot = await archived(csv(), "2026-09-16T16:01:00Z");
     const observation = buildCCFNflverseInjuryReliabilityObservation({
       snapshot,
@@ -97,19 +130,19 @@ describe("nflverse archived injury reliability observations", () => {
       sourceId: "nflverse-injuries-practice-v2",
       checkpointId: "week-2-wed",
       scheduledFor: "2026-09-16T16:00:00Z",
-      resolvedSourcePlayerIds: snapshot.rows.map((row) => row.playerId),
-      identityBindingRef: IDENTITY_REF,
+      identityReceipt: identityReceipt(true),
       criticalFieldPolicyRef: PRACTICE_POLICY_REF,
       correctionPolicyRef: CORRECTION_REF,
       checkpointPolicyRef: CHECKPOINT_REF,
     });
 
+    expect(observation.identityEligibleCount).toBe(3);
     expect(observation.identityResolvedCount).toBe(3);
     expect(observation.criticalFieldEligibleCount).toBe(3);
     expect(observation.criticalFieldMissingCount).toBe(1);
   });
 
-  it("counts duplicate player/week/team keys instead of silently de-duplicating them", async () => {
+  it("counts duplicate provider keys separately without double-counting identity eligibility", async () => {
     const duplicate = csv([...BASE_ROWS, BASE_ROWS[0]]);
     const snapshot = await archived(duplicate, "2026-09-16T16:01:00Z");
     const observation = buildCCFNflverseInjuryReliabilityObservation({
@@ -118,8 +151,7 @@ describe("nflverse archived injury reliability observations", () => {
       sourceId: "nflverse-injuries-designation-v2",
       checkpointId: "week-2-wed",
       scheduledFor: "2026-09-16T16:00:00Z",
-      resolvedSourcePlayerIds: Array.from(new Set(snapshot.rows.map((row) => row.playerId))),
-      identityBindingRef: IDENTITY_REF,
+      identityReceipt: identityReceipt(true),
       criticalFieldPolicyRef: DESIGNATION_POLICY_REF,
       correctionPolicyRef: CORRECTION_REF,
       checkpointPolicyRef: CHECKPOINT_REF,
@@ -127,9 +159,37 @@ describe("nflverse archived injury reliability observations", () => {
 
     expect(observation.rowCount).toBe(4);
     expect(observation.duplicateKeyCount).toBe(1);
+    expect(observation.identityEligibleCount).toBe(3);
+    expect(observation.identityResolvedCount).toBe(3);
   });
 
-  it("marks a changed provider snapshot reconciled only when exact before/after archives are supplied", async () => {
+  it("measures ambiguous identities instead of guessing through them", async () => {
+    const snapshot = await archived(csv(), "2026-09-16T16:01:00Z");
+    const receipt = identityReceipt(true);
+    receipt.rows[2] = {
+      ...receipt.rows[2],
+      status: "ambiguous",
+      canonicalPlayerId: null,
+      bindingMethod: null,
+    };
+    const observation = buildCCFNflverseInjuryReliabilityObservation({
+      snapshot,
+      capability: "injury_designation",
+      sourceId: "nflverse-injuries-designation-v2",
+      checkpointId: "week-2-wed",
+      scheduledFor: "2026-09-16T16:00:00Z",
+      identityReceipt: receipt,
+      criticalFieldPolicyRef: DESIGNATION_POLICY_REF,
+      correctionPolicyRef: CORRECTION_REF,
+      checkpointPolicyRef: CHECKPOINT_REF,
+    });
+
+    expect(observation.identityEligibleCount).toBe(3);
+    expect(observation.identityResolvedCount).toBe(2);
+    expect(observation.notes).toContain("identity_ambiguous:1");
+  });
+
+  it("marks changed provider bytes reconciled only when exact before/after archives exist", async () => {
     const before = await archived(csv(), "2026-09-16T16:01:00Z");
     const changedRows = [...BASE_ROWS];
     changedRows[0] = changedRows[0].replace("Limited Participation", "Full Participation");
@@ -142,8 +202,7 @@ describe("nflverse archived injury reliability observations", () => {
       sourceId: "nflverse-injuries-practice-v2",
       checkpointId: "week-2-thu",
       scheduledFor: "2026-09-17T16:00:00Z",
-      resolvedSourcePlayerIds: after.rows.map((row) => row.playerId),
-      identityBindingRef: IDENTITY_REF,
+      identityReceipt: identityReceipt(true),
       criticalFieldPolicyRef: PRACTICE_POLICY_REF,
       correctionPolicyRef: CORRECTION_REF,
       checkpointPolicyRef: CHECKPOINT_REF,
@@ -170,8 +229,7 @@ describe("nflverse archived injury reliability observations", () => {
       sourceId: "nflverse-injuries-practice-v2",
       checkpointId: "week-2-thu",
       scheduledFor: "2026-09-17T16:00:00Z",
-      resolvedSourcePlayerIds: after.rows.map((row) => row.playerId),
-      identityBindingRef: IDENTITY_REF,
+      identityReceipt: identityReceipt(true),
       criticalFieldPolicyRef: PRACTICE_POLICY_REF,
       correctionPolicyRef: CORRECTION_REF,
       checkpointPolicyRef: CHECKPOINT_REF,
@@ -194,8 +252,7 @@ describe("nflverse archived injury reliability observations", () => {
         sourceId: "nflverse-injuries-designation-v2",
         checkpointId: "week-2-wed",
         scheduledFor: "2026-09-16T16:00:00Z",
-        resolvedSourcePlayerIds: current.rows.map((row) => row.playerId),
-        identityBindingRef: IDENTITY_REF,
+        identityReceipt: identityReceipt(true),
         criticalFieldPolicyRef: DESIGNATION_POLICY_REF,
         correctionPolicyRef: CORRECTION_REF,
         checkpointPolicyRef: CHECKPOINT_REF,
@@ -203,32 +260,29 @@ describe("nflverse archived injury reliability observations", () => {
     ).toThrow(/must match the current season\/week/);
   });
 
-  it("rejects duplicate or empty identity-resolution inputs", async () => {
+  it("rejects identity receipts that were learned or frozen after the source capture", async () => {
     const snapshot = await archived(csv(), "2026-09-16T16:01:00Z");
-    const base = {
-      snapshot,
-      capability: "injury_designation" as const,
-      sourceId: "nflverse-injuries-designation-v2",
-      checkpointId: "week-2-wed",
-      scheduledFor: "2026-09-16T16:00:00Z",
-      identityBindingRef: IDENTITY_REF,
-      criticalFieldPolicyRef: DESIGNATION_POLICY_REF,
-      correctionPolicyRef: CORRECTION_REF,
-      checkpointPolicyRef: CHECKPOINT_REF,
-    };
+    const futureReceipt = identityReceipt(true, {
+      identityRegistryKnownAt: "2026-09-16T16:30:00Z",
+      frozenAt: "2026-09-16T16:30:00Z",
+      rows: identityReceipt(true).rows.map((row) => ({
+        ...row,
+        knownAt: "2026-09-16T16:30:00Z",
+      })),
+    });
 
     expect(() =>
       buildCCFNflverseInjuryReliabilityObservation({
-        ...base,
-        resolvedSourcePlayerIds: ["00-0000001", "00-0000001"],
+        snapshot,
+        capability: "injury_designation",
+        sourceId: "nflverse-injuries-designation-v2",
+        checkpointId: "week-2-wed",
+        scheduledFor: "2026-09-16T16:00:00Z",
+        identityReceipt: futureReceipt,
+        criticalFieldPolicyRef: DESIGNATION_POLICY_REF,
+        correctionPolicyRef: CORRECTION_REF,
+        checkpointPolicyRef: CHECKPOINT_REF,
       }),
-    ).toThrow(/must not contain duplicates/);
-
-    expect(() =>
-      buildCCFNflverseInjuryReliabilityObservation({
-        ...base,
-        resolvedSourcePlayerIds: [""],
-      }),
-    ).toThrow(/non-empty source player IDs/);
+    ).toThrow(/identity evidence is ineligible/);
   });
 });
