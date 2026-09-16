@@ -70,6 +70,14 @@ describe("CCF weekly source spine", () => {
     expect(audit.planFingerprint).toMatch(/^[a-f0-9]{64}$/);
   });
 
+  it("requires an explicit NFL schedule source for bye and kickoff legality", () => {
+    const candidate = plan();
+    candidate.bindings = candidate.bindings.filter((entry) => entry.capability !== "nfl_schedule");
+    const audit = evaluateCCFWeeklySourceSpine(candidate, asOf);
+    expect(audit.productionReady).toBe(false);
+    expect(audit.blockers).toContain("nfl_schedule:missing_binding");
+  });
+
   it("separates discovery coverage from production eligibility", () => {
     const candidate = plan();
     candidate.bindings[0] = {
