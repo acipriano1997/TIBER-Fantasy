@@ -25,11 +25,11 @@ function lexicalCompare(left: string, right: string): number {
   return 0;
 }
 
-function normalize(value: unknown, key: string | null = null): unknown {
+function normalize(value: unknown, key: string | null = null, depth = 0): unknown {
   if (value === null || typeof value === 'boolean' || typeof value === 'string') return value;
   if (typeof value === 'number') return normalizeNumber(value);
   if (Array.isArray(value)) {
-    const normalized = value.map((member) => normalize(member));
+    const normalized = value.map((member) => normalize(member, null, depth + 1));
     if (key && SET_LIKE_ARRAY_KEYS.has(key)) {
       return [...normalized].sort((left, right) => lexicalCompare(JSON.stringify(left), JSON.stringify(right)));
     }
@@ -39,10 +39,12 @@ function normalize(value: unknown, key: string | null = null): unknown {
     const input = value as Record<string, unknown>;
     const output: Record<string, unknown> = {};
     for (const childKey of Object.keys(input).sort(lexicalCompare)) {
-      if (childKey === 'recordDigest') continue;
+      // Exclude only the current record's self-digest. Nested record-reference
+      // digests are semantic lineage and MUST remain bound into the parent hash.
+      if (depth === 0 && childKey === 'recordDigest') continue;
       const childValue = input[childKey];
       if (childValue === undefined) continue;
-      output[childKey] = normalize(childValue, childKey);
+      output[childKey] = normalize(childValue, childKey, depth + 1);
     }
     return output;
   }
