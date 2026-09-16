@@ -35,8 +35,11 @@ export interface CCFNflverseInjurySourceProvenance {
   lastModified: string | null;
   licenseStatus: "candidate_review_required";
   licenseRef: "https://github.com/nflverse/nflverse-data/blob/main/LICENSE.md";
-  availability: "historical_through_2024";
+  availability: "historical_and_current_release_assets";
   temporalMode: "current_snapshot_only";
+  upstreamProducer: "nflapi::nflapi_injuries";
+  upstreamWorkflowRef: "https://github.com/nflverse/nflverse-rosters/blob/main/.github/workflows/update_injuries.yaml";
+  updateCadence: "daily_0707_utc_sep_feb";
 }
 
 export interface CCFNflverseInjurySnapshot {
@@ -94,16 +97,10 @@ const REQUIRED_COLUMNS = [
 
 const DEFAULT_POSITIONS: CCFNflverseInjuryPosition[] = ["QB", "RB", "WR", "TE"];
 const NFLVERSE_INJURY_FIRST_SEASON = 2009;
-const NFLVERSE_INJURY_LAST_AVAILABLE_SEASON = 2024;
 
 export function nflverseInjuriesUrl(season: number): string {
   if (!Number.isInteger(season) || season < NFLVERSE_INJURY_FIRST_SEASON || season > 2100) {
     throw new CCFNflverseInjurySourceError("season must be an integer within [2009, 2100]");
-  }
-  if (season > NFLVERSE_INJURY_LAST_AVAILABLE_SEASON) {
-    throw new CCFNflverseInjurySourceError(
-      `nflverse injury coverage is unavailable after ${NFLVERSE_INJURY_LAST_AVAILABLE_SEASON}; upstream documents that the injury data source died after the 2024 season`,
-    );
   }
   return `https://github.com/nflverse/nflverse-data/releases/download/injuries/injuries_${season}.csv`;
 }
@@ -254,8 +251,12 @@ export async function fetchNflverseInjuries(
       lastModified: response.headers.get("last-modified"),
       licenseStatus: "candidate_review_required",
       licenseRef: "https://github.com/nflverse/nflverse-data/blob/main/LICENSE.md",
-      availability: "historical_through_2024",
+      availability: "historical_and_current_release_assets",
       temporalMode: "current_snapshot_only",
+      upstreamProducer: "nflapi::nflapi_injuries",
+      upstreamWorkflowRef:
+        "https://github.com/nflverse/nflverse-rosters/blob/main/.github/workflows/update_injuries.yaml",
+      updateCadence: "daily_0707_utc_sep_feb",
     },
   };
 }
