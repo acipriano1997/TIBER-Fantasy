@@ -42,6 +42,23 @@ describe('contract transaction known-at boundary', () => {
     expect(result.reasonCodes).toContain('SNAPSHOT_IMPORTED_AFTER_DECISION');
   });
 
+  it('rejects a schema-valid but PARTIAL economic snapshot', () => {
+    const snapshot = makeBoundarySnapshot();
+    snapshot.validation.status = 'PARTIAL';
+    snapshot.validation.warnings = ['Synthetic unresolved economic evidence.'];
+
+    const result = simulateKnownAtContractTransaction(
+      snapshot,
+      makeBoundaryPolicy(),
+      makeBoundaryContext(),
+      keepAction,
+    );
+
+    expect(result.status).toBe('ABSTAIN');
+    if (result.status !== 'ABSTAIN') return;
+    expect(result.reasonCodes).toContain('SNAPSHOT_NOT_VALID');
+  });
+
   it('rejects policy evidence modified after the decision time', () => {
     const policy = makeBoundaryPolicy();
     policy.provenance.sourceModifiedAt = '2026-09-15T12:45:00.000Z';
@@ -56,6 +73,27 @@ describe('contract transaction known-at boundary', () => {
     expect(result.status).toBe('ABSTAIN');
     if (result.status !== 'ABSTAIN') return;
     expect(result.reasonCodes).toContain('POLICY_SOURCE_MODIFIED_AFTER_DECISION');
+  });
+
+  it('rejects a schema-valid but PARTIAL policy', () => {
+    const policy = makeBoundaryPolicy();
+    policy.validation.status = 'PARTIAL';
+    policy.validation.unresolved = [{
+      code: 'SYNTHETIC_RULE_CONFLICT',
+      path: 'contracts.reSign',
+      detail: 'Synthetic rule conflict.',
+    }];
+
+    const result = simulateKnownAtContractTransaction(
+      makeBoundarySnapshot(),
+      policy,
+      makeBoundaryContext(),
+      keepAction,
+    );
+
+    expect(result.status).toBe('ABSTAIN');
+    if (result.status !== 'ABSTAIN') return;
+    expect(result.reasonCodes).toContain('POLICY_NOT_VALID');
   });
 
   it('rejects scarce-right state from another league', () => {
@@ -92,6 +130,25 @@ describe('contract transaction known-at boundary', () => {
     expect(result.status).toBe('ABSTAIN');
     if (result.status !== 'ABSTAIN') return;
     expect(result.reasonCodes).toContain('RIGHTS_AS_OF_AFTER_DECISION');
+  });
+
+  it('rejects schema-valid but PARTIAL rights evidence', () => {
+    const context = makeBoundaryContext();
+    const rights = makeBoundaryRights();
+    rights.validation.status = 'PARTIAL';
+    rights.validation.warnings = ['Synthetic unresolved rights history.'];
+    context.rightsState = rights;
+
+    const result = simulateKnownAtContractTransaction(
+      makeBoundarySnapshot(),
+      makeBoundaryPolicy(),
+      context,
+      keepAction,
+    );
+
+    expect(result.status).toBe('ABSTAIN');
+    if (result.status !== 'ABSTAIN') return;
+    expect(result.reasonCodes).toContain('RIGHTS_STATE_NOT_VALID');
   });
 
   it('returns the same replay fingerprint for the same rejected evidence packet', () => {
