@@ -1,11 +1,28 @@
 import Papa from "papaparse";
 
+export const CCF_NFLVERSE_PBP_BINARY_FIELDS = [
+  "pass_attempt",
+  "rush_attempt",
+  "qb_dropback",
+  "qb_scramble",
+  "qb_kneel",
+  "sack",
+  "complete_pass",
+  "two_point_attempt",
+  "touchdown",
+  "goal_to_go",
+] as const;
+
+export type CCFNflversePbpBinaryField =
+  (typeof CCF_NFLVERSE_PBP_BINARY_FIELDS)[number];
+
 export interface CCFNflversePlayByPlayRow {
   playId: number;
   gameId: string;
   season: number;
   week: number;
   seasonType: "REG" | "POST";
+  playType: string | null;
   offenseTeam: string | null;
   passerPlayerId: string | null;
   rusherPlayerId: string | null;
@@ -25,6 +42,12 @@ export interface CCFNflversePlayByPlayRow {
   down: number | null;
   goalToGo: boolean;
   yardline100: number | null;
+  /**
+   * Binary fields that were blank/NA in the provider row. Their computation
+   * value remains false for backward-compatible aggregation, while reliability
+   * can distinguish source missingness from an observed zero.
+   */
+  missingBinaryFields: CCFNflversePbpBinaryField[];
 }
 
 export interface CCFNflversePlayerOpportunitySummary {
@@ -96,6 +119,7 @@ interface RawPbpRow {
   season?: string;
   season_type?: string;
   week?: string;
+  play_type?: string;
   posteam?: string;
   passer_player_id?: string;
   rusher_player_id?: string;
@@ -123,24 +147,16 @@ const REQUIRED_COLUMNS = [
   "season",
   "season_type",
   "week",
+  "play_type",
   "posteam",
   "passer_player_id",
   "rusher_player_id",
   "receiver_player_id",
-  "pass_attempt",
-  "rush_attempt",
-  "qb_dropback",
-  "qb_scramble",
-  "qb_kneel",
-  "sack",
-  "complete_pass",
-  "two_point_attempt",
-  "touchdown",
+  ...CCF_NFLVERSE_PBP_BINARY_FIELDS,
   "air_yards",
   "yards_after_catch",
   "yards_gained",
   "down",
-  "goal_to_go",
   "yardline_100",
 ] as const;
 
@@ -173,14 +189,23 @@ function nullableNumber(row: RawPbpRow, key: keyof RawPbpRow): number | null {
   return value;
 }
 
-function binaryFlag(row: RawPbpRow, key: keyof RawPbpRow): boolean {
+function binaryFlag(
+  row: RawPbpRow,
+  key: CCFNflversePbpBinaryField,
+): { value: boolean; missing: boolean } {
   const raw = row[key]?.trim();
-  if (!raw || raw.toLowerCase() === "na") return false;
-  if (raw === "1" || raw.toLowerCase() === "true") return true;
-  if (raw === "0" || raw.toLowerCase() === "false") return false;
+  if (!raw || raw.toLowerCase() === "na") {
+    return { value: false, missing: true };
+  }
+  if (raw === "1" || raw.toLowerCase() === "true") {
+    return { value: true, missing: false };
+  }
+  if (raw === "0" || raw.toLowerCase() === "false") {
+    return { value: false, missing: false };
+  }
   const numeric = Number(raw);
-  if (numeric === 1) return true;
-  if (numeric === 0) return false;
+  if (numeric === 1) return { value: true, missing: false };
+  if (numeric === 0) return { value: false, missing: false };
   throw new CCFNflversePlayByPlaySourceError(
     `binary field ${String(key)} is invalid: ${raw}`,
   );
@@ -194,31 +219,40 @@ function parsePbpRow(row: RawPbpRow): CCFNflversePlayByPlayRow | null {
     : null;
   if (!gameId || !seasonType) return null;
 
+  const missingBinaryFields: CCFNflversePbpBinaryField[] = [];
+  const flag = (key: CCFNflversePbpBinaryField): boolean => {
+    const parsed = binaryFlag(row, key);
+    if (parsed.missing) missingBinaryFields.push(key);
+    return parsed.value;
+  };
+
   return {
     playId: requiredInteger(row, "play_id"),
     gameId,
     season: requiredInteger(row, "season"),
     week: requiredInteger(row, "week"),
     seasonType,
+    playType: nullableText(row.play_type)?.toLowerCase() ?? null,
     offenseTeam: nullableText(row.posteam),
     passerPlayerId: nullableText(row.passer_player_id),
     rusherPlayerId: nullableText(row.rusher_player_id),
     receiverPlayerId: nullableText(row.receiver_player_id),
-    passAttempt: binaryFlag(row, "pass_attempt"),
-    rushAttempt: binaryFlag(row, "rush_attempt"),
-    qbDropback: binaryFlag(row, "qb_dropback"),
-    qbScramble: binaryFlag(row, "qb_scramble"),
-    qbKneel: binaryFlag(row, "qb_kneel"),
-    sack: binaryFlag(row, "sack"),
-    completePass: binaryFlag(row, "complete_pass"),
-    twoPointAttempt: binaryFlag(row, "two_point_attempt"),
-    touchdown: binaryFlag(row, "touchdown"),
+    passAttempt: flag("pass_attempt"),
+    rushAttempt: flag("rush_attempt"),
+    qbDropback: flag("qb_dropback"),
+    qbScramble: flag("qb_scramble"),
+    qbKneel: flag("qb_kneel"),
+    sack: flag("sack"),
+    completePass: flag("complete_pass"),
+    twoPointAttempt: flag("two_point_attempt"),
+    touchdown: flag("touchdown"),
     airYards: nullableNumber(row, "air_yards"),
     yardsAfterCatch: nullableNumber(row, "yards_after_catch"),
     yardsGained: nullableNumber(row, "yards_gained"),
     down: nullableNumber(row, "down"),
-    goalToGo: binaryFlag(row, "goal_to_go"),
+    goalToGo: flag("goal_to_go"),
     yardline100: nullableNumber(row, "yardline_100"),
+    missingBinaryFields,
   };
 }
 
