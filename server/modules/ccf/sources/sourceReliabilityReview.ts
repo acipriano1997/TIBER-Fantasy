@@ -12,6 +12,11 @@ export interface CCFSourceReliabilityPolicy {
   producer: string;
   intendedUse: "ffcc_native_weekly_recommendation";
   frozenAt: string;
+  parserVersion: string;
+  identityBindingRef: string;
+  criticalFieldPolicyRef: string;
+  correctionPolicyRef: string;
+  checkpointPolicyRef: string;
   checkpoints: CCFSourceReliabilityCheckpoint[];
   minimumSuccessfulCaptures: number;
   minimumCaptureSuccessRate: number;
@@ -42,6 +47,7 @@ export interface CCFSourceReliabilityObservation {
   scheduledFor: string;
   capturedAt: string;
   captureStatus: CCFSourceCaptureStatus;
+  parserVersion: string | null;
   archiveRef: string | null;
   contentSha256: string | null;
   schemaStatus: CCFSourceSchemaStatus;
@@ -133,6 +139,15 @@ function canonicalObservation(observation: CCFSourceReliabilityObservation) {
   };
 }
 
+function requiredProcessingEvidenceRefs(policy: CCFSourceReliabilityPolicy): string[] {
+  return [
+    policy.identityBindingRef,
+    policy.criticalFieldPolicyRef,
+    policy.correctionPolicyRef,
+    policy.checkpointPolicyRef,
+  ];
+}
+
 export function validateCCFSourceReliabilityPolicy(
   policy: CCFSourceReliabilityPolicy,
 ): CCFSourceReliabilityPolicy {
@@ -143,6 +158,11 @@ export function validateCCFSourceReliabilityPolicy(
     ["policyId", policy.policyId],
     ["sourceId", policy.sourceId],
     ["producer", policy.producer],
+    ["parserVersion", policy.parserVersion],
+    ["identityBindingRef", policy.identityBindingRef],
+    ["criticalFieldPolicyRef", policy.criticalFieldPolicyRef],
+    ["correctionPolicyRef", policy.correctionPolicyRef],
+    ["checkpointPolicyRef", policy.checkpointPolicyRef],
   ] as const) {
     if (!hasText(value)) throw new CCFSourceReliabilityReviewError(`${label} is required`);
   }
@@ -259,10 +279,19 @@ export function validateCCFSourceReliabilityObservation(
   if (observation.duplicateKeyCount > observation.rowCount) {
     throw new CCFSourceReliabilityReviewError("duplicateKeyCount cannot exceed rowCount");
   }
+
   if (observation.captureStatus === "success") {
+    if (!hasText(observation.parserVersion)) {
+      throw new CCFSourceReliabilityReviewError("successful captures require parserVersion");
+    }
     if (!hasText(observation.archiveRef) || !hasText(observation.contentSha256)) {
       throw new CCFSourceReliabilityReviewError(
         "successful captures require archiveRef and contentSha256",
+      );
+    }
+    if (!/^[a-f0-9]{64}$/i.test(observation.contentSha256)) {
+      throw new CCFSourceReliabilityReviewError(
+        "successful capture contentSha256 must be a 64-character hex digest",
       );
     }
     if (observation.schemaStatus === "not_evaluated") {
@@ -276,6 +305,11 @@ export function validateCCFSourceReliabilityObservation(
       );
     }
   } else {
+    if (observation.parserVersion !== null) {
+      throw new CCFSourceReliabilityReviewError(
+        "failed captures must not claim parserVersion",
+      );
+    }
     if (observation.archiveRef !== null || observation.contentSha256 !== null) {
       throw new CCFSourceReliabilityReviewError(
         "failed captures must not claim archiveRef or contentSha256",
@@ -296,6 +330,7 @@ export function validateCCFSourceReliabilityObservation(
       );
     }
   }
+
   if (observation.evidenceRefs.length === 0) {
     throw new CCFSourceReliabilityReviewError("observation evidenceRefs must not be empty");
   }
@@ -343,13 +378,26 @@ export function evaluateCCFSourceReliabilityReview(
 ): CCFSourceReliabilityReview {
   validateCCFSourceReliabilityPolicy(policy);
   const reviewedAtMs = parseTimestamp("reviewedAt", reviewedAt);
+  if (reviewedAtMs < parseTimestamp("policy.frozenAt", policy.frozenAt)) {
+    throw new CCFSourceReliabilityReviewError(
+      "reviewedAt cannot precede the frozen reliability policy",
+    );
+  }
+
   const policyFingerprint = fingerprintCCFSourceReliabilityPolicy(policy);
-  const checkpointById = new Map(policy.checkpoints.map((checkpoint) => [checkpoint.checkpointId, checkpoint]));
+  const checkpointById = new Map(
+    policy.checkpoints.map((checkpoint) => [checkpoint.checkpointId, checkpoint]),
+  );
   const observationIds = new Set<string>();
   const checkpointObservations = new Map<string, CCFSourceReliabilityObservation>();
 
   for (const observation of observations) {
     validateCCFSourceReliabilityObservation(observation);
+    if (Date.parse(observation.capturedAt) > reviewedAtMs) {
+      throw new CCFSourceReliabilityReviewError(
+        `observation ${observation.observationId} was captured after reviewedAt`,
+      );
+    }
     if (observation.sourceId !== policy.sourceId || observation.producer !== policy.producer) {
       throw new CCFSourceReliabilityReviewError(
         `observation ${observation.observationId} does not match reliability policy source identity`,
@@ -365,6 +413,20 @@ export function evaluateCCFSourceReliabilityReview(
       throw new CCFSourceReliabilityReviewError(
         `observation ${observation.observationId} scheduledFor does not match frozen policy`,
       );
+    }
+    if (observation.captureStatus === "success") {
+      if (observation.parserVersion !== policy.parserVersion) {
+        throw new CCFSourceReliabilityReviewError(
+          `observation ${observation.observationId} parserVersion does not match frozen policy`,
+        );
+      }
+      for (const reference of requiredProcessingEvidenceRefs(policy)) {
+        if (!observation.evidenceRefs.includes(reference)) {
+          throw new CCFSourceReliabilityReviewError(
+            `observation ${observation.observationId} is missing frozen processing evidence ${reference}`,
+          );
+        }
+      }
     }
     if (observationIds.has(observation.observationId)) {
       throw new CCFSourceReliabilityReviewError(
