@@ -192,7 +192,7 @@ function resultStronglySupportsState(result: WitnessResultV0, stateId: string): 
 }
 
 function distinct<T>(values: readonly T[]): T[] {
-  return [...new Set(values)];
+  return Array.from(new Set(values));
 }
 
 export function classifySituationResolutionV0(
@@ -256,7 +256,7 @@ export function classifySituationResolutionV0(
       set.add(result.windowId);
       comparableGroups.set(result.comparabilityKey!, set);
     }
-    const repeatedComparable = [...comparableGroups.values()].some((windows) => windows.size >= 2);
+    const repeatedComparable = Array.from(comparableGroups.values()).some((windows) => windows.size >= 2);
     const overwhelmingDeployment = supporting.some((result) => result.resolutionUse === 'DEPLOYMENT' && resultStronglySupportsState(result, leadingStateId!));
     const independentDirect = supporting.some((result) => result.resolutionUse === 'DIRECT_AUTHORITATIVE');
     persistenceSatisfied = repeatedComparable || (overwhelmingDeployment && independentDirect);
@@ -371,7 +371,7 @@ export function validateScenarioBranchBindingV0(
   if (binding.probabilityBinding.status === 'CALIBRATED') {
     if (definition.stateSetCompleteness !== 'exhaustive') reasons.push('calibrated_binding_requires_exhaustive_state_set');
     const branchStates = new Set(binding.branches.map((branch) => branch.stateId));
-    if (branchStates.size !== declaredStates.size || [...declaredStates.keys()].some((stateId) => !branchStates.has(stateId))) reasons.push('calibrated_binding_requires_full_state_coverage');
+    if (branchStates.size !== declaredStates.size || Array.from(declaredStates.keys()).some((stateId) => !branchStates.has(stateId))) reasons.push('calibrated_binding_requires_full_state_coverage');
   }
 
   return { valid: reasons.length === 0, reasonCodes: distinct(reasons) };
