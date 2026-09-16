@@ -1,5 +1,9 @@
 import type { CCFArchivedNflverseInjurySnapshot } from "./archivedNflverseInjuries";
 import {
+  auditCCFNFLPlayerIdentitySubset,
+  type CCFNFLPlayerIdentityLinkageReceipt,
+} from "./nflPlayerIdentityLinkage";
+import {
   validateCCFSourceReliabilityObservation,
   type CCFSourceCorrectionStatus,
   type CCFSourceReliabilityObservation,
@@ -16,8 +20,7 @@ export interface BuildCCFNflverseInjuryReliabilityObservationInput {
   sourceId: string;
   checkpointId: string;
   scheduledFor: string;
-  resolvedSourcePlayerIds: readonly string[];
-  identityBindingRef: string;
+  identityReceipt: CCFNFLPlayerIdentityLinkageReceipt;
   criticalFieldPolicyRef: string;
   correctionPolicyRef: string;
   checkpointPolicyRef: string;
@@ -152,12 +155,19 @@ function correctionStatus(
     : "reconciled";
 }
 
+function isCoverageOnlyIdentityBlocker(blocker: string): boolean {
+  return (
+    blocker.startsWith("unresolved_requested_ids:") ||
+    blocker.startsWith("ambiguous_requested_ids:")
+  );
+}
+
 /**
  * Derive one capability-specific reliability observation from an immutable
- * nflverse injury capture. Quality counts are computed from the parsed rows and
- * the caller supplies only the already-governed identity-resolution result and
- * frozen policy references. A content change is considered reconciled only
- * when both current and previous exact archives are present.
+ * nflverse injury capture. Quality counts come from the archived snapshot and
+ * identity resolution comes from one frozen GSIS -> canonical CCF receipt.
+ * Unresolved/ambiguous identities are measured as reliability misses; invalid,
+ * future, or otherwise temporally ineligible identity evidence is rejected.
  */
 export function buildCCFNflverseInjuryReliabilityObservation(
   input: BuildCCFNflverseInjuryReliabilityObservationInput,
@@ -165,20 +175,24 @@ export function buildCCFNflverseInjuryReliabilityObservation(
   validateSnapshot(input.snapshot);
   requireText("sourceId", input.sourceId);
   requireText("checkpointId", input.checkpointId);
-  requireText("identityBindingRef", input.identityBindingRef);
   requireText("criticalFieldPolicyRef", input.criticalFieldPolicyRef);
   requireText("correctionPolicyRef", input.correctionPolicyRef);
   requireText("checkpointPolicyRef", input.checkpointPolicyRef);
 
-  const resolvedIds = new Set(input.resolvedSourcePlayerIds);
-  if (resolvedIds.size !== input.resolvedSourcePlayerIds.length) {
+  const requestedSourcePlayerIds = Array.from(
+    new Set(input.snapshot.rows.map((row) => row.playerId)),
+  ).sort();
+  const identityAudit = auditCCFNFLPlayerIdentitySubset(
+    input.identityReceipt,
+    requestedSourcePlayerIds,
+    input.snapshot.knownAt,
+  );
+  const fatalIdentityBlockers = identityAudit.blockers.filter(
+    (blocker) => !isCoverageOnlyIdentityBlocker(blocker),
+  );
+  if (fatalIdentityBlockers.length > 0 || !identityAudit.identityBindingRef) {
     throw new CCFNflverseInjuryReliabilityError(
-      "resolvedSourcePlayerIds must not contain duplicates",
-    );
-  }
-  if (input.resolvedSourcePlayerIds.some((playerId) => !hasText(playerId))) {
-    throw new CCFNflverseInjuryReliabilityError(
-      "resolvedSourcePlayerIds must contain non-empty source player IDs",
+      `NFL identity evidence is ineligible for reliability observation: ${fatalIdentityBlockers.join(", ") || "identity_binding_ref_missing"}`,
     );
   }
 
@@ -191,13 +205,19 @@ export function buildCCFNflverseInjuryReliabilityObservation(
   if (revisionStatus === "reconciled") {
     observationNotes.push("provider_snapshot_changed_with_archived_before_after_witnesses");
   }
+  if (identityAudit.unresolvedCount > 0) {
+    observationNotes.push(`identity_unresolved:${identityAudit.unresolvedCount}`);
+  }
+  if (identityAudit.ambiguousCount > 0) {
+    observationNotes.push(`identity_ambiguous:${identityAudit.ambiguousCount}`);
+  }
   if (new Set(observationNotes).size !== observationNotes.length) {
     throw new CCFNflverseInjuryReliabilityError("notes must not contain duplicates");
   }
 
   const evidenceRefs = [
     currentArchiveRef,
-    input.identityBindingRef,
+    identityAudit.identityBindingRef,
     input.criticalFieldPolicyRef,
     input.correctionPolicyRef,
     input.checkpointPolicyRef,
@@ -206,6 +226,8 @@ export function buildCCFNflverseInjuryReliabilityObservation(
     evidenceRefs.push(previousArchiveRef);
   }
 
+  const identityEligibleCount =
+    identityAudit.requestedCount - identityAudit.notApplicableCount;
   const observation: CCFSourceReliabilityObservation = {
     schemaVersion: "ccf-source-reliability-observation-v1",
     observationId: [
@@ -213,6 +235,7 @@ export function buildCCFNflverseInjuryReliabilityObservation(
       input.capability,
       input.checkpointId,
       input.snapshot.archive.manifest.contentSha256,
+      identityAudit.receiptFingerprint,
     ].join(":"),
     sourceId: input.sourceId,
     producer: "nflverse",
@@ -225,8 +248,8 @@ export function buildCCFNflverseInjuryReliabilityObservation(
     contentSha256: input.snapshot.archive.manifest.contentSha256,
     schemaStatus: "valid",
     rowCount: input.snapshot.rows.length,
-    identityEligibleCount: input.snapshot.rows.length,
-    identityResolvedCount: input.snapshot.rows.filter((row) => resolvedIds.has(row.playerId)).length,
+    identityEligibleCount,
+    identityResolvedCount: identityAudit.resolvedCount,
     criticalFieldEligibleCount: critical.eligible,
     criticalFieldMissingCount: critical.missing,
     duplicateKeyCount: duplicateKeyCount(input.snapshot),
