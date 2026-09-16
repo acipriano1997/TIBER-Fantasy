@@ -118,7 +118,7 @@ describe("nflverse archived injury reliability observations", () => {
       sourceId: "nflverse-injuries-designation-v2",
       checkpointId: "week-2-wed",
       scheduledFor: "2026-09-16T16:00:00Z",
-      resolvedSourcePlayerIds: snapshot.rows.map((row) => row.playerId),
+      resolvedSourcePlayerIds: Array.from(new Set(snapshot.rows.map((row) => row.playerId))),
       identityBindingRef: IDENTITY_REF,
       criticalFieldPolicyRef: DESIGNATION_POLICY_REF,
       correctionPolicyRef: CORRECTION_REF,
