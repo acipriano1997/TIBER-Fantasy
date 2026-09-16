@@ -105,6 +105,7 @@ jobs:
           server/modules/ccf/sources/__tests__/sourcePromotionAttestation.test.ts
           server/modules/ccf/sources/__tests__/sourceReliabilityReview.test.ts
           server/modules/ccf/sources/__tests__/nflverseInjuryReliability.test.ts
+          server/modules/ccf/sources/__tests__/nflverseInjuryCertificationPolicy.test.ts
           server/modules/ccf/sources/__tests__/nflPlayerIdentityLinkage.test.ts
           server/modules/ccf/sources/__tests__/nflPlayerIdentityRegistrySnapshot.test.ts
           server/modules/ccf/sources/__tests__/nflPlayerIdentityRegistryIntegrity.test.ts
