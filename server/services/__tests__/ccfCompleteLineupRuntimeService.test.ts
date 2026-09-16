@@ -1,3 +1,6 @@
+import {
+  bindUnifiedLeagueContextToCCFLineup,
+} from '../../leagueContext/ccfLineupLeagueAdapter';
 import { certifyScoringSettings } from '../../leagueContext/scoringCertification';
 import type { UnifiedLeagueContextV1 } from '../../leagueContext/leagueContextV1';
 import {
@@ -9,6 +12,10 @@ import type {
   CCFLineupOutcomeEnvelope,
   CCFLineupRosterPlayer,
 } from '../../modules/ccf/lineup/lineupDecision';
+import {
+  createCCFFrozenRosterStateSnapshot,
+  type CCFFrozenRosterStateSnapshot,
+} from '../../modules/ccf/lineup/rosterStateSnapshot';
 import { evaluateCCFCompleteLineupRuntime } from '../ccfCompleteLineupRuntimeService';
 
 const AS_OF = '2026-09-16T12:00:00.000Z';
@@ -154,6 +161,35 @@ function envelope(playerId: string, position: CCFPosition, meanFpts: number, sco
   };
 }
 
+function frozenRosterSnapshot(args: {
+  context: UnifiedLeagueContextV1;
+  roster: readonly CCFLineupRosterPlayer[];
+  teamRef?: string;
+  week?: number;
+  asOf?: string;
+  leagueRef?: string;
+  rosterSlotsFingerprint?: string;
+  sourcePlanFingerprint?: string;
+}): CCFFrozenRosterStateSnapshot {
+  const binding = bindUnifiedLeagueContextToCCFLineup(args.context);
+  if (!binding.rosterSlotsFingerprint) throw new Error('test league binding requires roster slot fingerprint');
+  return createCCFFrozenRosterStateSnapshot({
+    leagueRef: args.leagueRef ?? binding.leagueRef,
+    teamRef: args.teamRef ?? 'team-1',
+    season: args.context.identity.season,
+    week: args.week ?? 2,
+    asOf: args.asOf ?? AS_OF,
+    rosterSlotsFingerprint: args.rosterSlotsFingerprint ?? binding.rosterSlotsFingerprint,
+    producer: {
+      producerId: 'sleeper-roster-legality-adapter',
+      producerVersion: 'v0',
+      sourcePlanFingerprint: args.sourcePlanFingerprint ?? SOURCE_PLAN,
+      sourceSnapshotRef: 'raw:league-1:team-1:week-2',
+    },
+    players: args.roster,
+  });
+}
+
 function runtimeInput() {
   const context = leagueContext();
   const scoringFingerprint = context.scoring.fingerprint!;
@@ -182,20 +218,35 @@ function runtimeInput() {
     asOf: AS_OF,
     posture: 'balanced' as const,
     leagueContext: context,
-    rosterSnapshotFingerprint: 'roster-snapshot-fingerprint',
-    roster,
+    rosterSnapshot: frozenRosterSnapshot({ context, roster }),
     outcomes: values.map(([id, position, mean]) => envelope(id, position, mean, scoringFingerprint)),
     weeklySourceSpineAudit: sourceAudit(),
   };
 }
 
+function replaceSnapshotRoster(
+  input: ReturnType<typeof runtimeInput>,
+  roster: readonly CCFLineupRosterPlayer[],
+): void {
+  input.rosterSnapshot = frozenRosterSnapshot({
+    context: input.leagueContext,
+    roster,
+    teamRef: input.teamRef,
+    week: input.week,
+    asOf: input.asOf,
+  });
+}
+
 describe('CCF complete-lineup runtime composition', () => {
-  it('uses certified league scoring and full FLEX/Superflex geometry in one frozen decision', () => {
-    const result = evaluateCCFCompleteLineupRuntime(runtimeInput());
+  it('uses certified league scoring, full geometry, and the recomputed roster snapshot fingerprint', () => {
+    const input = runtimeInput();
+    const result = evaluateCCFCompleteLineupRuntime(input);
     expect(result.state).toBe('evaluated');
     expect(result.leagueBinding.ready).toBe(true);
     expect(result.decision?.status).toBe('comparison_available');
     expect(result.decisionInput?.scoringFingerprint).toBe(result.leagueBinding.scoringFingerprint);
+    expect(result.decisionInput?.rosterSnapshotFingerprint).toBe(input.rosterSnapshot.fingerprint);
+    expect(result.decision?.receipt.rosterSnapshotFingerprint).toBe(input.rosterSnapshot.fingerprint);
     expect(result.decisionInput?.slots).toHaveLength(6);
     expect(result.decision?.assignments).toHaveLength(6);
     expect(result.decision?.assignments?.find((row) => row.slotType === 'SUPER_FLEX')?.playerId).toBe('qb-b');
@@ -204,9 +255,11 @@ describe('CCF complete-lineup runtime composition', () => {
 
   it('binds an explicitly locked observed starter into the exact active-league slot', () => {
     const input = runtimeInput();
-    const wrA = input.roster.find((row) => row.playerId === 'wr-a')!;
+    const roster = input.rosterSnapshot.players.map((row) => ({ ...row }));
+    const wrA = roster.find((row) => row.playerId === 'wr-a')!;
     wrA.lockState = 'locked';
     wrA.lockAt = '2026-09-16T11:00:00.000Z';
+    replaceSnapshotRoster(input, roster);
     const wrB = input.outcomes.find((row) => row.playerId === 'wr-b')!.outcome;
     Object.assign(wrB, { meanFpts: 50, medianFpts: 50, p10Fpts: 44, p25Fpts: 47, p75Fpts: 53, p90Fpts: 56 });
 
@@ -218,13 +271,95 @@ describe('CCF complete-lineup runtime composition', () => {
     });
   });
 
-  it('passes unknown legal-state evidence through to fail-closed CCF decision semantics', () => {
+  it('passes unknown legal-state evidence through without normalizing it away', () => {
     const input = runtimeInput();
-    input.roster.find((row) => row.playerId === 'wr-b')!.lockState = 'unknown';
+    const roster = input.rosterSnapshot.players.map((row) => ({ ...row }));
+    roster.find((row) => row.playerId === 'wr-b')!.lockState = 'unknown';
+    replaceSnapshotRoster(input, roster);
     const result = evaluateCCFCompleteLineupRuntime(input);
     expect(result.state).toBe('evaluated');
     expect(result.decision?.status).toBe('insufficient_evidence');
     expect(result.decision?.missingInputs).toContain('wr-b:lock_state');
+  });
+
+  it('rejects a roster mutation paired with a stale decorative fingerprint', () => {
+    const input = runtimeInput();
+    input.rosterSnapshot.players.find((row) => row.playerId === 'wr-b')!.availability = 'unknown';
+    const result = evaluateCCFCompleteLineupRuntime(input);
+    expect(result.state).toBe('blocked');
+    expect(result.blockers).toContain('roster_snapshot_fingerprint_mismatch');
+  });
+
+  it('blocks a frozen roster snapshot from a different league', () => {
+    const input = runtimeInput();
+    input.rosterSnapshot = frozenRosterSnapshot({
+      context: input.leagueContext,
+      roster: input.rosterSnapshot.players,
+      leagueRef: 'league-other',
+    });
+    const result = evaluateCCFCompleteLineupRuntime(input);
+    expect(result.state).toBe('blocked');
+    expect(result.blockers).toContain('roster_snapshot_league_ref_mismatch');
+  });
+
+  it('blocks a frozen roster snapshot from a different team', () => {
+    const input = runtimeInput();
+    input.rosterSnapshot = frozenRosterSnapshot({
+      context: input.leagueContext,
+      roster: input.rosterSnapshot.players,
+      teamRef: 'team-other',
+    });
+    const result = evaluateCCFCompleteLineupRuntime(input);
+    expect(result.state).toBe('blocked');
+    expect(result.blockers).toContain('roster_snapshot_team_ref_mismatch');
+  });
+
+  it('blocks a frozen roster snapshot from a different week', () => {
+    const input = runtimeInput();
+    input.rosterSnapshot = frozenRosterSnapshot({
+      context: input.leagueContext,
+      roster: input.rosterSnapshot.players,
+      week: 3,
+    });
+    const result = evaluateCCFCompleteLineupRuntime(input);
+    expect(result.state).toBe('blocked');
+    expect(result.blockers).toContain('roster_snapshot_week_mismatch');
+  });
+
+  it('blocks a frozen roster snapshot from a different decision as-of', () => {
+    const input = runtimeInput();
+    input.rosterSnapshot = frozenRosterSnapshot({
+      context: input.leagueContext,
+      roster: input.rosterSnapshot.players,
+      asOf: '2026-09-16T11:59:59.000Z',
+    });
+    const result = evaluateCCFCompleteLineupRuntime(input);
+    expect(result.state).toBe('blocked');
+    expect(result.blockers).toContain('roster_snapshot_as_of_mismatch');
+  });
+
+  it('blocks a roster snapshot bound to different active slot geometry', () => {
+    const input = runtimeInput();
+    input.rosterSnapshot = frozenRosterSnapshot({
+      context: input.leagueContext,
+      roster: input.rosterSnapshot.players,
+      rosterSlotsFingerprint: 'wrong-slot-geometry',
+    });
+    const result = evaluateCCFCompleteLineupRuntime(input);
+    expect(result.state).toBe('blocked');
+    expect(result.blockers).toContain('roster_snapshot_slot_geometry_mismatch');
+  });
+
+  it('blocks roster legality evidence produced under a different source plan', () => {
+    const input = runtimeInput();
+    input.rosterSnapshot = frozenRosterSnapshot({
+      context: input.leagueContext,
+      roster: input.rosterSnapshot.players,
+      sourcePlanFingerprint: 'other-source-plan',
+    });
+    const result = evaluateCCFCompleteLineupRuntime(input);
+    expect(result.state).toBe('blocked');
+    expect(result.blockers).toContain('roster_snapshot_source_plan_fingerprint_mismatch');
   });
 
   it('blocks unsupported active-league positions before constructing a decision packet', () => {

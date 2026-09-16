@@ -37,7 +37,7 @@ jobs:
           typecheck_status=$?
           set -e
 
-          gate0_pattern='^(server/index\.ts|server/middleware/personalUserScope\.ts|server/routes/leagueDashboardRoutes\.ts|server/routes/leagueSyncRoutes\.ts|server/routes/weeklyDecisionRuntimeRoutes\.ts|server/services/leagueDashboardTruthBoundary\.ts|server/services/commandCenterLeagueContextService\.ts|server/services/weeklyDecisionRuntimeService\.ts|server/services/ccfCompleteLineupRuntimeService\.ts|server/leagueContext/.*\.ts|server/platformSync/leagueAwareSync\.ts|shared/weeklyDecisionContract\.ts|client/src/pages/CommandCenterV1\.tsx)\('
+          gate0_pattern='^(server/index\.ts|server/middleware/personalUserScope\.ts|server/routes/leagueDashboardRoutes\.ts|server/routes/leagueSyncRoutes\.ts|server/routes/weeklyDecisionRuntimeRoutes\.ts|server/services/leagueDashboardTruthBoundary\.ts|server/services/commandCenterLeagueContextService\.ts|server/services/weeklyDecisionRuntimeService\.ts|server/services/ccfCompleteLineupRuntimeService\.ts|server/leagueContext/.*\.ts|server/modules/ccf/lineup/.*\.ts|server/platformSync/leagueAwareSync\.ts|shared/weeklyDecisionContract\.ts|client/src/pages/CommandCenterV1\.tsx)\('
           if grep -E "$gate0_pattern" /tmp/tiber-typecheck.log; then
             echo "::error::Gate 0 introduced or exposes type errors in its production files."
             exit 1
@@ -64,6 +64,7 @@ jobs:
           server/routes/__tests__/leagueContextCommandCenter.test.ts
           server/routes/__tests__/weeklyDecisionRuntimeRoutes.test.ts
           server/modules/management/__tests__/forgeTeamDirectionFreshnessPolicy.test.ts
+          server/modules/ccf/lineup/__tests__/rosterStateSnapshot.test.ts
           server/leagueContext/__tests__/leagueContextV1.test.ts
           server/leagueContext/__tests__/ccfLineupLeagueAdapter.test.ts
           server/leagueContext/__tests__/decisionPacketLeagueContext.test.ts
