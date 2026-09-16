@@ -253,21 +253,21 @@ export const SituationDefinitionV0Schema = z.object({
   if (value.versionOrdinal === 1 && value.predecessorDefinitionRef !== null) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['predecessorDefinitionRef'], message: 'initial definition cannot have predecessor' });
   if (value.versionOrdinal > 1 && value.predecessorDefinitionRef === null) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['predecessorDefinitionRef'], message: 'successor definition requires predecessor' });
   const declaredPlayers = new Set(value.identity.playerIds);
-  for (const [stateIndex, state] of value.competingStates.entries()) {
-    for (const role of state.consequences.playerRoleChanges) {
+  value.competingStates.forEach((state, stateIndex) => {
+    state.consequences.playerRoleChanges.forEach((role) => {
       if (!declaredPlayers.has(role.playerId)) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['competingStates', stateIndex, 'consequences', 'playerRoleChanges'], message: 'state consequence references undeclared player' });
-    }
-  }
-  for (const [witnessIndex, witness] of value.resolutionWitnesses.entries()) {
+    });
+  });
+  value.resolutionWitnesses.forEach((witness, witnessIndex) => {
     const effectIds = witness.stateEffects.map((effect) => effect.stateId);
     if (new Set(effectIds).size !== effectIds.length) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['resolutionWitnesses', witnessIndex, 'stateEffects'], message: 'duplicate state effect' });
-    for (const stateId of effectIds) {
+    effectIds.forEach((stateId) => {
       if (!stateIds.includes(stateId)) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['resolutionWitnesses', witnessIndex, 'stateEffects'], message: 'witness effect references undeclared state' });
-    }
-  }
-  for (const playerId of value.impactDefinition.affectedPlayerIds) {
+    });
+  });
+  value.impactDefinition.affectedPlayerIds.forEach((playerId) => {
     if (!declaredPlayers.has(playerId)) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['impactDefinition', 'affectedPlayerIds'], message: 'impact references undeclared player' });
-  }
+  });
 }).refine((value) => new Date(value.knownAt).getTime() >= new Date(value.createdAt).getTime(), { path: ['knownAt'], message: 'knownAt cannot precede createdAt' });
 export type SituationDefinitionV0 = z.infer<typeof SituationDefinitionV0Schema>;
 
