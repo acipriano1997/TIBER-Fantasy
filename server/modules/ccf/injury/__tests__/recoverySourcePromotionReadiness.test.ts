@@ -149,17 +149,21 @@ describe("CCF recovery source promotion readiness", () => {
       "reliability_review_not_passed",
     ]);
 
-    expect(
-      byId.get("nflverse-injuries-official-designation-historical-v1")?.blockers,
-    ).toEqual([
-      "status_research_only",
+    const revivedNflverseCandidateBlockers = [
       "temporal_mode_not_archived_point_in_time",
       "archive_strategy_missing",
       "permission_not_cleared",
       "point_in_time_semantics_undocumented",
       "raw_trace_missing",
       "reliability_review_not_passed",
-    ]);
+    ];
+
+    expect(
+      byId.get("nflverse-injuries-official-designation-current-candidate-v2")?.blockers,
+    ).toEqual(revivedNflverseCandidateBlockers);
+    expect(
+      byId.get("nflverse-injuries-practice-participation-current-candidate-v2")?.blockers,
+    ).toEqual(revivedNflverseCandidateBlockers);
 
     expect(byId.get("nflverse-pfr-snap-counts-reference-v1")?.blockers).toEqual([
       "status_research_only",
