@@ -141,6 +141,31 @@ describe("CCF source state eligibility", () => {
     ).toEqual({ eligible: false, reason: "reliability_not_passed" });
   });
 
+  it("rejects qualification evidence reviewed after the frozen decision time", () => {
+    const futureReviewedState: CCFSourceState = {
+      ...promoted,
+      knownAt: "2026-09-10T12:00:00Z",
+      qualification: {
+        ...qualification,
+        reviewedAt: "2026-09-13T00:00:00Z",
+      },
+    };
+
+    expect(
+      evaluateCCFSourceStateEligibility(futureReviewedState, "2026-09-12T00:00:00Z"),
+    ).toEqual({
+      eligible: false,
+      reason: "qualification_reviewed_after_as_of",
+    });
+
+    expect(
+      evaluateCCFSourceStateEligibility(futureReviewedState, "2026-09-14T00:00:00Z"),
+    ).toEqual({
+      eligible: true,
+      reason: "eligible",
+    });
+  });
+
   it("rejects evidence known after the decision time", () => {
     expect(evaluateCCFSourceStateEligibility(promoted, "2026-09-11T11:59:59Z")).toEqual({
       eligible: false,
