@@ -1,0 +1,69 @@
+name: USR-0 Certification
+
+on:
+  pull_request:
+    paths:
+      - 'server/modules/uncertaintyRegistry/**'
+      - 'docs/architecture/FFCC_UNCERTAINTY_STATE_REGISTRY_USR0.md'
+      - '.github/workflows/usr0-certification.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'server/modules/uncertaintyRegistry/**'
+      - 'docs/architecture/FFCC_UNCERTAINTY_STATE_REGISTRY_USR0.md'
+      - '.github/workflows/usr0-certification.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: usr0-certification-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  certify:
+    name: USR-0 contracts and conformance
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Typecheck USR-0 delta against repository baseline debt
+        shell: bash
+        run: |
+          set +e
+          npm run typecheck > /tmp/usr0-typecheck.log 2>&1
+          typecheck_status=$?
+          set -e
+
+          usr0_pattern='^server/modules/uncertaintyRegistry/.*\.ts\('
+          if grep -E "$usr0_pattern" /tmp/usr0-typecheck.log; then
+            echo "::error::USR-0 introduced or exposes TypeScript errors in its production files."
+            grep -E "$usr0_pattern" /tmp/usr0-typecheck.log
+            exit 1
+          fi
+
+          if [ "$typecheck_status" -ne 0 ]; then
+            error_count=$(grep -c 'error TS' /tmp/usr0-typecheck.log || true)
+            echo "::warning::Repository-wide typecheck has ${error_count} errors outside the USR-0 production delta; retained as baseline debt."
+          else
+            echo "Repository-wide typecheck is clean."
+          fi
+      - name: Run focused USR-0 tests
+        run: >-
+          npm test --
+          server/modules/uncertaintyRegistry/__tests__/contracts.test.ts
+          server/modules/uncertaintyRegistry/__tests__/canonicalization.test.ts
+          server/modules/uncertaintyRegistry/__tests__/policy.test.ts
+          server/modules/uncertaintyRegistry/__tests__/conformance.test.ts
+      - name: Build application
+        run: sh build.sh
