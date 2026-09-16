@@ -1,5 +1,9 @@
 import type { CCFArchivedNflverseScheduleSnapshot } from "./archivedNflverseSchedule";
 import {
+  assertCCFNflverseScheduleIdentityResolved,
+  type CCFNflverseScheduleIdentityPolicyReceipt,
+} from "./nflverseScheduleIdentity";
+import {
   validateCCFSourceReliabilityObservation,
   type CCFSourceCorrectionStatus,
   type CCFSourceReliabilityObservation,
@@ -11,7 +15,7 @@ export interface BuildCCFNflverseScheduleReliabilityObservationInput {
   sourceId: string;
   checkpointId: string;
   scheduledFor: string;
-  identityBindingRef: string;
+  identityPolicyReceipt: CCFNflverseScheduleIdentityPolicyReceipt;
   criticalFieldPolicyRef: string;
   correctionPolicyRef: string;
   checkpointPolicyRef: string;
@@ -126,12 +130,14 @@ function correctionStatus(
  * Derive one prospective reliability observation from an immutable nflverse
  * schedule capture.
  *
- * Schedule identity is provider-local and is frozen by `identityBindingRef`;
- * the candidate parser preserves nflverse `game_id` rather than reconstructing
- * it. Every parsed row is therefore identity-eligible/resolved only after this
- * builder has revalidated the required provider identity and kickoff fields.
+ * Identity resolution is intentionally provider-native. A frozen, fingerprinted
+ * identity policy must explicitly declare that nflverse `game_id` plus nflverse
+ * team abbreviations are the source-local schedule key. This builder never
+ * treats a caller-supplied string as proof of identity and never claims a
+ * cross-provider canonical game identity.
+ *
  * This does not promote the source, clear intended-use rights, or create a
- * cross-provider canonical game-identity claim.
+ * universal game-identity registry.
  */
 export function buildCCFNflverseScheduleReliabilityObservation(
   input: BuildCCFNflverseScheduleReliabilityObservationInput,
@@ -139,10 +145,20 @@ export function buildCCFNflverseScheduleReliabilityObservation(
   validateSnapshot(input.snapshot);
   requireText("sourceId", input.sourceId);
   requireText("checkpointId", input.checkpointId);
-  requireText("identityBindingRef", input.identityBindingRef);
   requireText("criticalFieldPolicyRef", input.criticalFieldPolicyRef);
   requireText("correctionPolicyRef", input.correctionPolicyRef);
   requireText("checkpointPolicyRef", input.checkpointPolicyRef);
+
+  const identityAudit = assertCCFNflverseScheduleIdentityResolved(
+    input.snapshot,
+    input.identityPolicyReceipt,
+    input.snapshot.knownAt,
+  );
+  if (!identityAudit.identityBindingRef) {
+    throw new CCFNflverseScheduleReliabilityError(
+      "resolved schedule identity audit must provide identityBindingRef",
+    );
+  }
 
   const currentArchiveRef = archiveRef(input.snapshot);
   const previous = input.previousSnapshot ?? null;
@@ -158,7 +174,7 @@ export function buildCCFNflverseScheduleReliabilityObservation(
 
   const evidenceRefs = [
     currentArchiveRef,
-    input.identityBindingRef,
+    identityAudit.identityBindingRef,
     input.criticalFieldPolicyRef,
     input.correctionPolicyRef,
     input.checkpointPolicyRef,
@@ -187,8 +203,8 @@ export function buildCCFNflverseScheduleReliabilityObservation(
     contentSha256: input.snapshot.archive.manifest.contentSha256,
     schemaStatus: "valid",
     rowCount,
-    identityEligibleCount: rowCount,
-    identityResolvedCount: rowCount,
+    identityEligibleCount: identityAudit.eligibleCount,
+    identityResolvedCount: identityAudit.resolvedCount,
     criticalFieldEligibleCount: rowCount,
     criticalFieldMissingCount: 0,
     duplicateKeyCount: 0,
