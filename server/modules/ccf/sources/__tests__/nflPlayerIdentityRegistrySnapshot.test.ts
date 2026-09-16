@@ -146,7 +146,7 @@ describe("prospective NFL player identity registry snapshots", () => {
     });
   });
 
-  it("creates exact GSIS-to-TIBER receipt rows with snapshot evidence and no heuristic fallback", async () => {
+  it("creates exact GSIS-to-TIBER receipt rows with snapshot evidence and no heuristic fields", async () => {
     const snapshot = await materializeCCFNFLPlayerIdentityRegistrySnapshot({
       sourceRows: ROWS,
       archiveRootDir,
@@ -171,7 +171,16 @@ describe("prospective NFL player identity registry snapshots", () => {
       bindingMethod: "exact_external_id",
       knownAt: "2026-09-16T18:00:00Z",
     });
-    expect(JSON.stringify(materialized.receipt)).not.toMatch(/fullName|team|position|fuzzy|name_pos/);
+    for (const row of materialized.receipt.rows) {
+      expect(Object.keys(row).sort()).toEqual([
+        "bindingMethod",
+        "canonicalPlayerId",
+        "evidenceRefs",
+        "knownAt",
+        "sourcePlayerId",
+        "status",
+      ]);
+    }
   });
 
   it("cannot use the prospective receipt before the registry snapshot was actually known", async () => {
