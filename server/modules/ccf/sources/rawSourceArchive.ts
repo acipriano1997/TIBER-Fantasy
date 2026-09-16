@@ -81,6 +81,108 @@ async function assertRealDirectory(target: string, label: string): Promise<void>
   }
 }
 
+async function assertRealFile(target: string, label: string): Promise<void> {
+  const stat = await fs.lstat(target);
+  if (!stat.isFile() || stat.isSymbolicLink()) {
+    throw new CCFRawSourceArchiveError(`${label} must be a real file: ${target}`);
+  }
+}
+
+/**
+ * Re-read a persisted raw-source archive and prove that its on-disk bytes,
+ * manifest, archiveRef, and filesystem location still agree with the archived
+ * snapshot object presented by the caller.
+ *
+ * Note that archive directory identities were historically computed from the
+ * pre-normalized capture input. The manifest intentionally does not preserve
+ * whether fields such as `knownAt` were omitted before normalization, so this
+ * verifier does not pretend it can reconstruct that original metadata hash.
+ * Instead it strictly verifies persisted content against the stored manifest,
+ * requires the stored manifest to equal the supplied snapshot, and binds the
+ * archiveRef identity to the actual filesystem location.
+ */
+export async function verifyCCFArchivedSourceSnapshot(
+  snapshot: CCFArchivedSourceSnapshot,
+): Promise<CCFArchivedSourceSnapshot> {
+  const archiveDir = path.resolve(snapshot.archiveDir);
+  await assertRealDirectory(archiveDir, "archive");
+
+  const expectedContentPath = path.join(archiveDir, "content.raw");
+  const expectedManifestPath = path.join(archiveDir, "manifest.json");
+  if (path.resolve(snapshot.contentPath) !== expectedContentPath) {
+    throw new CCFRawSourceArchiveError("archive contentPath does not match archiveDir");
+  }
+  if (path.resolve(snapshot.manifestPath) !== expectedManifestPath) {
+    throw new CCFRawSourceArchiveError("archive manifestPath does not match archiveDir");
+  }
+
+  await assertRealFile(expectedContentPath, "archive content");
+  await assertRealFile(expectedManifestPath, "archive manifest");
+
+  let storedContent: Buffer;
+  let storedManifest: CCFSourceSnapshotManifest;
+  try {
+    storedContent = await fs.readFile(expectedContentPath);
+    storedManifest = JSON.parse(
+      await fs.readFile(expectedManifestPath, "utf8"),
+    ) as CCFSourceSnapshotManifest;
+  } catch (error) {
+    throw new CCFRawSourceArchiveError(
+      `archive is incomplete or unreadable at ${archiveDir}: ${String(error)}`,
+    );
+  }
+
+  if (!verifyCCFSourceSnapshotContent(storedManifest, storedContent)) {
+    throw new CCFRawSourceArchiveError(
+      `archive content failed stored-manifest verification: ${archiveDir}`,
+    );
+  }
+  if (JSON.stringify(storedManifest) !== JSON.stringify(snapshot.manifest)) {
+    throw new CCFRawSourceArchiveError(
+      `archive stored manifest differs from supplied snapshot: ${archiveDir}`,
+    );
+  }
+
+  const archiveRef = storedManifest.archiveRef?.trim();
+  const match = archiveRef?.match(
+    /^ccf:\/\/raw\/([^/]+)\/([^/]+)\/sha256\/([a-f0-9]{64})$/,
+  );
+  if (!match) {
+    throw new CCFRawSourceArchiveError(
+      `archiveRef is not a governed raw archive reference: ${archiveRef ?? "missing"}`,
+    );
+  }
+
+  const [, providerSegment, datasetSegment, refIdentity] = match;
+  const expectedProviderSegment = safeSegment("provider", storedManifest.provider);
+  const expectedDatasetSegment = safeSegment("dataset", storedManifest.dataset);
+
+  if (
+    providerSegment !== expectedProviderSegment ||
+    datasetSegment !== expectedDatasetSegment
+  ) {
+    throw new CCFRawSourceArchiveError(
+      "archiveRef provider/dataset does not match persisted manifest",
+    );
+  }
+  if (
+    path.basename(archiveDir) !== refIdentity ||
+    path.basename(path.dirname(archiveDir)) !== expectedDatasetSegment ||
+    path.basename(path.dirname(path.dirname(archiveDir))) !== expectedProviderSegment
+  ) {
+    throw new CCFRawSourceArchiveError(
+      "archive filesystem location does not match archiveRef",
+    );
+  }
+
+  return {
+    archiveDir,
+    contentPath: expectedContentPath,
+    manifestPath: expectedManifestPath,
+    manifest: storedManifest,
+  };
+}
+
 async function verifyExistingArchive(
   archiveDir: string,
   expectedManifest: CCFSourceSnapshotManifest,
@@ -89,6 +191,9 @@ async function verifyExistingArchive(
   await assertRealDirectory(archiveDir, "existing archive");
   const contentPath = path.join(archiveDir, "content.raw");
   const manifestPath = path.join(archiveDir, "manifest.json");
+
+  await assertRealFile(contentPath, "existing archive content");
+  await assertRealFile(manifestPath, "existing archive manifest");
 
   let storedContent: Buffer;
   let storedManifest: CCFSourceSnapshotManifest;
@@ -111,7 +216,12 @@ async function verifyExistingArchive(
     throw new CCFRawSourceArchiveError(`existing archive manifest differs from expected snapshot: ${archiveDir}`);
   }
 
-  return { archiveDir, contentPath, manifestPath, manifest: storedManifest };
+  return verifyCCFArchivedSourceSnapshot({
+    archiveDir,
+    contentPath,
+    manifestPath,
+    manifest: storedManifest,
+  });
 }
 
 /**
@@ -187,10 +297,10 @@ export async function archiveCCFSourceSnapshot(
     throw error;
   }
 
-  return {
+  return verifyCCFArchivedSourceSnapshot({
     archiveDir,
     contentPath: path.join(archiveDir, "content.raw"),
     manifestPath: path.join(archiveDir, "manifest.json"),
     manifest,
-  };
+  });
 }
