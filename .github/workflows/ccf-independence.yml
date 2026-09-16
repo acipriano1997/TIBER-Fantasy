@@ -105,6 +105,7 @@ jobs:
           server/modules/ccf/sources/__tests__/nflPlayerIdentityLinkage.test.ts
           server/modules/ccf/sources/__tests__/transactionalArtifactPromotion.test.ts
           server/modules/ccf/sources/__tests__/weeklySourceSpine.test.ts
+          server/modules/ccf/sources/__tests__/weeklySourceScheduleCapability.test.ts
           server/modules/ccf/sources/__tests__/devyIdentityLinkage.test.ts
           server/modules/ccf/weather/__tests__/weatherEvidence.test.ts
           server/modules/ccf/injury/__tests__/injuryRecoveryEvidence.test.ts
