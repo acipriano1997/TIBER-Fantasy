@@ -11,6 +11,7 @@ const HEADER = [
   "season",
   "season_type",
   "week",
+  "play_type",
   "posteam",
   "passer_player_id",
   "rusher_player_id",
@@ -45,52 +46,66 @@ function fixtureCsv(): string {
     HEADER,
     csvRow({
       play_id: 10, game_id: "2026_01_AAA_BBB", season: 2026, season_type: "REG", week: 1,
-      posteam: "AAA", passer_player_id: "QB1", receiver_player_id: "WR1",
-      pass_attempt: 1, qb_dropback: 1, complete_pass: 1, air_yards: 10,
-      yards_after_catch: 5, yards_gained: 15, down: 1, yardline_100: 15,
+      play_type: "pass", posteam: "AAA", passer_player_id: "QB1", receiver_player_id: "WR1",
+      pass_attempt: 1, rush_attempt: 0, qb_dropback: 1, qb_scramble: 0, qb_kneel: 0,
+      sack: 0, complete_pass: 1, two_point_attempt: 0, touchdown: 0, goal_to_go: 0,
+      air_yards: 10, yards_after_catch: 5, yards_gained: 15, down: 1, yardline_100: 15,
     }),
     csvRow({
       play_id: 20, game_id: "2026_01_AAA_BBB", season: 2026, season_type: "REG", week: 1,
-      posteam: "AAA", rusher_player_id: "RB1", rush_attempt: 1,
+      play_type: "run", posteam: "AAA", rusher_player_id: "RB1", pass_attempt: 0,
+      rush_attempt: 1, qb_dropback: 0, qb_scramble: 0, qb_kneel: 0, sack: 0,
+      complete_pass: 0, two_point_attempt: 0, touchdown: 0, goal_to_go: 0,
       yards_gained: 6, down: 1, yardline_100: 8,
     }),
     csvRow({
       play_id: 30, game_id: "2026_01_AAA_BBB", season: 2026, season_type: "REG", week: 1,
-      posteam: "AAA", passer_player_id: "QB1", receiver_player_id: "WR1",
-      pass_attempt: 1, qb_dropback: 1, complete_pass: 0, air_yards: 6,
-      yards_gained: 0, down: 2, yardline_100: 4,
+      play_type: "pass", posteam: "AAA", passer_player_id: "QB1", receiver_player_id: "WR1",
+      pass_attempt: 1, rush_attempt: 0, qb_dropback: 1, qb_scramble: 0, qb_kneel: 0,
+      sack: 0, complete_pass: 0, two_point_attempt: 0, touchdown: 0, goal_to_go: 0,
+      air_yards: 6, yards_gained: 0, down: 2, yardline_100: 4,
     }),
     csvRow({
       play_id: 40, game_id: "2026_01_AAA_BBB", season: 2026, season_type: "REG", week: 1,
-      posteam: "AAA", passer_player_id: "QB1", receiver_player_id: "WR2",
-      pass_attempt: 1, qb_dropback: 1, complete_pass: 1, air_yards: 4,
-      yards_after_catch: 3, yards_gained: 7, down: 3, yardline_100: 40,
+      play_type: "pass", posteam: "AAA", passer_player_id: "QB1", receiver_player_id: "WR2",
+      pass_attempt: 1, rush_attempt: 0, qb_dropback: 1, qb_scramble: 0, qb_kneel: 0,
+      sack: 0, complete_pass: 1, two_point_attempt: 0, touchdown: 0, goal_to_go: 0,
+      air_yards: 4, yards_after_catch: 3, yards_gained: 7, down: 3, yardline_100: 40,
     }),
     csvRow({
       play_id: 50, game_id: "2026_01_AAA_BBB", season: 2026, season_type: "REG", week: 1,
-      posteam: "AAA", rusher_player_id: "QB1", rush_attempt: 1, qb_kneel: 1,
+      play_type: "qb_kneel", posteam: "AAA", rusher_player_id: "QB1", pass_attempt: 0,
+      rush_attempt: 1, qb_dropback: 0, qb_scramble: 0, qb_kneel: 1, sack: 0,
+      complete_pass: 0, two_point_attempt: 0, touchdown: 0, goal_to_go: 0,
       yards_gained: -1, down: 1, yardline_100: 70,
     }),
     csvRow({
       play_id: 60, game_id: "2026_01_AAA_BBB", season: 2026, season_type: "REG", week: 1,
-      posteam: "AAA", passer_player_id: "QB1", receiver_player_id: "WR1",
-      pass_attempt: 1, qb_dropback: 1, complete_pass: 1, two_point_attempt: 1,
+      play_type: "pass", posteam: "AAA", passer_player_id: "QB1", receiver_player_id: "WR1",
+      pass_attempt: 1, rush_attempt: 0, qb_dropback: 1, qb_scramble: 0, qb_kneel: 0,
+      sack: 0, complete_pass: 1, two_point_attempt: 1, touchdown: 0, goal_to_go: 1,
       yards_gained: 2, yardline_100: 2,
     }),
     csvRow({
       play_id: 70, game_id: "2026_01_AAA_BBB", season: 2026, season_type: "REG", week: 1,
-      posteam: "AAA", passer_player_id: "QB1", sack: 1, qb_dropback: 1,
+      play_type: "pass", posteam: "AAA", passer_player_id: "QB1", pass_attempt: 0,
+      rush_attempt: 0, qb_dropback: 1, qb_scramble: 0, qb_kneel: 0, sack: 1,
+      complete_pass: 0, two_point_attempt: 0, touchdown: 0, goal_to_go: 0,
       yards_gained: -7, down: 2, yardline_100: 55,
     }),
     csvRow({
       play_id: 80, game_id: "2026_02_AAA_CCC", season: 2026, season_type: "REG", week: 2,
-      posteam: "AAA", rusher_player_id: "RB1", rush_attempt: 1, yards_gained: 5,
-      down: 1, yardline_100: 50,
+      play_type: "run", posteam: "AAA", rusher_player_id: "RB1", pass_attempt: 0,
+      rush_attempt: 1, qb_dropback: 0, qb_scramble: 0, qb_kneel: 0, sack: 0,
+      complete_pass: 0, two_point_attempt: 0, touchdown: 0, goal_to_go: 0,
+      yards_gained: 5, down: 1, yardline_100: 50,
     }),
     csvRow({
       play_id: 90, game_id: "2026_20_AAA_DDD", season: 2026, season_type: "POST", week: 20,
-      posteam: "AAA", rusher_player_id: "RB1", rush_attempt: 1, yards_gained: 5,
-      down: 1, yardline_100: 50,
+      play_type: "run", posteam: "AAA", rusher_player_id: "RB1", pass_attempt: 0,
+      rush_attempt: 1, qb_dropback: 0, qb_scramble: 0, qb_kneel: 0, sack: 0,
+      complete_pass: 0, two_point_attempt: 0, touchdown: 0, goal_to_go: 0,
+      yards_gained: 5, down: 1, yardline_100: 50,
     }),
   ].join("\n");
 }
@@ -111,14 +126,44 @@ describe("nflverse play-by-play source", () => {
       gameId: "2026_01_AAA_BBB",
       season: 2026,
       week: 1,
+      playType: "pass",
       offenseTeam: "AAA",
       passerPlayerId: "QB1",
       receiverPlayerId: "WR1",
       passAttempt: true,
       completePass: true,
       yardline100: 15,
+      missingBinaryFields: [],
     });
     expect(rows.some((row) => row.week === 2 || row.seasonType === "POST")).toBe(false);
+  });
+
+  it("preserves binary missingness instead of treating a blank as observed false", () => {
+    const csv = [
+      HEADER,
+      csvRow({
+        play_id: 11,
+        game_id: "2026_01_AAA_BBB",
+        season: 2026,
+        season_type: "REG",
+        week: 1,
+        play_type: "no_play",
+        posteam: "AAA",
+        down: 1,
+      }),
+    ].join("\n");
+
+    const [row] = parseNflversePlayByPlayCsv(csv, { season: 2026, week: 1 });
+    expect(row.playType).toBe("no_play");
+    expect(row.passAttempt).toBe(false);
+    expect(row.missingBinaryFields).toEqual(expect.arrayContaining([
+      "pass_attempt",
+      "rush_attempt",
+      "qb_dropback",
+      "qb_kneel",
+      "complete_pass",
+      "two_point_attempt",
+    ]));
   });
 
   it("fails closed when the upstream schema loses a required opportunity column", () => {
@@ -127,6 +172,15 @@ describe("nflverse play-by-play source", () => {
       .join(",");
     expect(() => parseNflversePlayByPlayCsv(`${headerWithoutReceiver}\n`, { season: 2026, week: 1 })).toThrow(
       /schema missing required columns: receiver_player_id/,
+    );
+  });
+
+  it("fails closed when play_type is absent from the qualification schema", () => {
+    const headerWithoutPlayType = HEADER.split(",")
+      .filter((column) => column !== "play_type")
+      .join(",");
+    expect(() => parseNflversePlayByPlayCsv(`${headerWithoutPlayType}\n`, { season: 2026, week: 1 })).toThrow(
+      /schema missing required columns: play_type/,
     );
   });
 
