@@ -1,0 +1,67 @@
+name: Contract League Migration Certification
+
+on:
+  pull_request:
+    paths:
+      - 'shared/contractLeagueSchema.ts'
+      - 'drizzle.config.ts'
+      - 'migrations/**'
+      - '.github/workflows/contract-league-migration-certification.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: contract-league-migration-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  migration-drift:
+    name: Drizzle migration drift
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Generate migration candidate
+        id: generate
+        continue-on-error: true
+        env:
+          DATABASE_URL: postgresql://migration_check:migration_check@127.0.0.1:5432/migration_check
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run db:generate -- --name contract_league_snapshots
+          git status --porcelain migrations > /tmp/contract-league-migration-status.txt
+          echo 'Generated migration status:'
+          cat /tmp/contract-league-migration-status.txt || true
+      - name: Upload generated migration tree
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: contract-league-migration-candidate-${{ github.sha }}
+          path: migrations
+          if-no-files-found: error
+          retention-days: 7
+      - name: Enforce checked-in migration parity
+        if: always()
+        shell: bash
+        run: |
+          if [ "${{ steps.generate.outcome }}" != "success" ]; then
+            echo '::error::Drizzle migration generation failed.'
+            exit 1
+          fi
+          if [ -s /tmp/contract-league-migration-status.txt ]; then
+            echo '::error::Contract-league schema has migration drift. Download the generated migration artifact, review it, and commit the Drizzle-generated files.'
+            cat /tmp/contract-league-migration-status.txt
+            exit 1
+          fi
+          echo 'Contract-league schema and checked-in Drizzle migrations are in parity.'
