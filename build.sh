@@ -1,7 +1,10 @@
 #!/bin/sh
-# Build server bundle to dist/app.mjs (NOT index.mjs)
-# Then copy bootstrap as dist/index.mjs so "node dist/index.mjs" runs the
-# tiny bootstrap first, binding the port before the big bundle loads.
+set -e
+
+# Temporary baseline validation only: prove repository-wide typecheck debt on
+# the untouched upstream base used by ESE-0. Not part of any canonical PR.
+npm run typecheck
+
 ./node_modules/.bin/esbuild server/index.ts \
   --platform=node \
   --bundle \
