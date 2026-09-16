@@ -17,6 +17,40 @@ describe("NFL player identity registry archive integrity", () => {
     await fs.rm(archiveRootDir, { recursive: true, force: true });
   });
 
+  it("refuses malformed GSIS aliases instead of treating arbitrary strings as source identity", async () => {
+    await expect(
+      materializeCCFNFLPlayerIdentityRegistrySnapshot({
+        archiveRootDir,
+        capturedAt: "2026-09-16T18:00:00Z",
+        sourceRows: [
+          {
+            canonicalId: "legacy-canonical-1",
+            tiberPlayerId: "tbr_p_01JTEST0000000000000000001",
+            gsisId: "gsis:39991",
+            mergedInto: null,
+          },
+        ],
+      }),
+    ).rejects.toThrow(/does not match the governed GSIS namespace/);
+  });
+
+  it("refuses malformed canonical TIBER IDs instead of certifying non-empty text", async () => {
+    await expect(
+      materializeCCFNFLPlayerIdentityRegistrySnapshot({
+        archiveRootDir,
+        capturedAt: "2026-09-16T18:00:00Z",
+        sourceRows: [
+          {
+            canonicalId: "legacy-canonical-1",
+            tiberPlayerId: "legacy-canonical-1",
+            gsisId: "00-0039991",
+            mergedInto: null,
+          },
+        ],
+      }),
+    ).rejects.toThrow(/does not match the canonical TIBER player-id format/);
+  });
+
   it("refuses to mint a receipt after archived rows are mutated in memory", async () => {
     const snapshot = await materializeCCFNFLPlayerIdentityRegistrySnapshot({
       archiveRootDir,
