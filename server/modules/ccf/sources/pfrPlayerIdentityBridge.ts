@@ -187,7 +187,7 @@ export function auditCCFPFRPlayerIdentityBridge(
     requestedGsisIds,
     asOf,
   );
-  canonicalIdentityRef = canonicalAudit.identityBindingRef;
+  canonicalIdentityRef = canonicalAudit.identityBindingRef ?? null;
   const fatalCanonicalBlockers = canonicalAudit.blockers.filter(
     (blocker) => !isCoverageOnlyCanonicalBlocker(blocker),
   );
