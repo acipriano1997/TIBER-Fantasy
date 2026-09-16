@@ -63,5 +63,5 @@ export function validateOpportunityConservationV0(
     reasons.push('allocation_exceeds_capacity');
   }
 
-  return { valid: reasons.length === 0, reasonCodes: [...new Set(reasons)].sort(), total };
+  return { valid: reasons.length === 0, reasonCodes: Array.from(new Set(reasons)).sort(), total };
 }
