@@ -1,4 +1,5 @@
 import {
+  validateCCFBacktestProgressHistory,
   type CCFBacktestMetricSet,
   type CCFBacktestProgressRecord,
 } from "./backtestProgressHistory";
@@ -133,7 +134,7 @@ export function promoteCCFPredictiveReceiptToCertifiedRelease(
   ];
   const evidenceRefs = uniqueEvidenceRefs(generatedEvidenceRefs.concat(input.evidenceRefs));
 
-  return {
+  const record: CCFBacktestProgressRecord = {
     id: receipt.runId,
     recordedAt: receipt.completedAt,
     stage: "certified_release",
@@ -153,12 +154,32 @@ export function promoteCCFPredictiveReceiptToCertifiedRelease(
     tiberRole: input.tiberRole,
     evidenceRefs,
     claim: input.claim.trim(),
+    certificationBinding: {
+      receiptFingerprint,
+      protocolFingerprint: receipt.protocolFingerprint,
+      candidateArtifactFingerprint: receipt.candidateArtifactFingerprint,
+      nativeBaselineFingerprint: receipt.nativeBaselineFingerprint,
+      calibrationArtifactFingerprint: input.calibrationArtifactFingerprint,
+      sourcePlanFingerprint: receipt.sourcePlanFingerprint,
+      featureSetFingerprint: receipt.featureSetFingerprint,
+      decisionPolicyFingerprint: receipt.decisionPolicyFingerprint,
+      finalHoldoutAccessCount: 1,
+    },
   };
+  validateCCFBacktestProgressHistory([record]);
+  return record;
 }
 
 export function certifiedModelIdentityFromRelease(
   record: CCFBacktestProgressRecord,
 ): CCFCertifiedModelIdentity {
+  try {
+    validateCCFBacktestProgressHistory([record]);
+  } catch (error) {
+    throw new CCFCertifiedReleasePromotionError(
+      `model identity requires a valid certified release: ${error instanceof Error ? error.message : "unknown"}`,
+    );
+  }
   if (record.stage !== "certified_release" || record.status !== "certified") {
     throw new CCFCertifiedReleasePromotionError(
       "model identity can only be minted from a certified_release record",
@@ -171,13 +192,6 @@ export function certifiedModelIdentityFromRelease(
     throw new CCFCertifiedReleasePromotionError("certified release calibrationVersion is required");
   }
   requireText("certificationRunId", record.id);
-  requireAuthorityMetrics("metrics", record.metrics);
-  if (!record.simpleBaselineMetrics) {
-    throw new CCFCertifiedReleasePromotionError(
-      "certified release requires simple baseline metrics",
-    );
-  }
-  requireAuthorityMetrics("simpleBaselineMetrics", record.simpleBaselineMetrics);
 
   return {
     modelVersion: record.modelVersion,
