@@ -16,7 +16,7 @@
  *   CCF_SOURCE_ARCHIVE_ROOT  durable root for immutable CCF source archives
  *
  * Example:
- *   npm run ccf:identity-snapshot > identity-receipt.json
+ *   npx tsx server/scripts/ccfCaptureNflPlayerIdentityRegistry.ts > identity-receipt.json
  */
 
 import type {
