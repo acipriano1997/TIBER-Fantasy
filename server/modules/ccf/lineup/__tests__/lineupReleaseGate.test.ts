@@ -36,6 +36,15 @@ describe("CCF lineup release gate", () => {
     expect(audit.blockers).toContain("predictive_validation:missing");
   });
 
+  it("requires an explicit frozen-roster integrity witness", () => {
+    const records = certifiedRecords().filter(
+      (record) => record.evidenceKind !== "frozen_roster_state_snapshot",
+    );
+    const audit = auditCCFLineupReleaseGate(AS_OF, records);
+    expect(audit.ready).toBe(false);
+    expect(audit.blockers).toContain("frozen_roster_state_snapshot:missing");
+  });
+
   it("rejects duplicate, revoked, future-known and malformed witnesses", () => {
     const duplicate = certifiedRecords();
     duplicate.push({ ...duplicate[0], evidenceId: "duplicate" });

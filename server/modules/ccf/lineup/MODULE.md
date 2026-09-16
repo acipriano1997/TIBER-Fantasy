@@ -12,6 +12,12 @@ The weekly source-spine audit must be evaluated at the exact frozen decision `as
 
 FLEX and SUPERFLEX are represented by explicit eligible-position sets rather than a special heuristic.
 
+## Frozen roster-state integrity
+
+`rosterStateSnapshot.ts` content-addresses the weekly roster/legality state instead of accepting a free-floating caller fingerprint. The snapshot binds league, team, season, week, exact `asOf`, active roster-slot geometry, producer/source-plan identity, source snapshot reference, and every player's canonical identity/position plus availability, bye, observed starter slot, lock state, and lock timestamp.
+
+Player presentation order is canonicalized out of the fingerprint. Any recommendation-relevant legality mutation changes the fingerprint, and a mutation paired with the old fingerprint fails verification. Production runtime composition must also prove the snapshot matches the exact active league/team/week/as-of/slot geometry/source plan before invoking the lineup core.
+
 ## Active-league position coverage
 
 `positionCoverage.ts` is the fail-closed bridge between resolved league slot semantics and the native outcome universe. The league-context adapter must resolve active starter slots into canonical player-position families and prove all such families are supported before lineup optimization can be certified.
@@ -36,6 +42,7 @@ The module never writes or applies a lineup. Final action authority remains huma
 
 - Unified League Context adapter;
 - active-league position coverage wiring;
+- frozen roster-state snapshot integrity;
 - production weekly source spine;
 - predictive validation;
 - trusted lineup authority binding;

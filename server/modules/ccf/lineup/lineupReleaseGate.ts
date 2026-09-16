@@ -5,6 +5,7 @@ export const CCF_LINEUP_RELEASE_GATE_VERSION = "ccf-lineup-release-gate-v0" as c
 export const CCF_LINEUP_REQUIRED_RELEASE_EVIDENCE = [
   "unified_league_context_adapter",
   "active_league_position_coverage",
+  "frozen_roster_state_snapshot",
   "production_weekly_source_spine",
   "predictive_validation",
   "trusted_lineup_authority_binding",
@@ -65,8 +66,9 @@ function fingerprint(records: readonly CCFLineupReleaseEvidenceRecord[]): string
  * future-known, or malformed witnesses fail closed.
  *
  * Position coverage is a separate witness because the initial native weekly
- * outcome contract is QB/RB/WR/TE-only. K/DST/IDP or future roster-slot families
- * cannot be silently ignored when certifying a real league.
+ * outcome contract is QB/RB/WR/TE-only. The frozen-roster witness separately
+ * proves that availability/bye/lock state is content-addressed and bound to the
+ * exact league/team/week/as-of/slot geometry/source plan before production use.
  */
 export function auditCCFLineupReleaseGate(
   asOf: string,
