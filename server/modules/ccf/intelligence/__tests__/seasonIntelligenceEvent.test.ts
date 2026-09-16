@@ -282,13 +282,13 @@ describe("CCF season intelligence event", () => {
   });
 
   it("rejects any attempt to turn the intelligence snapshot into recommendation authority", () => {
-    const packet = snapshot() as CCFSeasonIntelligenceSnapshotV1 & {
-      recommendationAuthority: string;
-    };
+    const packet = snapshot() as unknown as { recommendationAuthority: string };
     packet.recommendationAuthority = "primary";
 
-    expect(() => validateCCFSeasonIntelligenceSnapshot(packet)).toThrow(
-      "season intelligence snapshots cannot hold recommendation authority",
-    );
+    expect(() =>
+      validateCCFSeasonIntelligenceSnapshot(
+        packet as unknown as CCFSeasonIntelligenceSnapshotV1,
+      ),
+    ).toThrow("season intelligence snapshots cannot hold recommendation authority");
   });
 });
