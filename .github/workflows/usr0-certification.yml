@@ -1,0 +1,38 @@
+name: USR-0 Certification
+
+on:
+  pull_request:
+    paths:
+      - 'server/modules/uncertaintyRegistry/**'
+      - 'docs/architecture/FFCC_UNCERTAINTY_STATE_REGISTRY_USR0.md'
+      - '.github/workflows/usr0-certification.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: usr0-certification-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  certify:
+    name: Contracts, policy, replay, and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '20'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Run USR-0 focused tests
+        run: npm test -- server/modules/uncertaintyRegistry/__tests__
+      - name: Typecheck repository
+        run: npm run typecheck
+      - name: Build application
+        run: sh build.sh
