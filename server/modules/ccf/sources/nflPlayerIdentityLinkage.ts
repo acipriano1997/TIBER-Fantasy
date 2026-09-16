@@ -35,6 +35,7 @@ export interface CCFNFLPlayerIdentitySubsetAudit {
   contractVersion: "ccf-nfl-player-identity-subset-audit-v1";
   receiptId: string | null;
   receiptFingerprint: string | null;
+  identityBindingRef: string | null;
   asOf: string;
   requestedCount: number;
   resolvedCount: number;
@@ -175,6 +176,12 @@ export function fingerprintCCFNFLPlayerIdentityLinkageReceipt(
     .digest("hex");
 }
 
+export function refCCFNFLPlayerIdentityLinkageReceipt(
+  receipt: CCFNFLPlayerIdentityLinkageReceipt,
+): string {
+  return `ccf://nfl-player-identity/sha256/${fingerprintCCFNFLPlayerIdentityLinkageReceipt(receipt)}`;
+}
+
 export function auditCCFNFLPlayerIdentitySubset(
   receipt: CCFNFLPlayerIdentityLinkageReceipt,
   requestedSourcePlayerIds: readonly string[],
@@ -182,12 +189,14 @@ export function auditCCFNFLPlayerIdentitySubset(
 ): CCFNFLPlayerIdentitySubsetAudit {
   const blockers = new Set<string>();
   let receiptFingerprint: string | null = null;
+  let identityBindingRef: string | null = null;
   let structurallyValid = true;
   if (!validTimestamp(asOf)) blockers.add("invalid_as_of");
 
   try {
     validateCCFNFLPlayerIdentityLinkageReceipt(receipt);
     receiptFingerprint = fingerprintCCFNFLPlayerIdentityLinkageReceipt(receipt);
+    identityBindingRef = refCCFNFLPlayerIdentityLinkageReceipt(receipt);
   } catch (error) {
     structurallyValid = false;
     blockers.add(`invalid_receipt:${error instanceof Error ? error.message : "unknown"}`);
@@ -246,6 +255,7 @@ export function auditCCFNFLPlayerIdentitySubset(
     contractVersion: "ccf-nfl-player-identity-subset-audit-v1",
     receiptId: hasText(receipt.receiptId) ? receipt.receiptId : null,
     receiptFingerprint,
+    identityBindingRef,
     asOf,
     requestedCount: requestedSourcePlayerIds.length,
     resolvedCount: resolvedSourcePlayerIds.length,
