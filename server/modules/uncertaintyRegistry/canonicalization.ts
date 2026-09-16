@@ -138,9 +138,10 @@ export function digestUsrRecord<T extends Record<string, unknown>>(record: T): s
   return digestUsrValue(content);
 }
 
-export function withUsrRecordDigest<T extends Record<string, unknown>>(record: T): T & { recordDigest: string } {
-  const recordDigest = digestUsrValue(record);
-  return { ...record, recordDigest };
+export function withUsrRecordDigest<T extends Record<string, unknown>>(record: T): Omit<T, 'recordDigest'> & { recordDigest: string } {
+  const { recordDigest: _recordDigest, ...content } = record;
+  const recordDigest = digestUsrValue(content);
+  return { ...content, recordDigest } as Omit<T, 'recordDigest'> & { recordDigest: string };
 }
 
 export function assertUsrRecordDigest(record: Record<string, unknown>): void {
