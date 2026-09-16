@@ -88,40 +88,18 @@ async function assertRealFile(target: string, label: string): Promise<void> {
   }
 }
 
-function archiveIdentityFromStoredManifest(
-  manifest: CCFSourceSnapshotManifest,
-  content: Buffer,
-  rootDir: string,
-): string {
-  return archiveIdentity(
-    {
-      rootDir,
-      provider: manifest.provider,
-      dataset: manifest.dataset,
-      sourceUrl: manifest.sourceUrl,
-      license: manifest.license,
-      parserVersion: manifest.parserVersion,
-      content,
-      retrievedAt: manifest.retrievedAt,
-      knownAt: manifest.knownAt,
-      knownAtBasis: manifest.knownAtBasis,
-      sourceVersionKnownAt: manifest.sourceVersionKnownAt,
-      knownAtProofRef: manifest.knownAtProofRef,
-      sourceLastModified: manifest.sourceLastModified,
-      etag: manifest.etag,
-    },
-    content,
-  );
-}
-
 /**
  * Re-read a persisted raw-source archive and prove that its on-disk bytes,
- * manifest, content/metadata address, archiveRef, and filesystem location still
- * agree with the archived snapshot object presented by the caller.
+ * manifest, archiveRef, and filesystem location still agree with the archived
+ * snapshot object presented by the caller.
  *
- * This is deliberately stronger than verifying an in-memory manifest digest.
- * Downstream certification receipts that claim an immutable archive witness
- * should use this boundary immediately before minting the receipt.
+ * Note that archive directory identities were historically computed from the
+ * pre-normalized capture input. The manifest intentionally does not preserve
+ * whether fields such as `knownAt` were omitted before normalization, so this
+ * verifier does not pretend it can reconstruct that original metadata hash.
+ * Instead it strictly verifies persisted content against the stored manifest,
+ * requires the stored manifest to equal the supplied snapshot, and binds the
+ * archiveRef identity to the actual filesystem location.
  */
 export async function verifyCCFArchivedSourceSnapshot(
   snapshot: CCFArchivedSourceSnapshot,
@@ -178,19 +156,13 @@ export async function verifyCCFArchivedSourceSnapshot(
   const [, providerSegment, datasetSegment, refIdentity] = match;
   const expectedProviderSegment = safeSegment("provider", storedManifest.provider);
   const expectedDatasetSegment = safeSegment("dataset", storedManifest.dataset);
-  const recomputedIdentity = archiveIdentityFromStoredManifest(
-    storedManifest,
-    storedContent,
-    path.dirname(path.dirname(path.dirname(archiveDir))),
-  );
 
   if (
     providerSegment !== expectedProviderSegment ||
-    datasetSegment !== expectedDatasetSegment ||
-    refIdentity !== recomputedIdentity
+    datasetSegment !== expectedDatasetSegment
   ) {
     throw new CCFRawSourceArchiveError(
-      "archiveRef does not match persisted archive metadata and content",
+      "archiveRef provider/dataset does not match persisted manifest",
     );
   }
   if (
