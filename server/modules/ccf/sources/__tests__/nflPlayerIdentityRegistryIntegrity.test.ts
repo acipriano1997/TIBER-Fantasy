@@ -2,6 +2,7 @@ import fs from "fs/promises";
 import os from "os";
 import path from "path";
 import {
+  buildCCFNFLPlayerIdentityLinkageReceiptFromArchivedSnapshot,
   buildCCFNFLPlayerIdentityLinkageReceiptFromSnapshot,
   materializeCCFNFLPlayerIdentityRegistrySnapshot,
 } from "../nflPlayerIdentityRegistrySnapshot";
@@ -76,6 +77,61 @@ describe("NFL player identity registry archive integrity", () => {
         "2026-09-16T18:01:00Z",
       ),
     ).toThrow(/rows do not match immutable archived content/);
+  });
+
+  it("refuses the operator-safe receipt path after persisted archive bytes are tampered", async () => {
+    const snapshot = await materializeCCFNFLPlayerIdentityRegistrySnapshot({
+      archiveRootDir,
+      capturedAt: "2026-09-16T18:00:00Z",
+      sourceRows: [
+        {
+          canonicalId: "legacy-canonical-1",
+          tiberPlayerId: "tbr_p_01JTEST0000000000000000001",
+          gsisId: "00-0039991",
+          mergedInto: null,
+        },
+      ],
+    });
+
+    await fs.writeFile(snapshot.archive.contentPath, "tampered persisted bytes", "utf8");
+
+    await expect(
+      buildCCFNFLPlayerIdentityLinkageReceiptFromArchivedSnapshot(
+        snapshot,
+        "2026-09-16T18:01:00Z",
+      ),
+    ).rejects.toThrow(/archive content failed stored-manifest verification/);
+  });
+
+  it("refuses the operator-safe receipt path after persisted archive manifest tampering", async () => {
+    const snapshot = await materializeCCFNFLPlayerIdentityRegistrySnapshot({
+      archiveRootDir,
+      capturedAt: "2026-09-16T18:00:00Z",
+      sourceRows: [
+        {
+          canonicalId: "legacy-canonical-1",
+          tiberPlayerId: "tbr_p_01JTEST0000000000000000001",
+          gsisId: "00-0039991",
+          mergedInto: null,
+        },
+      ],
+    });
+    const storedManifest = JSON.parse(
+      await fs.readFile(snapshot.archive.manifestPath, "utf8"),
+    ) as Record<string, unknown>;
+    storedManifest.parserVersion = "forged-parser-v999";
+    await fs.writeFile(
+      snapshot.archive.manifestPath,
+      `${JSON.stringify(storedManifest, null, 2)}\n`,
+      "utf8",
+    );
+
+    await expect(
+      buildCCFNFLPlayerIdentityLinkageReceiptFromArchivedSnapshot(
+        snapshot,
+        "2026-09-16T18:01:00Z",
+      ),
+    ).rejects.toThrow(/stored manifest differs from supplied snapshot/);
   });
 
   it("refuses forged resolution counts even when row bytes are unchanged", async () => {
