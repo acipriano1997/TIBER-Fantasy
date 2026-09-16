@@ -114,9 +114,6 @@ export function evaluateWitnessV0(
       [observation.observationState === 'CONTRADICTED' ? 'source_conflict_preserved' : 'missing_evidence_is_not_negative_evidence'],
     );
   }
-  if (witness.coverageRequirement === 'COMPLETE_REQUIRED' && observation.coverageState !== 'COMPLETE') {
-    return indeterminateResult(observation, witness, 'INDETERMINATE', ['required_coverage_incomplete']);
-  }
 
   let effectKey: 'observedPresent' | 'observedAbsent';
   if (observation.observationState === 'OBSERVED_PRESENT') {
@@ -126,9 +123,17 @@ export function evaluateWitnessV0(
       && observation.windowState === 'CLOSED'
       && observation.coverageState === 'COMPLETE';
     if (!absenceObservable) {
-      return indeterminateResult(observation, witness, 'INDETERMINATE', ['observed_absence_not_admissible']);
+      const reasons = ['observed_absence_not_admissible'];
+      if (witness.coverageRequirement === 'COMPLETE_REQUIRED' && observation.coverageState !== 'COMPLETE') {
+        reasons.push('required_coverage_incomplete');
+      }
+      return indeterminateResult(observation, witness, 'INDETERMINATE', reasons);
     }
     effectKey = 'observedAbsent';
+  }
+
+  if (witness.coverageRequirement === 'COMPLETE_REQUIRED' && observation.coverageState !== 'COMPLETE') {
+    return indeterminateResult(observation, witness, 'INDETERMINATE', ['required_coverage_incomplete']);
   }
 
   return {
@@ -327,7 +332,10 @@ export function classifySharedAttentionV0(
     return { attention: 'ELEVATED', reasonCodes: distinct(reasons), nextUnresolvedWindow, loadBearingUnknownCount: loadBearing.length };
   }
 
-  if (!active || (definition.classification.persistenceClass === 'slow' && (nextUnresolvedWindow === 'MULTI_GAME' || nextUnresolvedWindow === 'OPEN'))) {
+  const slowPersistenceWaiting = definition.classification.persistenceClass === 'slow'
+    && resolution.resolutionState !== 'RESOLVED'
+    && (nextUnresolvedWindow === null || nextUnresolvedWindow === 'MULTI_GAME' || nextUnresolvedWindow === 'OPEN');
+  if (!active || slowPersistenceWaiting) {
     if (definition.classification.persistenceClass === 'slow') reasons.push('slow_persistence_no_near_witness');
     return { attention: 'BACKGROUND', reasonCodes: distinct(reasons), nextUnresolvedWindow, loadBearingUnknownCount: loadBearing.length };
   }
