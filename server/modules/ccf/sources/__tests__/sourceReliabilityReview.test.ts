@@ -8,6 +8,18 @@ import {
   type CCFSourceReliabilityPolicy,
 } from "../sourceReliabilityReview";
 
+const PARSER_VERSION = "ccf-nflverse-injuries-candidate-v2";
+const IDENTITY_BINDING_REF = "ccf://identity/gsis-player-v1";
+const CRITICAL_FIELD_POLICY_REF = "ccf://policy/injury-critical-fields-v1";
+const CORRECTION_POLICY_REF = "ccf://policy/injury-corrections-v1";
+const CHECKPOINT_POLICY_REF = "ccf://policy/injury-checkpoints-v1";
+const PROCESSING_REFS = [
+  IDENTITY_BINDING_REF,
+  CRITICAL_FIELD_POLICY_REF,
+  CORRECTION_POLICY_REF,
+  CHECKPOINT_POLICY_REF,
+];
+
 function policy(
   overrides: Partial<CCFSourceReliabilityPolicy> = {},
 ): CCFSourceReliabilityPolicy {
@@ -18,6 +30,11 @@ function policy(
     producer: "nflverse",
     intendedUse: "ffcc_native_weekly_recommendation",
     frozenAt: "2026-09-16T10:00:00Z",
+    parserVersion: PARSER_VERSION,
+    identityBindingRef: IDENTITY_BINDING_REF,
+    criticalFieldPolicyRef: CRITICAL_FIELD_POLICY_REF,
+    correctionPolicyRef: CORRECTION_POLICY_REF,
+    checkpointPolicyRef: CHECKPOINT_POLICY_REF,
     checkpoints: [
       { checkpointId: "week-2-wed", scheduledFor: "2026-09-16T16:00:00Z" },
       { checkpointId: "week-2-thu", scheduledFor: "2026-09-17T16:00:00Z" },
@@ -54,6 +71,7 @@ function observation(
     scheduledFor,
     capturedAt,
     captureStatus: "success",
+    parserVersion: PARSER_VERSION,
     archiveRef,
     contentSha256: "a".repeat(64),
     schemaStatus: "valid",
@@ -64,7 +82,7 @@ function observation(
     criticalFieldMissingCount: 0,
     duplicateKeyCount: 0,
     correctionStatus: "none",
-    evidenceRefs: [archiveRef, `ccf://parser/${suffix}`],
+    evidenceRefs: [archiveRef, ...PROCESSING_REFS],
     notes: [],
     ...overrides,
   };
@@ -115,6 +133,18 @@ describe("CCF source reliability review", () => {
         policy({ frozenAt: "2026-09-16T16:00:01Z" }),
       ),
     ).toThrow(/frozen before the first observation checkpoint/);
+  });
+
+  it("requires the reliability policy to freeze the processing identities", () => {
+    expect(() => validateCCFSourceReliabilityPolicy(policy({ parserVersion: "" }))).toThrow(
+      /parserVersion is required/,
+    );
+    expect(() =>
+      validateCCFSourceReliabilityPolicy(policy({ identityBindingRef: "" })),
+    ).toThrow(/identityBindingRef is required/);
+    expect(() =>
+      validateCCFSourceReliabilityPolicy(policy({ correctionPolicyRef: "" })),
+    ).toThrow(/correctionPolicyRef is required/);
   });
 
   it("keeps a review incomplete before the final frozen checkpoint", () => {
@@ -195,6 +225,7 @@ describe("CCF source reliability review", () => {
       frozen.checkpoints[1].scheduledFor,
       {
         captureStatus: "failure",
+        parserVersion: null,
         archiveRef: null,
         contentSha256: null,
         schemaStatus: "not_evaluated",
@@ -218,7 +249,7 @@ describe("CCF source reliability review", () => {
     expect(review.blockers).toContain("capture_success_rate_below_threshold");
   });
 
-  it("rejects source identity drift, unknown checkpoints, and duplicate checkpoint observations", () => {
+  it("rejects source identity drift, unknown checkpoints, duplicate checkpoint observations, and future observations", () => {
     const frozen = policy();
     const first = passingObservations()[0];
 
@@ -245,15 +276,43 @@ describe("CCF source reliability review", () => {
         "2026-09-18T17:00:00Z",
       ),
     ).toThrow(/multiple observations claim checkpoint/);
+
+    expect(() =>
+      evaluateCCFSourceReliabilityReview(
+        frozen,
+        [{ ...first, capturedAt: "2026-09-19T00:00:00Z" }],
+        "2026-09-18T17:00:00Z",
+      ),
+    ).toThrow(/captured after reviewedAt/);
   });
 
-  it("requires successful observations to carry the immutable archive witness", () => {
+  it("rejects parser drift and missing frozen processing evidence", () => {
     const frozen = policy();
+    const first = passingObservations()[0];
+
+    expect(() =>
+      evaluateCCFSourceReliabilityReview(
+        frozen,
+        [{ ...first, parserVersion: "different-parser" }],
+        "2026-09-18T17:00:00Z",
+      ),
+    ).toThrow(/parserVersion does not match frozen policy/);
+
+    expect(() =>
+      evaluateCCFSourceReliabilityReview(
+        frozen,
+        [{ ...first, evidenceRefs: first.evidenceRefs.filter((ref) => ref !== IDENTITY_BINDING_REF) }],
+        "2026-09-18T17:00:00Z",
+      ),
+    ).toThrow(/missing frozen processing evidence/);
+  });
+
+  it("requires successful observations to carry the immutable archive witness and valid digest", () => {
     const first = passingObservations()[0];
     expect(() =>
       validateCCFSourceReliabilityObservation({
         ...first,
-        evidenceRefs: ["ccf://some-other-evidence"],
+        evidenceRefs: PROCESSING_REFS,
       }),
     ).toThrow(/must include archiveRef/);
 
@@ -263,6 +322,13 @@ describe("CCF source reliability review", () => {
         archiveRef: null,
       }),
     ).toThrow(/require archiveRef and contentSha256/);
+
+    expect(() =>
+      validateCCFSourceReliabilityObservation({
+        ...first,
+        contentSha256: "not-a-digest",
+      }),
+    ).toThrow(/64-character hex digest/);
   });
 
   it("fingerprints equivalent policy and observation ordering deterministically", () => {
