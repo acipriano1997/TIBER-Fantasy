@@ -71,6 +71,7 @@ jobs:
           server/modules/ccf/independence/__tests__/allTiberCapabilityMigration.test.ts
           server/modules/ccf/independence/__tests__/releaseChecklist.test.ts
           server/modules/ccf/independence/__tests__/certifyNativeOutcome.test.ts
+          server/modules/ccf/independence/__tests__/personalBetaReadiness.test.ts
           server/modules/ccf/certification/__tests__/chronologicalSplit.test.ts
           server/modules/ccf/certification/__tests__/rollingBacktest.test.ts
           server/modules/ccf/certification/__tests__/simpleBenchmarks.test.ts
@@ -96,6 +97,8 @@ jobs:
           server/modules/ccf/sources/__tests__/rawSourceArchive.test.ts
           server/modules/ccf/sources/__tests__/sourceState.test.ts
           server/modules/ccf/sources/__tests__/transactionalArtifactPromotion.test.ts
+          server/modules/ccf/sources/__tests__/weeklySourceSpine.test.ts
+          server/modules/ccf/sources/__tests__/devyIdentityLinkage.test.ts
           server/modules/ccf/weather/__tests__/weatherEvidence.test.ts
           server/modules/ccf/injury/__tests__/injuryRecoveryEvidence.test.ts
           server/modules/ccf/injury/__tests__/injurySourceAndValidation.test.ts
