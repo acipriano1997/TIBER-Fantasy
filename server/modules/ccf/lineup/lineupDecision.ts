@@ -16,6 +16,7 @@ export type CCFLineupPosture =
   | "chase_spike";
 
 export type CCFLineupAvailability = "eligible" | "ineligible" | "unknown";
+export type CCFLineupLockState = "locked" | "unlocked" | "unknown";
 
 export interface CCFLineupSlot {
   slotId: string;
@@ -30,7 +31,9 @@ export interface CCFLineupRosterPlayer {
   identityStatus: "canonical" | "resolved" | "unresolved";
   availability: CCFLineupAvailability;
   byeWeek: number | null;
+  byeWeekKnown: boolean;
   observedStarterSlotId: string | null;
+  lockState: CCFLineupLockState;
   lockAt: string | null;
 }
 
@@ -432,10 +435,17 @@ function inspectStructure(input: CCFLineupDecisionInput): {
     playerById.set(player.playerId, player);
     if (player.identityStatus === "unresolved") missingInputs.push(`${player.playerId}:canonical_identity`);
     if (player.availability === "unknown") missingInputs.push(`${player.playerId}:availability`);
-    if (player.byeWeek !== null && (!Number.isInteger(player.byeWeek) || player.byeWeek < 1 || player.byeWeek > 25)) {
+    if (!player.byeWeekKnown && player.byeWeek !== null) {
+      blockers.push(`${player.playerId}:bye_week_present_while_unknown`);
+    }
+    if (player.byeWeekKnown && player.byeWeek !== null
+        && (!Number.isInteger(player.byeWeek) || player.byeWeek < 1 || player.byeWeek > 25)) {
       blockers.push(`${player.playerId}:invalid_bye_week`);
     }
     if (player.lockAt !== null && !validTimestamp(player.lockAt)) {
+      missingInputs.push(`${player.playerId}:lock_at`);
+    }
+    if (player.lockState === "locked" && player.lockAt === null) {
       missingInputs.push(`${player.playerId}:lock_at`);
     }
     if (player.observedStarterSlotId && !slotIds.has(player.observedStarterSlotId)) {
@@ -455,18 +465,17 @@ function inspectStructure(input: CCFLineupDecisionInput): {
     }
     if (!slot.eligiblePositions.includes(player.position)) blockers.push(`${slot.slotId}:locked_player_ineligible_position`);
     if (player.observedStarterSlotId !== slot.slotId) blockers.push(`${slot.slotId}:locked_player_not_observed_in_slot`);
-    if (player.byeWeek === input.week) blockers.push(`${slot.slotId}:locked_player_on_bye`);
+    if (player.availability !== "eligible") blockers.push(`${slot.slotId}:locked_player_not_eligible`);
+    if (!player.byeWeekKnown) missingInputs.push(`${player.playerId}:bye_week_state`);
+    if (player.byeWeekKnown && player.byeWeek === input.week) blockers.push(`${slot.slotId}:locked_player_on_bye`);
+    if (player.lockState !== "locked") blockers.push(`${slot.slotId}:locked_player_state_${player.lockState}`);
   }
 
-  if (validTimestamp(input.asOf)) {
-    const asOfMs = Date.parse(input.asOf);
-    for (const player of input.roster) {
-      if (!player.observedStarterSlotId || !validTimestamp(player.lockAt)) continue;
-      if (Date.parse(player.lockAt) > asOfMs) continue;
-      const slot = input.slots.find((candidate) => candidate.slotId === player.observedStarterSlotId);
-      if (!slot || slot.lockedPlayerId !== player.playerId) {
-        blockers.push(`${player.playerId}:elapsed_lock_not_bound_to_observed_slot`);
-      }
+  for (const player of input.roster) {
+    if (player.lockState !== "locked" || !player.observedStarterSlotId) continue;
+    const slot = input.slots.find((candidate) => candidate.slotId === player.observedStarterSlotId);
+    if (!slot || slot.lockedPlayerId !== player.playerId) {
+      blockers.push(`${player.playerId}:locked_starter_not_bound_to_observed_slot`);
     }
   }
 
@@ -529,6 +538,10 @@ function inspectOutcomeEnvelope(args: {
  * spike-seeking postures require a governed joint-lineup outcome distribution;
  * summing marginal player P25/P90 values would falsely label a policy score as
  * a lineup quantile, so those postures fail closed until that producer exists.
+ *
+ * Bye and lock truth are explicit. Unknown bye/lock state blocks any otherwise
+ * playable alternative; locked bench players are not insertable; locked
+ * observed starters must remain bound to their exact frozen slot.
  *
  * This function never writes a lineup. Human action authority is invariant.
  */
@@ -600,17 +613,43 @@ export function evaluateCCFCompleteLegalLineup(
     input.slots.map((slot) => slot.lockedPlayerId).filter((playerId): playerId is string => Boolean(playerId)),
   );
   const candidates: SolverCandidate[] = [];
+  const stateGaps: string[] = [];
   const outcomeGaps: string[] = [];
 
   for (const player of input.roster) {
-    const locked = lockedPlayerIds.has(player.playerId);
-    const onBye = player.byeWeek === input.week;
-    const selectable = locked || (player.availability === "eligible" && !onBye);
-    if (!selectable) continue;
+    if (player.availability === "ineligible") continue;
+    if (player.availability === "unknown") {
+      stateGaps.push(`${player.playerId}:availability`);
+      continue;
+    }
+    if (!player.byeWeekKnown) {
+      stateGaps.push(`${player.playerId}:bye_week_state`);
+      continue;
+    }
+    if (player.byeWeek === input.week) continue;
+    if (player.lockState === "unknown") {
+      stateGaps.push(`${player.playerId}:lock_state`);
+      continue;
+    }
+
+    const lockedStarter = lockedPlayerIds.has(player.playerId);
+    if (player.lockState === "locked" && !lockedStarter) {
+      // A player whose NFL game is already locked cannot be inserted from the bench.
+      continue;
+    }
 
     const envelope = outcomeByPlayerId.get(player.playerId);
     outcomeGaps.push(...inspectOutcomeEnvelope({ input, player, envelope }));
     if (envelope) candidates.push({ player, envelope });
+  }
+
+  if (stateGaps.length) {
+    return withheld(input, "insufficient_evidence", {
+      blockers: [
+        "Bye/availability/lock truth is incomplete for at least one otherwise playable roster alternative.",
+      ],
+      missingInputs: Array.from(new Set(stateGaps)).sort(),
+    });
   }
 
   if (outcomeGaps.length) {

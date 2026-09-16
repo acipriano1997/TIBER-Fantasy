@@ -111,7 +111,9 @@ function rosterPlayer(
     identityStatus: "canonical",
     availability: "eligible",
     byeWeek: null,
+    byeWeekKnown: true,
     observedStarterSlotId: null,
+    lockState: "unlocked",
     lockAt: null,
     ...overrides,
   };
@@ -185,7 +187,9 @@ describe("CCF complete legal lineup decision core", () => {
   it("honors locked observed starters even when an alternative is stronger", () => {
     const input = baseInput();
     input.slots.find((slot) => slot.slotId === "WR:1")!.lockedPlayerId = "wr-a";
-    input.roster.find((player) => player.playerId === "wr-a")!.lockAt = "2026-09-15T19:00:00.000Z";
+    const wrA = input.roster.find((player) => player.playerId === "wr-a")!;
+    wrA.lockState = "locked";
+    wrA.lockAt = "2026-09-15T19:00:00.000Z";
     const wrB = input.outcomes.find((candidate) => candidate.playerId === "wr-b")!.outcome;
     Object.assign(wrB, { meanFpts: 50, medianFpts: 50, p10Fpts: 44, p25Fpts: 47, p75Fpts: 53, p90Fpts: 56 });
 
@@ -195,12 +199,43 @@ describe("CCF complete legal lineup decision core", () => {
     expect(result.assignments?.find((assignment) => assignment.slotId === "WR:1")?.locked).toBe(true);
   });
 
-  it("fails closed if an elapsed starter lock is not bound to its observed slot", () => {
+  it("fails closed if a locked starter is not bound to its observed slot", () => {
     const input = baseInput();
-    input.roster.find((player) => player.playerId === "wr-a")!.lockAt = "2026-09-15T19:00:00.000Z";
+    const wrA = input.roster.find((player) => player.playerId === "wr-a")!;
+    wrA.lockState = "locked";
+    wrA.lockAt = "2026-09-15T19:00:00.000Z";
     const result = evaluateCCFCompleteLegalLineup(input);
     expect(result.status).toBe("insufficient_evidence");
-    expect(result.blockers).toContain("wr-a:elapsed_lock_not_bound_to_observed_slot");
+    expect(result.blockers).toContain("wr-a:locked_starter_not_bound_to_observed_slot");
+  });
+
+  it("excludes locked bench players from legal alternatives", () => {
+    const input = baseInput();
+    const teA = input.roster.find((player) => player.playerId === "te-a")!;
+    teA.lockState = "locked";
+    teA.lockAt = "2026-09-15T19:00:00.000Z";
+    const teOutcome = input.outcomes.find((candidate) => candidate.playerId === "te-a")!.outcome;
+    Object.assign(teOutcome, { meanFpts: 100, medianFpts: 100, p10Fpts: 90, p25Fpts: 95, p75Fpts: 105, p90Fpts: 110 });
+
+    const result = evaluateCCFCompleteLegalLineup(input);
+    expect(result.status).toBe("comparison_available");
+    expect(result.assignments?.some((assignment) => assignment.playerId === "te-a")).toBe(false);
+  });
+
+  it("fails closed when a playable player's lock state is unknown", () => {
+    const input = baseInput();
+    input.roster.find((player) => player.playerId === "te-a")!.lockState = "unknown";
+    const result = evaluateCCFCompleteLegalLineup(input);
+    expect(result.status).toBe("insufficient_evidence");
+    expect(result.missingInputs).toContain("te-a:lock_state");
+  });
+
+  it("fails closed when a playable player's bye state is unknown", () => {
+    const input = baseInput();
+    input.roster.find((player) => player.playerId === "te-a")!.byeWeekKnown = false;
+    const result = evaluateCCFCompleteLegalLineup(input);
+    expect(result.status).toBe("insufficient_evidence");
+    expect(result.missingInputs).toContain("te-a:bye_week_state");
   });
 
   it("excludes bye-week and explicitly ineligible alternatives", () => {
