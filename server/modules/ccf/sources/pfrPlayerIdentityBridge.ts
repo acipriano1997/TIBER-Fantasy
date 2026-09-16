@@ -151,7 +151,7 @@ export function auditCCFPFRPlayerIdentityBridge(
   let crosswalkValid = true;
   try {
     validateCrosswalkSnapshot(crosswalk);
-    crosswalkArchiveRef = crosswalk.archive.manifest.archiveRef;
+    crosswalkArchiveRef = crosswalk.archive.manifest.archiveRef ?? null;
   } catch (error) {
     crosswalkValid = false;
     blockers.add(`invalid_crosswalk:${error instanceof Error ? error.message : "unknown"}`);
