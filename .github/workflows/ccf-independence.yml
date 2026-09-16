@@ -102,6 +102,8 @@ jobs:
           server/modules/ccf/sources/__tests__/nflverseRecoveryCandidates.test.ts
           server/modules/ccf/sources/__tests__/nflverseSnapCounts.test.ts
           server/modules/ccf/sources/__tests__/archivedNflverseSnapCounts.test.ts
+          server/modules/ccf/sources/__tests__/nflverseSnapCountsReliability.test.ts
+          server/modules/ccf/sources/__tests__/nflverseSnapCountsCertificationPolicy.test.ts
           server/modules/ccf/sources/__tests__/archivedNflverseSchedule.test.ts
           server/modules/ccf/sources/__tests__/nflverseScheduleIdentity.test.ts
           server/modules/ccf/sources/__tests__/nflverseScheduleReliability.test.ts
