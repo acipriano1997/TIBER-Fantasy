@@ -65,5 +65,6 @@ jobs:
           server/modules/uncertaintyRegistry/__tests__/canonicalization.test.ts
           server/modules/uncertaintyRegistry/__tests__/policy.test.ts
           server/modules/uncertaintyRegistry/__tests__/conformance.test.ts
+          server/modules/uncertaintyRegistry/__tests__/independentReview.test.ts
       - name: Build application
         run: sh build.sh
