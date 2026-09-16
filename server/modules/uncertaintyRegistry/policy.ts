@@ -1,5 +1,4 @@
 export {
-  classifySituationResolutionV0,
   evaluateWitnessV0,
   isSituationEvidenceEligibleAtV0,
   shouldReevaluateSituationV0,
@@ -12,4 +11,5 @@ export type {
   SharedAttentionAssessmentV0,
   StateSupportAssessmentV0,
 } from './policyCore';
+export { classifySituationResolutionV0 } from './resolutionPolicy';
 export { classifySharedAttentionV0 } from './attentionPolicy';
