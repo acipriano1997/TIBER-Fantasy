@@ -2,7 +2,6 @@ export {
   evaluateWitnessV0,
   isSituationEvidenceEligibleAtV0,
   shouldReevaluateSituationV0,
-  validateScenarioBranchBindingV0,
 } from './policyCore';
 export type {
   ReevaluationDecisionV0,
@@ -13,3 +12,4 @@ export type {
 } from './policyCore';
 export { classifySituationResolutionV0 } from './resolutionPolicy';
 export { classifySharedAttentionV0 } from './attentionPolicy';
+export { validateScenarioBranchBindingV0 } from './scenarioPolicy';
