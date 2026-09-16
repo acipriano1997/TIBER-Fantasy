@@ -71,7 +71,25 @@ function certifiedRecord(): CCFBacktestProgressRecord {
     },
     metrics: { ...EMPTY_CCF_BACKTEST_METRICS, mae: 3, rmse: 4 },
     simpleBaselineMetrics: { ...EMPTY_CCF_BACKTEST_METRICS, mae: 4, rmse: 5 },
-    evidenceRefs: ["synthetic://certification"],
+    certificationBinding: {
+      receiptFingerprint: "synthetic-receipt",
+      protocolFingerprint: "synthetic-protocol-fingerprint",
+      candidateArtifactFingerprint: "synthetic-candidate",
+      nativeBaselineFingerprint: "synthetic-baseline",
+      calibrationArtifactFingerprint: "synthetic-calibration",
+      sourcePlanFingerprint: "synthetic-source-plan",
+      featureSetFingerprint: "synthetic-feature-set",
+      decisionPolicyFingerprint: "synthetic-decision-policy",
+      finalHoldoutAccessCount: 1,
+    },
+    evidenceRefs: [
+      "ccf-predictive-receipt:synthetic-receipt",
+      "ccf-predictive-protocol:synthetic-protocol-fingerprint",
+      "ccf-candidate:synthetic-candidate",
+      "ccf-native-baseline:synthetic-baseline",
+      "ccf-calibration:synthetic-calibration",
+      "synthetic://certification",
+    ],
   };
 }
 
@@ -272,6 +290,7 @@ describe("CCF universal recommendation authority graph", () => {
       { ...record, modelVersion: "another-model" }, { ...record, calibrationVersion: "another-calibration" },
       { ...record, recordedAt: "2026-09-14T12:00:00Z" }, { ...record, evidenceRefs: [] },
       { ...record, simpleBaselineMetrics: null }, { ...record, metrics: { ...record.metrics, mae: null } },
+      { ...record, certificationBinding: null },
       { ...record, comparisonIdentity: { ...record.comparisonIdentity, scoringProfileHash: "another-score" } },
       { ...record, comparisonIdentity: { ...record.comparisonIdentity, supportedPopulation: "another-population" } },
       { ...record, comparisonIdentity: { ...record.comparisonIdentity, datasetFingerprint: null } },
