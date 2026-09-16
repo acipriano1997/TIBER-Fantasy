@@ -5,3 +5,4 @@ export * from './devyRightsSnapshot';
 export * from './leagueContextV1';
 export * from './decisionPacketLeagueContext';
 export * from './weeklyDecisionBinding';
+export * from './ccfLineupLeagueAdapter';
