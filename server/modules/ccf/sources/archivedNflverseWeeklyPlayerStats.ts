@@ -13,7 +13,7 @@ import {
 
 const NFLVERSE_DATA_LICENSE =
   "https://github.com/nflverse/nflverse-data/blob/main/LICENSE.md (CC BY 4.0 repository license; intended-use rights remain separately governed)";
-const PLAYER_STATS_PARSER_VERSION = "ccf-nflverse-player-stats-v1";
+const PLAYER_STATS_PARSER_VERSION = "ccf-nflverse-player-stats-v2";
 
 export interface CCFArchivedNflverseWeeklyPlayerStatsOptions
   extends CCFNflverseWeeklyPlayerStatsOptions {

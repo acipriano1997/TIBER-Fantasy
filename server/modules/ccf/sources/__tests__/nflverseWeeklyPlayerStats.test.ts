@@ -5,7 +5,7 @@ import {
   parseNflverseWeeklyPlayerStatsCsv,
 } from "../nflverseWeeklyPlayerStats";
 
-const HEADER = [
+const HEADER_FIELDS = [
   "player_id",
   "player_display_name",
   "position",
@@ -41,11 +41,18 @@ const HEADER = [
   "receiving_first_downs",
   "receiving_epa",
   "receiving_2pt_conversions",
+  "fumbles_lost_total",
+  "special_teams_tds",
   "fantasy_points",
   "fantasy_points_ppr",
-].join(",");
+] as const;
 
-const WR_ROW = [
+const HEADER = HEADER_FIELDS.join(",");
+const FIELD_INDEX = Object.fromEntries(
+  HEADER_FIELDS.map((field, index) => [field, index]),
+) as Record<(typeof HEADER_FIELDS)[number], number>;
+
+const WR_VALUES = [
   "00-0000001",
   "Fixture Receiver",
   "WR",
@@ -81,14 +88,25 @@ const WR_ROW = [
   "5",
   "4.2",
   "0",
+  "0",
+  "0",
   "15.1",
   "22.1",
-].join(",");
+];
 
-const POST_ROW = WR_ROW.replace(",REG,", ",POST,").replace(",1,REG,", ",2,POST,");
+function rowWith(
+  overrides: Partial<Record<(typeof HEADER_FIELDS)[number], string>> = {},
+): string {
+  const values = [...WR_VALUES];
+  for (const [field, value] of Object.entries(overrides)) {
+    values[FIELD_INDEX[field as (typeof HEADER_FIELDS)[number]]] = value!;
+  }
+  return values.join(",");
+}
 
-const DEF_ROW = WR_ROW.replace(",WR,", ",LB,").replace("00-0000001", "00-0000002");
-
+const WR_ROW = rowWith();
+const POST_ROW = rowWith({ season_type: "POST", week: "2" });
+const DEF_ROW = rowWith({ player_id: "00-0000002", position: "LB" });
 const CSV = `${HEADER}\n${WR_ROW}\n${POST_ROW}\n${DEF_ROW}\n`;
 
 describe("nflverse weekly player stats source", () => {
@@ -117,13 +135,40 @@ describe("nflverse weekly player stats source", () => {
       receivingTouchdowns: 1,
       receivingAirYards: 114,
       receivingEpa: 4.2,
+      fumblesLostTotal: 0,
+      specialTeamsTouchdowns: 0,
       fantasyPointsPpr: 22.1,
     });
     expect(rows[0].passingCpoe).toBeNull();
   });
 
+  it("preserves provider aggregate fumbles lost and special-teams touchdowns", () => {
+    const scoringRow = rowWith({
+      fumbles_lost_total: "2",
+      special_teams_tds: "1",
+    });
+    const rows = parseNflverseWeeklyPlayerStatsCsv(`${HEADER}\n${scoringRow}\n`, {
+      season: 2026,
+      week: 1,
+    });
+
+    expect(rows[0].fumblesLostTotal).toBe(2);
+    expect(rows[0].specialTeamsTouchdowns).toBe(1);
+  });
+
+  it("fails closed when an official core count is blank instead of coercing it to zero", () => {
+    const missingPassingTouchdowns = rowWith({ passing_tds: "" });
+
+    expect(() =>
+      parseNflverseWeeklyPlayerStatsCsv(
+        `${HEADER}\n${missingPassingTouchdowns}\n`,
+        { season: 2026, week: 1 },
+      ),
+    ).toThrow(/required numeric field passing_tds is missing/);
+  });
+
   it("fails closed when the upstream schema loses a required field", () => {
-    const broken = CSV.replace("targets,", "targets_removed,");
+    const broken = CSV.replace("fumbles_lost_total,", "fumbles_lost_total_removed,");
 
     expect(() =>
       parseNflverseWeeklyPlayerStatsCsv(broken, { season: 2026, week: 1 }),
