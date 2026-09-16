@@ -11,8 +11,8 @@ import {
 } from "./rawSourceArchive";
 
 const SCHEDULE_PARSER_VERSION = "ccf-nflverse-schedule-candidate-v1";
-const NFLDATA_PERMISSION_STATE =
-  "UNREVIEWED: nflverse/nfldata intended-use and redistribution rights require separate operator review";
+const NFLVERSE_DATA_LICENSE =
+  "https://github.com/nflverse/nflverse-data/blob/main/LICENSE.md (CC BY 4.0 repository license; intended-use promotion separately unreviewed)";
 
 export interface CCFArchivedNflverseScheduleOptions extends CCFNflverseScheduleOptions {
   archiveRootDir: string;
@@ -39,8 +39,9 @@ export interface CCFArchivedNflverseScheduleSnapshot {
  * always the CCF retrieval time. A changed kickoff is therefore only knowable
  * from a later archived snapshot; Last-Modified never backdates a correction.
  *
- * This adapter is not a production source promotion. Permission, prospective
- * reliability and operator attestation remain separate weekly-source gates.
+ * The release asset carries the nflverse-data repository's CC BY 4.0 license,
+ * but this adapter is not a production source promotion. Intended-use review,
+ * prospective reliability and operator attestation remain separate gates.
  */
 export async function fetchAndArchiveNflverseSchedule(
   options: CCFArchivedNflverseScheduleOptions,
@@ -85,9 +86,9 @@ export async function fetchAndArchiveNflverseSchedule(
   const archive = await archiveCCFSourceSnapshot({
     rootDir: options.archiveRootDir,
     provider: "nflverse",
-    dataset: "nfldata_games",
+    dataset: "schedules",
     sourceUrl,
-    license: NFLDATA_PERMISSION_STATE,
+    license: NFLVERSE_DATA_LICENSE,
     parserVersion: SCHEDULE_PARSER_VERSION,
     content: csv,
     retrievedAt,
