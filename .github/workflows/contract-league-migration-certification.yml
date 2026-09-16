@@ -4,8 +4,11 @@ on:
   pull_request:
     paths:
       - 'shared/contractLeagueSchema.ts'
-      - 'drizzle.config.ts'
-      - 'migrations/**'
+      - 'drizzle.contract-leagues.config.ts'
+      - 'migrations/contract-leagues/**'
+      - 'server/modules/contractLeagues/persistence.ts'
+      - 'server/modules/contractLeagues/persistenceContract.ts'
+      - 'server/scripts/contractLeaguePersistenceSmoke.ts'
       - '.github/workflows/contract-league-migration-certification.yml'
   workflow_dispatch:
 
@@ -17,10 +20,28 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  migration-drift:
-    name: Drizzle migration drift
+  migration-and-persistence:
+    name: Drizzle migration + PostgreSQL persistence
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ffcc_contract
+          POSTGRES_PASSWORD: ffcc_contract
+          POSTGRES_DB: ffcc_contract
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U ffcc_contract -d ffcc_contract"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      DATABASE_URL: postgresql://ffcc_contract:ffcc_contract@127.0.0.1:5432/ffcc_contract
+      DATABASE_SSL: disable
+      NODE_ENV: test
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -31,32 +52,37 @@ jobs:
           cache: npm
       - name: Install locked dependencies
         run: npm ci
-      - name: Generate migration candidate
+      - name: Generate bounded migration candidate
         id: generate
         continue-on-error: true
-        env:
-          DATABASE_URL: postgresql://migration_check:migration_check@127.0.0.1:5432/migration_check
         shell: bash
         run: |
           set -o pipefail
-          npm run db:generate -- --name contract_league_snapshots
-          git status --porcelain migrations > /tmp/contract-league-migration-status.txt
+          npx drizzle-kit generate --config=drizzle.contract-leagues.config.ts --name=contract_league_snapshots
+          mkdir -p /tmp
+          git status --porcelain migrations/contract-leagues > /tmp/contract-league-migration-status.txt
           echo 'Generated migration status:'
           cat /tmp/contract-league-migration-status.txt || true
-      - name: Upload generated migration tree
+      - name: Upload generated contract migration tree
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: contract-league-migration-candidate-${{ github.sha }}
-          path: migrations
+          path: migrations/contract-leagues
           if-no-files-found: error
           retention-days: 7
+      - name: Apply bounded migration to PostgreSQL
+        if: steps.generate.outcome == 'success'
+        run: npx drizzle-kit migrate --config=drizzle.contract-leagues.config.ts
+      - name: Run real persistence smoke
+        if: steps.generate.outcome == 'success'
+        run: npx tsx server/scripts/contractLeaguePersistenceSmoke.ts
       - name: Enforce checked-in migration parity
         if: always()
         shell: bash
         run: |
           if [ "${{ steps.generate.outcome }}" != "success" ]; then
-            echo '::error::Drizzle migration generation failed.'
+            echo '::error::Contract-league Drizzle migration generation failed.'
             exit 1
           fi
           if [ -s /tmp/contract-league-migration-status.txt ]; then
@@ -64,4 +90,4 @@ jobs:
             cat /tmp/contract-league-migration-status.txt
             exit 1
           fi
-          echo 'Contract-league schema and checked-in Drizzle migrations are in parity.'
+          echo 'Contract-league schema, checked-in migration history, and PostgreSQL persistence smoke are certified.'
