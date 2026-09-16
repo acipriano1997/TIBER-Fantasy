@@ -119,6 +119,8 @@ export function evaluateCCFCompleteLineupRuntime(
   const leagueBinding = bindUnifiedLeagueContextToCCFLineup(input.leagueContext);
   const blockers: string[] = [...leagueBinding.blockers];
   const missingInputs: string[] = [];
+  const scoringFingerprint = leagueBinding.scoringFingerprint;
+  const rosterSlotsFingerprint = leagueBinding.rosterSlotsFingerprint;
 
   if (!input.decisionId.trim()) missingInputs.push('decision_id');
   if (!input.teamRef.trim()) missingInputs.push('team_ref');
@@ -127,10 +129,10 @@ export function evaluateCCFCompleteLineupRuntime(
   if (!input.rosterSnapshotFingerprint.trim()) missingInputs.push('roster_snapshot_fingerprint');
   if (input.leagueContext.identity.season < 2000) blockers.push('active_league_season_invalid');
 
-  if (!leagueBinding.ready || !leagueBinding.scoringFingerprint || !leagueBinding.rosterSlotsFingerprint) {
+  if (!leagueBinding.ready || !scoringFingerprint || !rosterSlotsFingerprint) {
     missingInputs.push('certified_ccf_lineup_league_binding');
   }
-  if (blockers.length || missingInputs.length) {
+  if (blockers.length || missingInputs.length || !scoringFingerprint || !rosterSlotsFingerprint) {
     return blocked(leagueBinding, blockers, missingInputs);
   }
 
@@ -151,7 +153,7 @@ export function evaluateCCFCompleteLineupRuntime(
     season: input.leagueContext.identity.season,
     week: input.week,
     asOf: input.asOf,
-    scoringFingerprint: leagueBinding.scoringFingerprint,
+    scoringFingerprint,
     rosterSnapshotFingerprint: input.rosterSnapshotFingerprint,
     posture: input.posture,
     slots: lockBinding.slots,
