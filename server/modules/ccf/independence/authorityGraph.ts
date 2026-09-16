@@ -2,6 +2,7 @@ import crypto from "crypto";
 import { z } from "zod";
 import {
   CCF_BACKTEST_PROGRESS_HISTORY_V1,
+  validateCCFBacktestProgressHistory,
   type CCFBacktestProgressRecord,
 } from "../certification/backtestProgressHistory";
 
@@ -147,16 +148,34 @@ function certifiedModel(
   const matches = history.filter((record) => record.id === identity.certificationRunId);
   if (matches.length !== 1) return false;
   const record = matches[0];
+  try {
+    validateCCFBacktestProgressHistory([record]);
+  } catch {
+    return false;
+  }
+  const binding = record.certificationBinding;
+  if (!binding) return false;
   const comparison = record.comparisonIdentity;
   const nonempty = (value: unknown) => typeof value === "string" && value.trim().length > 0;
   return record.stage === "certified_release" && record.status === "certified"
     && record.modelVersion === identity.modelVersion
     && record.calibrationVersion === identity.calibrationVersion
+    && binding.calibrationArtifactFingerprint === identity.calibrationVersion
+    && binding.finalHoldoutAccessCount === 1
     && Number.isFinite(Date.parse(record.recordedAt))
     && Date.parse(record.recordedAt) <= Date.parse(graph.asOf)
     && comparison.scoringProfileHash === graph.scoringProfileHash
     && comparison.supportedPopulation === graph.supportedPopulation
     && [comparison.protocolVersion, comparison.testWindow, comparison.datasetFingerprint].every(nonempty)
+    && [
+      binding.receiptFingerprint,
+      binding.protocolFingerprint,
+      binding.candidateArtifactFingerprint,
+      binding.nativeBaselineFingerprint,
+      binding.sourcePlanFingerprint,
+      binding.featureSetFingerprint,
+      binding.decisionPolicyFingerprint,
+    ].every(nonempty)
     && record.evidenceRefs.length > 0 && record.evidenceRefs.every(nonempty)
     && (record.tiberRole === "none" || record.tiberRole === "challenger_only")
     && [record.metrics.mae, record.metrics.rmse,
