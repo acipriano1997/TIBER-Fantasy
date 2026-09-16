@@ -3,8 +3,9 @@
  * Prospective CCF NFL identity-registry capture.
  *
  * This command reads the current exact GSIS/TIBER identity columns from
- * `player_identity_map`, archives the observed bytes immutably, and then mints
- * a frozen GSIS -> canonical TIBER linkage receipt from that exact archive.
+ * `player_identity_map`, archives the observed bytes immutably, re-verifies the
+ * persisted archive from disk, and only then mints a frozen GSIS -> canonical
+ * TIBER linkage receipt from that exact archive.
  *
  * It never backdates knowledge to database row timestamps or migrations, never
  * uses player names/teams/positions, and never promotes a source. Credentials
@@ -30,7 +31,9 @@ export interface CCFIdentitySnapshotCommandDeps {
   buildReceipt: (
     snapshot: CCFNFLPlayerIdentityRegistrySnapshot,
     frozenAt: string,
-  ) => CCFNFLPlayerIdentityReceiptFromSnapshot;
+  ) =>
+    | CCFNFLPlayerIdentityReceiptFromSnapshot
+    | Promise<CCFNFLPlayerIdentityReceiptFromSnapshot>;
   now?: () => string;
 }
 
@@ -46,7 +49,7 @@ export async function runCCFIdentitySnapshotCommand(
   try {
     const snapshot = await deps.capture(deps.archiveRootDir);
     const frozenAt = now();
-    const materialized = deps.buildReceipt(snapshot, frozenAt);
+    const materialized = await deps.buildReceipt(snapshot, frozenAt);
     return {
       exitCode: 0,
       output: {
@@ -63,6 +66,7 @@ export async function runCCFIdentitySnapshotCommand(
         linkageReceiptFingerprint: materialized.receiptFingerprint,
         linkageReceiptRef: materialized.receiptRef,
         linkageReceipt: materialized.receipt,
+        persistedArchiveVerified: true,
         productionPromotionAuthorized: false,
       },
     };
@@ -74,6 +78,7 @@ export async function runCCFIdentitySnapshotCommand(
         generatedAt: now(),
         ok: false,
         error: error instanceof Error ? error.message : String(error),
+        persistedArchiveVerified: false,
         productionPromotionAuthorized: false,
       },
     };
@@ -98,16 +103,18 @@ async function main(): Promise<void> {
   // Lazy import: the DB adapter opens the normal application database at module
   // load. Keeping it out of the pure command path makes unit testing possible
   // without DATABASE_URL and keeps credential handling identical to the app.
-  const [{ captureCCFNFLPlayerIdentityRegistry }, { buildCCFNFLPlayerIdentityLinkageReceiptFromSnapshot }] =
-    await Promise.all([
-      import("../modules/ccf/sources/nflPlayerIdentityRegistryDb"),
-      import("../modules/ccf/sources/nflPlayerIdentityRegistrySnapshot"),
-    ]);
+  const [
+    { captureCCFNFLPlayerIdentityRegistry },
+    { buildCCFNFLPlayerIdentityLinkageReceiptFromArchivedSnapshot },
+  ] = await Promise.all([
+    import("../modules/ccf/sources/nflPlayerIdentityRegistryDb"),
+    import("../modules/ccf/sources/nflPlayerIdentityRegistrySnapshot"),
+  ]);
 
   const outcome = await runCCFIdentitySnapshotCommand({
     archiveRootDir,
     capture: (root) => captureCCFNFLPlayerIdentityRegistry({ archiveRootDir: root }),
-    buildReceipt: buildCCFNFLPlayerIdentityLinkageReceiptFromSnapshot,
+    buildReceipt: buildCCFNFLPlayerIdentityLinkageReceiptFromArchivedSnapshot,
   });
 
   process.stdout.write(`${JSON.stringify(outcome.output, null, 2)}\n`);
