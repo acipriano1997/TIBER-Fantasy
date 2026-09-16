@@ -22,6 +22,10 @@ import {
   type CCFDevyIdentityLinkageReceipt,
 } from "../sources/devyIdentityLinkage";
 import {
+  CCF_TRUSTED_SOURCE_PROMOTIONS_V1,
+  type CCFTrustedSourcePromotion,
+} from "../sources/sourcePromotionAttestation";
+import {
   evaluateCCFWeeklySourceSpine,
   type CCFWeeklySourceSpinePlan,
 } from "../sources/weeklySourceSpine";
@@ -140,16 +144,24 @@ function gate(
 function sourceGate(
   plan: CCFWeeklySourceSpinePlan | null,
   asOf: string,
+  trustedSourcePromotions: readonly CCFTrustedSourcePromotion[],
 ): CCFPersonalBetaGateResult {
   if (!plan) {
     return gate("PB-01", "Production-native weekly data spine", "blocked_internal", [
       "weekly_source_spine_missing",
     ]);
   }
-  const audit = evaluateCCFWeeklySourceSpine(plan, asOf);
+  const audit = evaluateCCFWeeklySourceSpine(plan, asOf, trustedSourcePromotions);
   const evidenceRefs = audit.planFingerprint
     ? [`weekly-source-plan:${audit.planFingerprint}`]
     : [];
+  for (const capability of audit.capabilities) {
+    if (capability.promotionAttestationFingerprint) {
+      evidenceRefs.push(
+        `source-promotion:${capability.capability}:${capability.promotionAttestationFingerprint}`,
+      );
+    }
+  }
   return audit.productionReady
     ? gate("PB-01", "Production-native weekly data spine", "pass", [], evidenceRefs)
     : gate(
@@ -186,7 +198,7 @@ function datasetGate(
   if (!plan) {
     blockers.push("weekly_source_spine_missing");
   } else {
-    const sourceAudit = evaluateCCFWeeklySourceSpine(plan, asOf);
+    const sourceAudit = evaluateCCFWeeklySourceSpine(plan, asOf, []);
     if (!sourceAudit.planFingerprint) {
       blockers.push("weekly_source_plan_fingerprint_missing");
     } else {
@@ -444,6 +456,7 @@ function smokeGate(input: CCFPersonalBetaSmokeInput): CCFPersonalBetaGateResult 
 
 export function evaluateCCFPersonalBetaReadiness(
   input: CCFPersonalBetaReadinessInput,
+  trustedSourcePromotions: readonly CCFTrustedSourcePromotion[] = CCF_TRUSTED_SOURCE_PROMOTIONS_V1,
 ): CCFPersonalBetaReadinessResult {
   if (!validTimestamp(input.asOf)) {
     const invalid = gate("PB-01", "Production-native weekly data spine", "blocked_internal", [
@@ -461,7 +474,7 @@ export function evaluateCCFPersonalBetaReadiness(
   }
 
   const gates = [
-    sourceGate(input.weeklySourceSpine, input.asOf),
+    sourceGate(input.weeklySourceSpine, input.asOf, trustedSourcePromotions),
     datasetGate(
       input.weeklySourceSpine,
       input.historicalDataset,
@@ -509,8 +522,11 @@ export function evaluateCCFPersonalBetaReadiness(
   };
 }
 
-export function assertCCFPersonalBetaReady(input: CCFPersonalBetaReadinessInput): void {
-  const result = evaluateCCFPersonalBetaReadiness(input);
+export function assertCCFPersonalBetaReady(
+  input: CCFPersonalBetaReadinessInput,
+  trustedSourcePromotions: readonly CCFTrustedSourcePromotion[] = CCF_TRUSTED_SOURCE_PROMOTIONS_V1,
+): void {
+  const result = evaluateCCFPersonalBetaReadiness(input, trustedSourcePromotions);
   if (!result.ready) {
     throw new Error(
       `CCF personal beta ${result.overallStatus}: ${[
