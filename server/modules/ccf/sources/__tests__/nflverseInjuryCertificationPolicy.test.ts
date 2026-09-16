@@ -1,9 +1,16 @@
+import fs from "fs/promises";
+import os from "os";
+import path from "path";
 import {
   refCCFNFLPlayerIdentityLinkageReceipt,
   type CCFNFLPlayerIdentityLinkageReceipt,
 } from "../nflPlayerIdentityLinkage";
 import {
+  materializeCCFNFLPlayerIdentityRegistrySnapshot,
+} from "../nflPlayerIdentityRegistrySnapshot";
+import {
   createCCFNflverseInjuryCertificationPolicies,
+  createCCFNflverseInjuryCertificationPoliciesFromArchivedIdentitySnapshot,
 } from "../nflverseInjuryCertificationPolicy";
 
 const REGISTRY_SHA = "a".repeat(64);
@@ -55,7 +62,38 @@ const CHECKPOINTS = [
 ];
 
 describe("receipt-bound nflverse injury/practice certification policies", () => {
-  it("creates two deterministic policies only after a prospective registry-backed identity receipt", () => {
+  let archiveRootDir: string;
+
+  beforeEach(async () => {
+    archiveRootDir = await fs.mkdtemp(path.join(os.tmpdir(), "ccf-injury-policy-identity-"));
+  });
+
+  afterEach(async () => {
+    await fs.rm(archiveRootDir, { recursive: true, force: true });
+  });
+
+  async function archivedIdentitySnapshot() {
+    return materializeCCFNFLPlayerIdentityRegistrySnapshot({
+      archiveRootDir,
+      capturedAt: "2026-09-16T18:00:00Z",
+      sourceRows: [
+        {
+          canonicalId: "legacy-canonical-1",
+          tiberPlayerId: "tbr_p_01JTEST0000000000000000001",
+          gsisId: "00-0039991",
+          mergedInto: null,
+        },
+        {
+          canonicalId: "legacy-canonical-2",
+          tiberPlayerId: "tbr_p_01JTEST0000000000000000002",
+          gsisId: "00-0039992",
+          mergedInto: null,
+        },
+      ],
+    });
+  }
+
+  it("creates two deterministic policies from a prospectively shaped receipt in the pure contract helper", () => {
     const receipt = realShapeReceipt();
     const bundle = createCCFNflverseInjuryCertificationPolicies({
       identityReceipt: receipt,
@@ -88,6 +126,42 @@ describe("receipt-bound nflverse injury/practice certification policies", () => 
     );
     expect(bundle.fingerprints.injuryDesignation).toMatch(/^[a-f0-9]{64}$/);
     expect(bundle.fingerprints.practiceParticipation).toMatch(/^[a-f0-9]{64}$/);
+  });
+
+  it("operator-safe policy freeze derives its identity receipt only after persisted archive verification", async () => {
+    const identitySnapshot = await archivedIdentitySnapshot();
+    const bundle =
+      await createCCFNflverseInjuryCertificationPoliciesFromArchivedIdentitySnapshot({
+        identitySnapshot,
+        frozenAt: "2026-09-16T19:00:00Z",
+        checkpoints: CHECKPOINTS,
+      });
+
+    expect(bundle.identityRegistryFingerprint).toBe(
+      identitySnapshot.archive.manifest.contentSha256,
+    );
+    expect(bundle.identityBindingRef).toMatch(
+      /^ccf:\/\/nfl-player-identity\/sha256\/[a-f0-9]{64}$/,
+    );
+    expect(bundle.injuryDesignation.frozenAt).toBe("2026-09-16T19:00:00Z");
+    expect(bundle.practiceParticipation.frozenAt).toBe("2026-09-16T19:00:00Z");
+  });
+
+  it("operator-safe policy freeze rejects identity archive byte tampering instead of trusting a receipt-shaped object", async () => {
+    const identitySnapshot = await archivedIdentitySnapshot();
+    await fs.writeFile(
+      identitySnapshot.archive.contentPath,
+      "tampered identity registry bytes",
+      "utf8",
+    );
+
+    await expect(
+      createCCFNflverseInjuryCertificationPoliciesFromArchivedIdentitySnapshot({
+        identitySnapshot,
+        frozenAt: "2026-09-16T19:00:00Z",
+        checkpoints: CHECKPOINTS,
+      }),
+    ).rejects.toThrow(/archive content failed stored-manifest verification/);
   });
 
   it("rejects an arbitrary structurally valid linkage receipt that lacks immutable registry archive evidence", () => {
