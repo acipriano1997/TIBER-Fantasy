@@ -8,7 +8,15 @@ This module owns the CCF-native complete legal-lineup decision policy. It does n
 
 The core consumes exact league/team/season/week identity, scoring and roster fingerprints, explicit starter-slot geometry, canonical player identity, availability/bye/lock state, CCF-native player outcomes, and the native weekly source-spine audit. Missing, stale, future-known, incompatible, ambiguous, or incomplete load-bearing inputs fail closed.
 
-Every selectable legal roster alternative must have a compatible CCF-native outcome. FLEX and SUPERFLEX are represented by explicit eligible-position sets rather than a special heuristic.
+The weekly source-spine audit must be evaluated at the exact frozen decision `asOf`; a previously-ready audit cannot be replayed into a later decision. Outcome envelopes must bind to players in the frozen roster snapshot, and every selectable legal roster alternative must have a compatible CCF-native outcome.
+
+FLEX and SUPERFLEX are represented by explicit eligible-position sets rather than a special heuristic.
+
+## Active-league position coverage
+
+`positionCoverage.ts` is the fail-closed bridge between resolved league slot semantics and the native outcome universe. The league-context adapter must resolve active starter slots into canonical player-position families and prove all such families are supported before lineup optimization can be certified.
+
+The current native weekly outcome contract supports QB/RB/WR/TE. K, DST and IDP families are explicitly unsupported today and block active-league lineup readiness rather than disappearing from the lineup.
 
 ## Objective boundary
 
@@ -27,6 +35,7 @@ The module never writes or applies a lineup. Final action authority remains huma
 `lineupReleaseGate.ts` keeps production promotion closed until one certified witness exists for each of:
 
 - Unified League Context adapter;
+- active-league position coverage wiring;
 - production weekly source spine;
 - predictive validation;
 - trusted lineup authority binding;
