@@ -286,12 +286,12 @@ describe("CCF complete legal lineup decision core", () => {
     expect(result.missingInputs).toContain("production_ready_weekly_source_spine");
   });
 
-  it("requires source-spine evidence known no later than the decision as-of", () => {
+  it("requires the weekly source spine to be evaluated at the exact decision as-of", () => {
     const input = baseInput();
     input.weeklySourceSpineAudit = readySourceAudit({ asOf: "2026-09-15T20:00:01.000Z" });
     const result = evaluateCCFCompleteLegalLineup(input);
     expect(result.status).toBe("insufficient_evidence");
-    expect(result.missingInputs).toContain("temporally_eligible_weekly_source_spine");
+    expect(result.missingInputs).toContain("same_as_of_weekly_source_spine");
   });
 
   it("refuses tail-posture optimization without a governed joint-lineup distribution", () => {
