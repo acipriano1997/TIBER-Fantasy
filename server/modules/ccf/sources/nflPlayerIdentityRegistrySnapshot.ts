@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import { looksLikeTiberPlayerId } from "../../../services/identity/tiberPlayerId";
 import {
   archiveCCFSourceSnapshot,
   type CCFArchivedSourceSnapshot,
@@ -64,6 +65,8 @@ export const CCF_NFL_PLAYER_IDENTITY_REGISTRY_SCHEMA_AUTHORITY_REF =
 export const CCF_NFL_PLAYER_IDENTITY_REGISTRY_PARSER_VERSION =
   "ccf-nfl-player-identity-registry-snapshot-v1";
 
+const GSIS_ID_PATTERN = /^00-\d{7}$/;
+
 function hasText(value: string | null | undefined): value is string {
   return Boolean(value?.trim());
 }
@@ -98,9 +101,19 @@ function normalizeRows(
 
     const canonicalId = exactTrimmed("canonicalId", sourceRow.canonicalId);
     const gsisId = exactTrimmed("gsisId", sourceRow.gsisId);
+    if (!GSIS_ID_PATTERN.test(gsisId)) {
+      throw new CCFNFLPlayerIdentityRegistrySnapshotError(
+        `gsisId ${gsisId} does not match the governed GSIS namespace`,
+      );
+    }
     const tiberPlayerId = sourceRow.tiberPlayerId == null
       ? null
       : exactTrimmed("tiberPlayerId", sourceRow.tiberPlayerId);
+    if (tiberPlayerId != null && !looksLikeTiberPlayerId(tiberPlayerId)) {
+      throw new CCFNFLPlayerIdentityRegistrySnapshotError(
+        `tiberPlayerId ${tiberPlayerId} does not match the canonical TIBER player-id format`,
+      );
+    }
     const mergedInto = sourceRow.mergedInto == null
       ? null
       : exactTrimmed("mergedInto", sourceRow.mergedInto);
