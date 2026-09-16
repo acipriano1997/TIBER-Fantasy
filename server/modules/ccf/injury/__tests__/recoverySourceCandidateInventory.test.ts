@@ -24,7 +24,7 @@ describe("CCF recovery source candidate inventory", () => {
     ).toEqual([]);
   });
 
-  it("uses Sportradar Weekly Injuries as the live designation and practice candidates", () => {
+  it("uses Sportradar Weekly Injuries as the leading designation and practice candidates", () => {
     const designation = CCF_RECOVERY_SOURCE_CANDIDATE_INVENTORY.bindings.find(
       (binding) =>
         binding.sourceClass === "official_injury_designation" &&
@@ -54,14 +54,26 @@ describe("CCF recovery source candidate inventory", () => {
     });
   });
 
-  it("demotes discontinued nflverse injury coverage to historical research only", () => {
-    const historical = CCF_RECOVERY_SOURCE_CANDIDATE_INVENTORY.bindings.filter(
+  it("tracks the reactivated nflverse injury feed as a current-snapshot candidate without production promotion", () => {
+    const nflverse = CCF_RECOVERY_SOURCE_CANDIDATE_INVENTORY.bindings.filter(
       (binding) => binding.provider === "nflverse" && binding.datasetOrProduct === "injuries",
     );
 
-    expect(historical).toHaveLength(2);
-    expect(historical.every((binding) => binding.status === "research_only")).toBe(true);
-    expect(historical.every((binding) => binding.notes.some((note) => /after the 2024 season|through 2024/i.test(note)))).toBe(true);
+    expect(nflverse).toHaveLength(2);
+    expect(nflverse.every((binding) => binding.status === "candidate")).toBe(true);
+    expect(nflverse.every((binding) => binding.permissionStatus === "unreviewed")).toBe(true);
+    expect(nflverse.every((binding) => binding.reliabilityStatus === "incomplete")).toBe(true);
+    expect(nflverse.every((binding) => binding.parserVersion === "ccf-nflverse-injuries-candidate-v2")).toBe(true);
+    expect(
+      nflverse.every((binding) =>
+        binding.notes.some((note) => /2026|reactivated|live release|publishes 2025 and 2026/i.test(note)),
+      ),
+    ).toBe(true);
+    expect(
+      nflverse.every((binding) =>
+        binding.notes.some((note) => /knownAt|exact bytes|prospectively/i.test(note)),
+      ),
+    ).toBe(true);
   });
 
   it("tracks Sportradar NFL Official Game Roster as the viable activation candidate", () => {
