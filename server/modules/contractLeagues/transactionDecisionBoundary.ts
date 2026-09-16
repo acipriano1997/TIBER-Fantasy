@@ -90,6 +90,10 @@ function rejectFutureEvidence(
  * The pure transaction kernel owns legality and economic consequences. This
  * boundary owns known-at/anti-leakage eligibility so historical decisions can
  * be replayed without admitting evidence that only became available later.
+ *
+ * Schema validity is intentionally not enough. Only evidence explicitly marked
+ * VALID may cross this decision boundary; PARTIAL and REJECTED evidence remain
+ * inspectable/replayable but cannot become recommendation authority.
  */
 export function simulateKnownAtContractTransaction(
   snapshotInput: unknown,
@@ -121,6 +125,12 @@ export function simulateKnownAtContractTransaction(
   if (!snapshotResult.success) {
     reasons.push({ code: 'SNAPSHOT_INVALID', detail: 'Contract snapshot failed schema validation.' });
   } else {
+    if (snapshotResult.data.validation.status !== 'VALID') {
+      reasons.push({
+        code: 'SNAPSHOT_NOT_VALID',
+        detail: `Contract snapshot validation status is ${snapshotResult.data.validation.status}; only VALID evidence may drive a decision.`,
+      });
+    }
     rejectFutureEvidence(
       reasons,
       decisionMs,
@@ -140,6 +150,12 @@ export function simulateKnownAtContractTransaction(
   if (!policyResult.success) {
     reasons.push({ code: 'POLICY_INVALID', detail: 'Contract policy failed schema validation.' });
   } else {
+    if (policyResult.data.validation.status !== 'VALID') {
+      reasons.push({
+        code: 'POLICY_NOT_VALID',
+        detail: `Contract policy validation status is ${policyResult.data.validation.status}; only VALID evidence may drive a decision.`,
+      });
+    }
     rejectFutureEvidence(
       reasons,
       decisionMs,
@@ -161,6 +177,12 @@ export function simulateKnownAtContractTransaction(
     if (!rightsResult.success) {
       reasons.push({ code: 'RIGHTS_STATE_INVALID', detail: 'Contract rights state failed schema validation.' });
     } else {
+      if (rightsResult.data.validation.status !== 'VALID') {
+        reasons.push({
+          code: 'RIGHTS_STATE_NOT_VALID',
+          detail: `Contract rights-state validation status is ${rightsResult.data.validation.status}; only VALID evidence may drive a decision.`,
+        });
+      }
       if (rightsResult.data.leagueKey !== leagueKey) {
         reasons.push({
           code: 'RIGHTS_LEAGUE_MISMATCH',
