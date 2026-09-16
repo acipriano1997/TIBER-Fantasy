@@ -24,7 +24,7 @@ export type ConformanceResultV0 = {
 };
 
 function unique(values: string[]): string[] {
-  return [...new Set(values)].sort();
+  return Array.from(new Set(values)).sort();
 }
 
 function sameRecordRef(left: UsrRecordRefV0, right: UsrRecordRefV0): boolean {
