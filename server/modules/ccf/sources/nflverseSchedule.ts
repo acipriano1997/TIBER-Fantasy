@@ -26,7 +26,8 @@ export interface CCFNflverseScheduleOptions {
 
 export interface CCFNflverseScheduleProvenance {
   provider: "nflverse";
-  dataset: "nfldata_games";
+  dataset: "schedules";
+  license: "CC-BY-4.0";
   sourceUrl: string;
   retrievedAt: string;
   knownAt: string;
@@ -76,14 +77,16 @@ const DEFAULT_GAME_TYPES: CCFNflverseGameType[] = ["REG"];
 const EASTERN_TIME_ZONE = "America/New_York" as const;
 
 /**
- * nflreadr::load_schedules() wraps this maintained games file. nflverse/nfldata
- * documents `gametime` as 24-hour Eastern time regardless of venue.
+ * nflverse publishes this asset under the `schedules` release in the
+ * CC-BY-4.0 nflverse-data repository. The release notes identify Lee Sharpe's
+ * nfldata as the maintained upstream, while nfldata documents `gametime` as
+ * 24-hour Eastern time regardless of venue.
  *
- * This is a candidate source only. Availability does not imply permission or
- * production recommendation authority.
+ * This is still a candidate source only: the repository license is recorded,
+ * but intended-use promotion remains a separate operator/source-state gate.
  */
 export function nflverseScheduleUrl(): string {
-  return "https://raw.githubusercontent.com/nflverse/nfldata/master/data/games.csv";
+  return "https://github.com/nflverse/nflverse-data/releases/download/schedules/games.csv";
 }
 
 function requiredText(row: RawScheduleRow, key: keyof RawScheduleRow): string {
@@ -334,7 +337,8 @@ export async function fetchNflverseSchedule(
     rows,
     provenance: {
       provider: "nflverse",
-      dataset: "nfldata_games",
+      dataset: "schedules",
+      license: "CC-BY-4.0",
       sourceUrl,
       retrievedAt,
       knownAt: retrievedAt,
