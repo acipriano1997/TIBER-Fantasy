@@ -553,10 +553,10 @@ export function evaluateCCFCompleteLegalLineup(
     });
   }
   if (!validTimestamp(input.weeklySourceSpineAudit.asOf)
-      || Date.parse(input.weeklySourceSpineAudit.asOf) > Date.parse(input.asOf)) {
+      || input.weeklySourceSpineAudit.asOf !== input.asOf) {
     return withheld(input, "insufficient_evidence", {
-      blockers: ["Weekly source-spine evidence is temporally incompatible with the decision as-of."],
-      missingInputs: ["temporally_eligible_weekly_source_spine"],
+      blockers: ["Weekly source-spine evidence must be evaluated at the exact frozen decision as-of."],
+      missingInputs: ["same_as_of_weekly_source_spine"],
     });
   }
 
@@ -572,6 +572,19 @@ export function evaluateCCFCompleteLegalLineup(
         "Marginal player quantiles are not summed and relabeled as lineup P25/P90.",
       ],
       missingInputs: ["governed_joint_lineup_distribution"],
+    });
+  }
+
+  const rosterPlayerIds = new Set(input.roster.map((player) => player.playerId));
+  const orphanOutcomePlayerIds = input.outcomes
+    .map((envelope) => envelope.playerId)
+    .filter((playerId) => !rosterPlayerIds.has(playerId));
+  if (orphanOutcomePlayerIds.length) {
+    return withheld(input, "insufficient_evidence", {
+      blockers: ["Outcome envelopes must be bound to the frozen roster snapshot."],
+      missingInputs: Array.from(new Set(orphanOutcomePlayerIds))
+        .sort()
+        .map((playerId) => `${playerId}:orphan_outcome_envelope`),
     });
   }
 
