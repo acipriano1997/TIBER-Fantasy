@@ -70,15 +70,13 @@ function blocked(
   };
 }
 
-function bindElapsedLocks(args: {
+function bindLockedObservedStarters(args: {
   slots: CCFLineupSlot[];
   roster: CCFLineupRosterPlayer[];
-  asOf: string;
-}): { slots: CCFLineupSlot[]; blockers: string[]; missingInputs: string[] } {
+}): { slots: CCFLineupSlot[]; blockers: string[] } {
   const slots = args.slots.map((slot) => ({ ...slot, eligiblePositions: [...slot.eligiblePositions] }));
   const slotById = new Map(slots.map((slot) => [slot.slotId, slot]));
   const blockers: string[] = [];
-  const missingInputs: string[] = [];
   const occupiedLockedSlots = new Set<string>();
 
   for (const player of args.roster) {
@@ -91,21 +89,16 @@ function bindElapsedLocks(args: {
     if (!slot.eligiblePositions.includes(player.position)) {
       blockers.push(`${player.playerId}:observed_starter_position_illegal_for_${slot.slotId}`);
     }
-    if (player.lockAt === null) continue;
-    if (!validTimestamp(player.lockAt)) {
-      missingInputs.push(`${player.playerId}:lock_at`);
-      continue;
-    }
-    if (Date.parse(player.lockAt) > Date.parse(args.asOf)) continue;
+    if (player.lockState !== 'locked') continue;
     if (occupiedLockedSlots.has(slot.slotId)) {
-      blockers.push(`${slot.slotId}:multiple_elapsed_locked_starters`);
+      blockers.push(`${slot.slotId}:multiple_locked_starters`);
       continue;
     }
     occupiedLockedSlots.add(slot.slotId);
     slot.lockedPlayerId = player.playerId;
   }
 
-  return { slots, blockers, missingInputs };
+  return { slots, blockers };
 }
 
 /**
@@ -113,10 +106,12 @@ function bindElapsedLocks(args: {
  * frozen roster/evidence packet and run the CCF complete legal-lineup core.
  *
  * This service deliberately performs no provider fetches and no lineup writes.
- * Platform sync, identity, availability/byes, lock evidence, source-spine
- * qualification and native outcome production remain separately governed
- * upstream responsibilities. That keeps one truth owner per variable and makes
- * the assembled packet replayable.
+ * Platform sync, identity, availability/byes, explicit lock state,
+ * source-spine qualification and native outcome production remain separately
+ * governed upstream responsibilities. The composer does not infer locked state
+ * from timestamps; it only binds an already-governed `locked` starter to the
+ * exact observed slot. That keeps one truth owner per variable and makes the
+ * assembled packet replayable.
  */
 export function evaluateCCFCompleteLineupRuntime(
   input: CCFCompleteLineupRuntimeInput,
@@ -139,14 +134,12 @@ export function evaluateCCFCompleteLineupRuntime(
     return blocked(leagueBinding, blockers, missingInputs);
   }
 
-  const lockBinding = bindElapsedLocks({
+  const lockBinding = bindLockedObservedStarters({
     slots: leagueBinding.slots,
     roster: input.roster,
-    asOf: input.asOf,
   });
   blockers.push(...lockBinding.blockers);
-  missingInputs.push(...lockBinding.missingInputs);
-  if (blockers.length || missingInputs.length) {
+  if (blockers.length) {
     return blocked(leagueBinding, blockers, missingInputs);
   }
 
