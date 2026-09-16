@@ -183,7 +183,7 @@ describe("CCF source reliability review", () => {
       capturedAt: "2026-09-16T16:10:00Z",
       schemaStatus: "invalid",
       identityResolvedCount: 90,
-      criticalFieldMissingCount: 10,
+      criticalFieldMissingCount: 20,
       duplicateKeyCount: 2,
       correctionStatus: "unreconciled",
     };
