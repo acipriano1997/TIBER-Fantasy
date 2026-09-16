@@ -4,6 +4,7 @@ import {
   CCFNflverseSnapCountSourceError,
   type CCFNflverseSnapCountOptions,
   type CCFNflverseSnapCountRow,
+  type CCFNflverseSnapPosition,
 } from "./nflverseSnapCounts";
 import {
   archiveCCFSourceSnapshot,
@@ -11,8 +12,9 @@ import {
 } from "./rawSourceArchive";
 
 const NFLVERSE_DATA_LICENSE =
-  "https://github.com/nflverse/nflverse-data/blob/main/LICENSE.md (CC BY 4.0 repository license)";
-const SNAP_PARSER_VERSION = "ccf-nflverse-snap-counts-candidate-v1";
+  "https://github.com/nflverse/nflverse-data/blob/main/LICENSE.md (CC BY 4.0 repository license; Pro Football Reference intended-use rights remain separately governed)";
+const SNAP_PARSER_VERSION = "ccf-nflverse-snap-counts-candidate-v2";
+const DEFAULT_POSITIONS: CCFNflverseSnapPosition[] = ["QB", "RB", "WR", "TE"];
 
 export interface CCFArchivedNflverseSnapCountOptions
   extends CCFNflverseSnapCountOptions {
@@ -22,6 +24,7 @@ export interface CCFArchivedNflverseSnapCountOptions
 export interface CCFArchivedNflverseSnapCountSnapshot {
   season: number;
   requestedWeek?: number;
+  positions: CCFNflverseSnapPosition[];
   rows: CCFNflverseSnapCountRow[];
   retrievedAt: string;
   knownAt: string;
@@ -37,8 +40,10 @@ export interface CCFArchivedNflverseSnapCountSnapshot {
  * workload evidence. This is a prospective point-in-time capture path: knownAt
  * is the CCF retrieval time and HTTP Last-Modified never backdates it.
  *
- * It does not certify upstream reliability, attribution obligations, historical
- * replay, or recommendation authority. Those remain source-binding gates.
+ * The requested position scope is persisted with the parsed snapshot so source
+ * qualification cannot mistake a filtered capture for complete QB/RB/WR/TE
+ * coverage. It does not certify upstream reliability, PFR intended-use rights,
+ * historical replay, or recommendation authority.
  */
 export async function fetchAndArchiveNflverseSnapCounts(
   options: CCFArchivedNflverseSnapCountOptions,
@@ -91,6 +96,7 @@ export async function fetchAndArchiveNflverseSnapCounts(
   return {
     season: options.season,
     requestedWeek: options.week,
+    positions: [...(options.positions ?? DEFAULT_POSITIONS)],
     rows,
     retrievedAt,
     knownAt: retrievedAt,

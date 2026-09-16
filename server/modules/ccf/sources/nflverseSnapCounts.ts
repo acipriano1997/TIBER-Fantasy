@@ -124,6 +124,25 @@ function numeric(
   return value;
 }
 
+function snapCount(
+  row: RawSnapRow,
+  key: "offense_snaps" | "defense_snaps" | "st_snaps",
+  required = false,
+): number {
+  const value = numeric(row, key, required);
+  if (value < 0) {
+    throw new CCFNflverseSnapCountSourceError(
+      `snap count field ${key} cannot be negative`,
+    );
+  }
+  if (!Number.isInteger(value)) {
+    throw new CCFNflverseSnapCountSourceError(
+      `snap count field ${key} must be an integer`,
+    );
+  }
+  return value;
+}
+
 function percentageShare(
   row: RawSnapRow,
   key: keyof RawSnapRow,
@@ -189,11 +208,11 @@ function parseSnapRow(row: RawSnapRow): CCFNflverseSnapCountRow | null {
     position: nullableText(row.position)?.toUpperCase() ?? null,
     team,
     opponent: nullableText(row.opponent),
-    offenseSnaps: numeric(row, "offense_snaps", true),
+    offenseSnaps: snapCount(row, "offense_snaps", true),
     offensePct: percentageShare(row, "offense_pct", true),
-    defenseSnaps: numeric(row, "defense_snaps"),
+    defenseSnaps: snapCount(row, "defense_snaps"),
     defensePct: percentageShare(row, "defense_pct"),
-    specialTeamsSnaps: numeric(row, "st_snaps"),
+    specialTeamsSnaps: snapCount(row, "st_snaps"),
     specialTeamsPct: percentageShare(row, "st_pct"),
   };
 }
@@ -229,6 +248,8 @@ export function parseNflverseSnapCountsCsv(
     if (!row) continue;
     if (row.season !== options.season || row.gameType !== "REG") continue;
     if (options.week != null && row.week !== options.week) continue;
+    // Keep rows with missing position visible so source qualification can measure
+    // identity/context missingness instead of silently deleting the evidence.
     if (row.position && !positions.has(row.position as CCFNflverseSnapPosition)) continue;
     rows.push(row);
   }
