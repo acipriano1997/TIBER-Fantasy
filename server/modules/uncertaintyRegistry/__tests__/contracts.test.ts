@@ -16,17 +16,19 @@ describe('USR-0 contracts', () => {
     expect(SituationDefinitionV0Schema.safeParse({ ...definition, schemaVersion: 'ffcc.usr.situation-definition.v9' }).success).toBe(false);
   });
 
-  test('duplicate state IDs fail', () => {
+  test('duplicate state IDs fail even when state content differs', () => {
     const definition = makeDefinition({ id: 'dup_states' });
     const { recordDigest: _digest, ...content } = definition;
-    const duplicate = redigest({ ...content, competingStates: [definition.competingStates[0], definition.competingStates[0]] });
+    const second = { ...definition.competingStates[1], stateId: definition.competingStates[0].stateId, label: 'Different content, same state ID' };
+    const duplicate = redigest({ ...content, competingStates: [definition.competingStates[0], second] });
     expect(SituationDefinitionV0Schema.safeParse(duplicate).success).toBe(false);
   });
 
-  test('duplicate witness IDs fail', () => {
+  test('duplicate witness IDs fail even when witness content differs', () => {
     const definition = makeDefinition({ id: 'dup_witness' });
     const { recordDigest: _digest, ...content } = definition;
-    const duplicate = redigest({ ...content, resolutionWitnesses: [definition.resolutionWitnesses[0], definition.resolutionWitnesses[0]] });
+    const second = { ...definition.resolutionWitnesses[0], question: 'Different witness content, same witness ID' };
+    const duplicate = redigest({ ...content, resolutionWitnesses: [definition.resolutionWitnesses[0], second] });
     expect(SituationDefinitionV0Schema.safeParse(duplicate).success).toBe(false);
   });
 
@@ -82,7 +84,7 @@ describe('USR-0 contracts', () => {
   });
 
   test('definition version lineage is explicit', () => {
-    const definition = makeDefinition({ id: 'lineage' });
+    const definition = makeDefinition({ id: 'lineage01' });
     expect(SituationDefinitionV0Schema.safeParse({ ...definition, versionOrdinal: 2, predecessorDefinitionRef: null }).success).toBe(false);
     expect(FIXTURE_PLAYERS.alpha).toMatch(/^tbr_p_/);
   });
