@@ -138,8 +138,8 @@ function supportAssessment(
   return {
     stateId,
     support,
-    basisWitnessIds: [...new Set(positives.map((row) => row.result.witnessId))].sort(),
-    contradictionWitnessIds: [...new Set(negatives.map((row) => row.result.witnessId))].sort(),
+    basisWitnessIds: Array.from(new Set(positives.map((row) => row.result.witnessId))).sort(),
+    contradictionWitnessIds: Array.from(new Set(negatives.map((row) => row.result.witnessId))).sort(),
     strong: hasStrong,
     positiveCount: positives.length,
     hasMixedEvidence,
@@ -176,7 +176,7 @@ function unresolvedLoadBearing(
       (entry) => entry.effect === 'indeterminate' || entry.effect === 'no_change',
     ))) unresolved.push(witness.witnessId);
   }
-  return [...new Set(unresolved)].sort();
+  return Array.from(new Set(unresolved)).sort();
 }
 
 function supports(result: WitnessResultV0, stateId: string): boolean {
@@ -233,7 +233,7 @@ export function classifySituationResolutionV0(
 
   if (definition.classification.persistenceClass === 'fast') {
     if (directSupportedStates.size === 1 && !evidenceConflict) {
-      const resolvedStateId = [...directSupportedStates][0];
+      const resolvedStateId = Array.from(directSupportedStates)[0];
       const unknownOtherLoadBearing = remainingUnknownWitnessIds.filter((id) => {
         const matching = witnessResults.filter((result) => result.witnessId === id);
         return matching.length === 0 || matching.every((result) => !supports(result, resolvedStateId));
@@ -357,7 +357,7 @@ export function classifySharedAttentionV0(
 
   const out = (sharedAttention: SharedAttentionV0): SharedAttentionAssessmentV0 => ({
     sharedAttention,
-    reasonCodes: [...new Set(reasons)].sort(),
+    reasonCodes: Array.from(new Set(reasons)).sort(),
   });
   if (unresolved && highBlast && loadBearingUnknown && (imminent || loadBearingConflict) && !unavailableWithoutActionableWitness) return out('URGENT');
   if (unresolved && ((highBlast && byNextGame) || loadBearingConflict || (highBlast && multiPlayerImpact))) return out('ELEVATED');
@@ -379,7 +379,7 @@ export function validateScenarioBranchBindingV0(
   const branchStates = binding.branches.map((branch) => branch.stateId);
   if (new Set(branchStates).size !== branchStates.length) reasons.push('duplicate_branch_state');
   if (branchStates.some((id) => !declaredStates.has(id))) reasons.push('undeclared_branch_state');
-  if (declaredStates.size !== new Set(branchStates).size || [...declaredStates].some((id) => !branchStates.includes(id))) {
+  if (declaredStates.size !== new Set(branchStates).size || Array.from(declaredStates).some((id) => !branchStates.includes(id))) {
     reasons.push('declared_state_missing_branch');
   }
   const declaredPlayers = new Set(definition.identity.playerIds);
@@ -405,7 +405,7 @@ export function validateScenarioBranchBindingV0(
       reasons.push('non_calibrated_probability_binding_must_not_claim_calibration_authority');
     }
   }
-  return { valid: reasons.length === 0, reasonCodes: [...new Set(reasons)].sort() };
+  return { valid: reasons.length === 0, reasonCodes: Array.from(new Set(reasons)).sort() };
 }
 
 export function shouldReevaluateSituationV0(
