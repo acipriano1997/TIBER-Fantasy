@@ -4,6 +4,10 @@ import {
   type CCFNFLPlayerIdentityLinkageReceipt,
 } from "./nflPlayerIdentityLinkage";
 import {
+  buildCCFNFLPlayerIdentityLinkageReceiptFromArchivedSnapshot,
+  type CCFNFLPlayerIdentityRegistrySnapshot,
+} from "./nflPlayerIdentityRegistrySnapshot";
+import {
   fingerprintCCFSourceReliabilityPolicy,
   validateCCFSourceReliabilityPolicy,
   type CCFSourceReliabilityCheckpoint,
@@ -15,9 +19,22 @@ export type CCFNflverseInjuryCertificationCapability =
   | "practice_participation";
 
 export interface CreateCCFNflverseInjuryCertificationPoliciesInput {
-  /** Real prospective GSIS -> TIBER linkage receipt captured before policy freeze. */
+  /** Prospective GSIS -> TIBER linkage receipt. Pure contract helper only. */
   identityReceipt: CCFNFLPlayerIdentityLinkageReceipt;
   /** Time the operator freezes this exact policy instance. */
+  frozenAt: string;
+  /** Prospective checkpoints only; every expected checkpoint must later be observed or counted missing. */
+  checkpoints: CCFSourceReliabilityCheckpoint[];
+}
+
+export interface CreateCCFNflverseInjuryCertificationPoliciesFromArchivedIdentitySnapshotInput {
+  /**
+   * The prospective player_identity_map snapshot whose persisted raw archive
+   * will be re-read and verified immediately before the identity receipt and
+   * reliability policy bundle are frozen.
+   */
+  identitySnapshot: CCFNFLPlayerIdentityRegistrySnapshot;
+  /** One transaction boundary for both identity receipt and policy freeze. */
   frozenAt: string;
   /** Prospective checkpoints only; every expected checkpoint must later be observed or counted missing. */
   checkpoints: CCFSourceReliabilityCheckpoint[];
@@ -220,13 +237,13 @@ function buildPolicy(
 }
 
 /**
- * Build, but do not globally install, the two nflverse injury/practice
- * reliability policies after a real prospective identity registry capture.
+ * Pure deterministic policy-construction helper.
  *
- * There is intentionally no module-level canonical policy constant. The caller
- * must supply the actual immutable linkage receipt and a future observation
- * window; until then FFCC has no frozen live injury/practice certification
- * policy and must continue to report the source as reliability-incomplete.
+ * It validates the linkage-receipt contract but cannot itself prove that the
+ * archive referenced by a caller-supplied receipt still exists on disk. Tests
+ * and offline deterministic replay may use this helper. Operator/runtime code
+ * must use createCCFNflverseInjuryCertificationPoliciesFromArchivedIdentitySnapshot
+ * so the persisted archive is re-read immediately before policy freeze.
  */
 export function createCCFNflverseInjuryCertificationPolicies(
   input: CreateCCFNflverseInjuryCertificationPoliciesInput,
@@ -275,4 +292,32 @@ export function createCCFNflverseInjuryCertificationPolicies(
       practiceParticipation: fingerprintCCFSourceReliabilityPolicy(practiceParticipation),
     },
   };
+}
+
+/**
+ * Operator-safe prospective policy freeze.
+ *
+ * One `frozenAt` timestamp is used as the transaction boundary for both the
+ * linkage receipt and the two reliability policies. The identity snapshot's
+ * persisted `content.raw` + `manifest.json` are re-read and verified first; if
+ * either archive file has been changed, substituted, or removed, no policy
+ * bundle is produced.
+ *
+ * This still does not promote nflverse, clear intended-use permission, start
+ * observations retroactively, or authorize CCF_PRIMARY.
+ */
+export async function createCCFNflverseInjuryCertificationPoliciesFromArchivedIdentitySnapshot(
+  input: CreateCCFNflverseInjuryCertificationPoliciesFromArchivedIdentitySnapshotInput,
+): Promise<CCFNflverseInjuryCertificationPolicyBundle> {
+  const materializedIdentity =
+    await buildCCFNFLPlayerIdentityLinkageReceiptFromArchivedSnapshot(
+      input.identitySnapshot,
+      input.frozenAt,
+    );
+
+  return createCCFNflverseInjuryCertificationPolicies({
+    identityReceipt: materializedIdentity.receipt,
+    frozenAt: input.frozenAt,
+    checkpoints: input.checkpoints,
+  });
 }
