@@ -22,7 +22,14 @@ import {
   fingerprintCCFWeeklySourceSpinePlan,
   type CCFWeeklySourceSpinePlan,
 } from "../../sources/weeklySourceSpine";
-import type { CCFSourceState } from "../../sources/sourceState";
+import {
+  fingerprintCCFSourceQualification,
+  type CCFSourceState,
+} from "../../sources/sourceState";
+import {
+  fingerprintCCFSourceStateForPromotion,
+  type CCFTrustedSourcePromotion,
+} from "../../sources/sourcePromotionAttestation";
 import type { CCFDevyIdentityLinkageReceipt } from "../../sources/devyIdentityLinkage";
 import type {
   CCFAuthorityGraph,
@@ -83,6 +90,39 @@ function sourcePlan(): CCFWeeklySourceSpinePlan {
     })),
     notes: [],
   };
+}
+
+function trustedSourcePromotions(plan: CCFWeeklySourceSpinePlan): CCFTrustedSourcePromotion[] {
+  return plan.bindings.map((entry) => {
+    const qualification = entry.sourceState.qualification!;
+    return {
+      schemaVersion: "ccf-trusted-source-promotion-v1",
+      attestationId: `source-promotion-${entry.capability}`,
+      capability: entry.capability,
+      intendedUse: "ffcc_native_weekly_recommendation",
+      sourceId: entry.sourceState.sourceId,
+      producer: entry.sourceState.producer!,
+      sourceStateFingerprint: fingerprintCCFSourceStateForPromotion(entry.sourceState),
+      qualificationFingerprint: fingerprintCCFSourceQualification(qualification),
+      identityBindingRef: entry.identityBindingRef,
+      rawArchiveRef: entry.rawArchiveRef,
+      correctionPolicyRef: entry.correctionPolicyRef,
+      checkpointPolicyRef: entry.checkpointPolicyRef,
+      captureMode: entry.captureMode,
+      attestedAt: "2026-09-15T10:30:00Z",
+      validFrom: "2026-09-15T10:30:00Z",
+      validThrough: null,
+      status: "active",
+      evidenceRefs: [
+        qualification.termsOrLicenseRef!,
+        qualification.reliabilityReviewRef!,
+        entry.identityBindingRef,
+        entry.rawArchiveRef,
+        entry.correctionPolicyRef,
+        entry.checkpointPolicyRef,
+      ],
+    };
+  });
 }
 
 function dataset(plan: CCFWeeklySourceSpinePlan): CCFHistoricalDatasetManifest {
@@ -426,10 +466,18 @@ function fixture(): CCFPersonalBetaReadinessInput {
   };
 }
 
+function evaluate(input: CCFPersonalBetaReadinessInput) {
+  const promotions = input.weeklySourceSpine
+    ? trustedSourcePromotions(input.weeklySourceSpine)
+    : [];
+  return evaluateCCFPersonalBetaReadiness(input, promotions);
+}
+
 describe("CCF personal-beta evidence-native readiness", () => {
   it("can become ready only when all required evidence joins exactly", () => {
     const input = fixture();
-    const result = evaluateCCFPersonalBetaReadiness(input);
+    const promotions = trustedSourcePromotions(input.weeklySourceSpine!);
+    const result = evaluateCCFPersonalBetaReadiness(input, promotions);
     expect(result.contractVersion).toBe("ccf-personal-beta-readiness-v2");
     expect(result.ready).toBe(true);
     expect(result.overallStatus).toBe("ready");
@@ -443,13 +491,24 @@ describe("CCF personal-beta evidence-native readiness", () => {
       ["PB-07", "not_applicable"],
       ["PB-08", "pass"],
     ]);
-    expect(() => assertCCFPersonalBetaReady(input)).not.toThrow();
+    expect(() => assertCCFPersonalBetaReady(input, promotions)).not.toThrow();
+  });
+
+  it("does not allow the readiness payload to self-promote source authority", () => {
+    const input = fixture();
+    const result = evaluateCCFPersonalBetaReadiness(input);
+    expect(result.ready).toBe(false);
+    expect(result.internalBlockers).toEqual(expect.arrayContaining([
+      "PB-01:weekly_box_score:promotion_attestation_ineligible",
+      "PB-01:weekly_box_score:promotion:promotion_attestation_missing",
+    ]));
+    expect(() => assertCCFPersonalBetaReady(input)).toThrow(/blocked_internal/);
   });
 
   it("PB-01 requires the whole production-ready six-capability source plan", () => {
     const input = fixture();
     input.weeklySourceSpine = null;
-    const result = evaluateCCFPersonalBetaReadiness(input);
+    const result = evaluate(input);
     expect(result.ready).toBe(false);
     expect(result.internalBlockers).toContain("PB-01:weekly_source_spine_missing");
 
@@ -458,7 +517,7 @@ describe("CCF personal-beta evidence-native readiness", () => {
       ...partial.weeklySourceSpine!,
       bindings: partial.weeklySourceSpine!.bindings.slice(1),
     };
-    const partialResult = evaluateCCFPersonalBetaReadiness(partial);
+    const partialResult = evaluate(partial);
     expect(partialResult.internalBlockers.some((blocker) =>
       blocker.includes("PB-01:weekly_box_score:missing_binding"),
     )).toBe(true);
@@ -470,7 +529,7 @@ describe("CCF personal-beta evidence-native readiness", () => {
       ...input.weeklySourceSpine!,
       planId: "another-production-plan",
     };
-    const sourceMismatch = evaluateCCFPersonalBetaReadiness(input);
+    const sourceMismatch = evaluate(input);
     expect(sourceMismatch.internalBlockers).toContain(
       "PB-02:historical_dataset_source_plan_mismatch",
     );
@@ -480,7 +539,7 @@ describe("CCF personal-beta evidence-native readiness", () => {
       ...dataMismatch.predictiveProtocol!,
       datasetFingerprint: "another-dataset",
     };
-    const result = evaluateCCFPersonalBetaReadiness(dataMismatch);
+    const result = evaluate(dataMismatch);
     expect(result.internalBlockers.some((blocker) =>
       blocker.includes("PB-02:datasetFingerprint_mismatch"),
     )).toBe(true);
@@ -489,7 +548,7 @@ describe("CCF personal-beta evidence-native readiness", () => {
   it("PB-03 requires the exact receipt-bound certified release in history", () => {
     const missing = fixture();
     missing.backtestHistory = [];
-    expect(evaluateCCFPersonalBetaReadiness(missing).internalBlockers).toContain(
+    expect(evaluate(missing).internalBlockers).toContain(
       "PB-03:certified_release_record_missing",
     );
 
@@ -501,7 +560,7 @@ describe("CCF personal-beta evidence-native readiness", () => {
         receiptFingerprint: "different-receipt",
       },
     }];
-    const result = evaluateCCFPersonalBetaReadiness(tampered);
+    const result = evaluate(tampered);
     expect(result.internalBlockers).toEqual(expect.arrayContaining([
       expect.stringContaining("PB-03:certified_release_invalid:"),
       "PB-03:certified_release_receipt_fingerprint_mismatch",
@@ -511,7 +570,7 @@ describe("CCF personal-beta evidence-native readiness", () => {
   it("PB-03 rejects a future receipt even if every cryptographic identity matches", () => {
     const input = fixture();
     input.asOf = "2026-09-15T14:30:00Z";
-    const result = evaluateCCFPersonalBetaReadiness(input);
+    const result = evaluate(input);
     expect(result.internalBlockers).toContain("PB-03:predictive_receipt_completed_after_as_of");
   });
 
@@ -523,7 +582,7 @@ describe("CCF personal-beta evidence-native readiness", () => {
       expectedSleeperLeagueId: "league-fixture",
       linkageReceipt: null,
     };
-    expect(evaluateCCFPersonalBetaReadiness(missing).internalBlockers).toContain(
+    expect(evaluate(missing).internalBlockers).toContain(
       "PB-07:devy_identity_linkage_receipt_missing",
     );
 
@@ -534,7 +593,7 @@ describe("CCF personal-beta evidence-native readiness", () => {
       expectedSleeperLeagueId: "league-fixture",
       linkageReceipt: devyReceipt(),
     };
-    expect(evaluateCCFPersonalBetaReadiness(exact).gates.find((gate) => gate.id === "PB-07")?.status)
+    expect(evaluate(exact).gates.find((gate) => gate.id === "PB-07")?.status)
       .toBe("pass");
 
     const wrongLeague = fixture();
@@ -544,7 +603,7 @@ describe("CCF personal-beta evidence-native readiness", () => {
       expectedSleeperLeagueId: "league-fixture",
       linkageReceipt: devyReceipt("another-league"),
     };
-    expect(evaluateCCFPersonalBetaReadiness(wrongLeague).internalBlockers).toContain(
+    expect(evaluate(wrongLeague).internalBlockers).toContain(
       "PB-07:devy_sleeper_league_mismatch",
     );
   });
@@ -557,14 +616,14 @@ describe("CCF personal-beta evidence-native readiness", () => {
       expectedSleeperLeagueId: "league-fixture",
       linkageReceipt: null,
     };
-    const external = evaluateCCFPersonalBetaReadiness(externalOnly);
+    const external = evaluate(externalOnly);
     expect(external.overallStatus).toBe("blocked_external");
     expect(external.externalBlockers).toContain("PB-07:devy_identity_linkage_pending_external");
 
     const mixed = fixture();
     mixed.weeklySourceSpine = null;
     mixed.sleeper.portfolioPreflight = "pending_external";
-    const result = evaluateCCFPersonalBetaReadiness(mixed);
+    const result = evaluate(mixed);
     expect(result.overallStatus).toBe("blocked_internal");
     expect(result.internalBlockers.length).toBeGreaterThan(0);
     expect(result.externalBlockers).toContain("PB-05:sleeper_portfolio_preflight_pending_external");

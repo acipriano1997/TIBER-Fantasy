@@ -5,7 +5,14 @@ import {
   type CCFWeeklySourceBinding,
   type CCFWeeklySourceSpinePlan,
 } from "../weeklySourceSpine";
-import type { CCFSourceState } from "../sourceState";
+import {
+  fingerprintCCFSourceStateForPromotion,
+  type CCFTrustedSourcePromotion,
+} from "../sourcePromotionAttestation";
+import {
+  fingerprintCCFSourceQualification,
+  type CCFSourceState,
+} from "../sourceState";
 
 function sourceState(sourceId: string): CCFSourceState {
   return {
@@ -58,16 +65,67 @@ function plan(): CCFWeeklySourceSpinePlan {
   };
 }
 
+function attestation(entry: CCFWeeklySourceBinding): CCFTrustedSourcePromotion {
+  const qualification = entry.sourceState.qualification!;
+  return {
+    schemaVersion: "ccf-trusted-source-promotion-v1",
+    attestationId: `attestation-${entry.capability}-${entry.sourceState.sourceId}`,
+    capability: entry.capability,
+    intendedUse: "ffcc_native_weekly_recommendation",
+    sourceId: entry.sourceState.sourceId,
+    producer: entry.sourceState.producer!,
+    sourceStateFingerprint: fingerprintCCFSourceStateForPromotion(entry.sourceState),
+    qualificationFingerprint: fingerprintCCFSourceQualification(qualification),
+    identityBindingRef: entry.identityBindingRef,
+    rawArchiveRef: entry.rawArchiveRef,
+    correctionPolicyRef: entry.correctionPolicyRef,
+    checkpointPolicyRef: entry.checkpointPolicyRef,
+    captureMode: entry.captureMode,
+    attestedAt: "2026-09-15T13:00:00Z",
+    validFrom: "2026-09-15T13:00:00Z",
+    validThrough: null,
+    status: "active",
+    evidenceRefs: [
+      qualification.termsOrLicenseRef!,
+      qualification.reliabilityReviewRef!,
+      entry.identityBindingRef,
+      entry.rawArchiveRef,
+      entry.correctionPolicyRef,
+      entry.checkpointPolicyRef,
+    ],
+  };
+}
+
+function trusted(candidate: CCFWeeklySourceSpinePlan): CCFTrustedSourcePromotion[] {
+  return candidate.bindings.map(attestation);
+}
+
 const asOf = "2026-09-15T15:00:00Z";
 
 describe("CCF weekly source spine", () => {
-  it("requires every weekly capability to pass source qualification and binding evidence", () => {
-    const audit = evaluateCCFWeeklySourceSpine(plan(), asOf);
+  it("requires every weekly capability to pass source qualification, binding evidence, and operator promotion", () => {
+    const candidate = plan();
+    const audit = evaluateCCFWeeklySourceSpine(candidate, asOf, trusted(candidate));
     expect(audit.productionReady).toBe(true);
     expect(audit.discoveryCoverage).toBe(CCF_WEEKLY_SOURCE_CAPABILITIES.length);
     expect(audit.productionCoverage).toBe(CCF_WEEKLY_SOURCE_CAPABILITIES.length);
     expect(audit.blockers).toEqual([]);
     expect(audit.planFingerprint).toMatch(/^[a-f0-9]{64}$/);
+    expect(audit.capabilities.every((entry) =>
+      entry.promotionAttestationFingerprint?.match(/^[a-f0-9]{64}$/),
+    )).toBe(true);
+  });
+
+  it("does not trust a self-described promoted source when the operator registry is empty", () => {
+    const candidate = plan();
+    const audit = evaluateCCFWeeklySourceSpine(candidate, asOf);
+    expect(audit.productionReady).toBe(false);
+    expect(audit.discoveryCoverage).toBe(CCF_WEEKLY_SOURCE_CAPABILITIES.length);
+    expect(audit.productionCoverage).toBe(0);
+    expect(audit.blockers).toEqual(expect.arrayContaining([
+      "weekly_box_score:promotion_attestation_ineligible",
+      "weekly_box_score:promotion:promotion_attestation_missing",
+    ]));
   });
 
   it("separates discovery coverage from production eligibility", () => {
@@ -79,7 +137,7 @@ describe("CCF weekly source spine", () => {
         governanceState: "candidate",
       },
     };
-    const audit = evaluateCCFWeeklySourceSpine(candidate, asOf);
+    const audit = evaluateCCFWeeklySourceSpine(candidate, asOf, trusted(candidate));
     expect(audit.discoveryCoverage).toBe(CCF_WEEKLY_SOURCE_CAPABILITIES.length);
     expect(audit.productionCoverage).toBe(CCF_WEEKLY_SOURCE_CAPABILITIES.length - 1);
     expect(audit.productionReady).toBe(false);
@@ -103,7 +161,7 @@ describe("CCF weekly source spine", () => {
         },
       },
     };
-    const audit = evaluateCCFWeeklySourceSpine(candidate, asOf);
+    const audit = evaluateCCFWeeklySourceSpine(candidate, asOf, trusted(candidate));
     expect(audit.productionReady).toBe(false);
     expect(audit.blockers).toContain("play_by_play_opportunity:source:permission_not_cleared");
   });
@@ -111,19 +169,20 @@ describe("CCF weekly source spine", () => {
   it("fails closed for missing or duplicate capability bindings", () => {
     const missing = plan();
     missing.bindings = missing.bindings.filter((entry) => entry.capability !== "game_activation");
-    expect(evaluateCCFWeeklySourceSpine(missing, asOf).blockers).toContain(
+    expect(evaluateCCFWeeklySourceSpine(missing, asOf, trusted(missing)).blockers).toContain(
       "game_activation:missing_binding",
     );
 
     const duplicate = plan();
     duplicate.bindings.push(binding("observed_workload"));
-    expect(evaluateCCFWeeklySourceSpine(duplicate, asOf).blockers).toContain(
+    expect(evaluateCCFWeeklySourceSpine(duplicate, asOf, trusted(duplicate)).blockers).toContain(
       "observed_workload:duplicate_binding",
     );
   });
 
   it("requires identity, archive, correction, and checkpoint witnesses", () => {
     const candidate = plan();
+    const originalTrusted = trusted(candidate);
     candidate.bindings[2] = {
       ...candidate.bindings[2],
       identityBindingRef: "",
@@ -131,12 +190,13 @@ describe("CCF weekly source spine", () => {
       correctionPolicyRef: "",
       checkpointPolicyRef: "",
     };
-    const audit = evaluateCCFWeeklySourceSpine(candidate, asOf);
+    const audit = evaluateCCFWeeklySourceSpine(candidate, asOf, originalTrusted);
     expect(audit.blockers).toEqual(expect.arrayContaining([
       "injury_designation:identity_binding_missing",
       "injury_designation:raw_archive_missing",
       "injury_designation:correction_policy_missing",
       "injury_designation:checkpoint_policy_missing",
+      "injury_designation:promotion_attestation_ineligible",
     ]));
   });
 
@@ -149,7 +209,7 @@ describe("CCF weekly source spine", () => {
         staleAfter: "2026-09-15T14:59:59Z",
       },
     };
-    expect(evaluateCCFWeeklySourceSpine(stale, asOf).blockers).toContain(
+    expect(evaluateCCFWeeklySourceSpine(stale, asOf, trusted(stale)).blockers).toContain(
       "practice_participation:source:stale",
     );
 
@@ -161,12 +221,12 @@ describe("CCF weekly source spine", () => {
         knownAt: "2026-09-15T15:01:00Z",
       },
     };
-    expect(evaluateCCFWeeklySourceSpine(futureKnown, asOf).blockers).toContain(
+    expect(evaluateCCFWeeklySourceSpine(futureKnown, asOf, trusted(futureKnown)).blockers).toContain(
       "game_activation:source:known_after_as_of",
     );
 
     const futureFrozen = { ...plan(), frozenAt: "2026-09-15T15:01:00Z" };
-    expect(evaluateCCFWeeklySourceSpine(futureFrozen, asOf).blockers).toContain(
+    expect(evaluateCCFWeeklySourceSpine(futureFrozen, asOf, trusted(futureFrozen)).blockers).toContain(
       "plan_frozen_after_as_of",
     );
   });
