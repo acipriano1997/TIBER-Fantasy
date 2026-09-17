@@ -13,17 +13,24 @@ const HEADER = [
   "season_type",
   "team",
   "opponent_team",
+  "completions",
   "attempts",
   "passing_yards",
   "passing_tds",
   "passing_interceptions",
+  "sacks_suffered",
+  "passing_2pt_conversions",
   "carries",
   "rushing_yards",
   "rushing_tds",
+  "rushing_2pt_conversions",
   "receptions",
   "targets",
   "receiving_yards",
   "receiving_tds",
+  "receiving_2pt_conversions",
+  "fumbles_lost_total",
+  "special_teams_tds",
 ].join(",");
 
 const WR_ROW = [
@@ -39,12 +46,19 @@ const WR_ROW = [
   "0",
   "0",
   "0",
+  "0",
+  "0",
+  "0",
   "1",
   "4",
+  "0",
   "0",
   "7",
   "10",
   "91",
+  "1",
+  "0",
+  "1",
   "1",
 ].join(",");
 
@@ -61,7 +75,7 @@ describe("prospective archived nflverse weekly player-stat capture", () => {
     await fs.rm(archiveRootDir, { recursive: true, force: true });
   });
 
-  it("archives exact source bytes and exposes parsed box-score evidence", async () => {
+  it("archives exact source bytes and exposes complete parsed scoring evidence", async () => {
     const fetchImpl = jest.fn(async () =>
       new Response(WEEKLY_STATS_CSV, {
         status: 200,
@@ -88,12 +102,14 @@ describe("prospective archived nflverse weekly player-stat capture", () => {
       targets: 10,
       receivingYards: 91,
       receivingTouchdowns: 1,
+      fumblesLostTotal: 1,
+      specialTeamsTouchdowns: 1,
     });
     expect(snapshot.knownAt).toBe("2026-09-16T16:30:00.000Z");
     expect(snapshot.archive.manifest).toMatchObject({
       provider: "nflverse",
       dataset: "stats_player_week",
-      parserVersion: "ccf-nflverse-player-stats-v1",
+      parserVersion: "ccf-nflverse-player-stats-v2",
       temporalMode: "archived_point_in_time",
       knownAtBasis: "ccf_capture",
       knownAt: "2026-09-16T16:30:00.000Z",
