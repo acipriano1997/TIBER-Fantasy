@@ -208,6 +208,8 @@ async function aggregateWeek(season: number, week: number): Promise<PlayerWeekSt
     rushingYards: 0,
     rushingTds: 0,
     rushingEpa: 0,
+    rzRushAtt: 0,
+    rzTargets: 0,
   });
 
   // Add passing stats
@@ -232,6 +234,7 @@ async function aggregateWeek(season: number, week: number): Promise<PlayerWeekSt
     player.receivingEpa = Number(row.receiving_epa) || 0;
     player.airYards = Number(row.air_yards) || 0;
     player.yac = Number(row.yac) || 0;
+    player.rzTargets = Number(row.rz_targets) || 0;
     if (!player.team) player.team = row.team;
     playerMap.set(row.player_id, player);
   }
@@ -243,6 +246,7 @@ async function aggregateWeek(season: number, week: number): Promise<PlayerWeekSt
     player.rushingYards = Number(row.rushing_yards) || 0;
     player.rushingTds = Number(row.rushing_tds) || 0;
     player.rushingEpa = Number(row.rushing_epa) || 0;
+    player.rzRushAtt = Number(row.rz_rush_att) || 0;
     if (!player.team) player.team = row.team;
     playerMap.set(row.player_id, player);
   }
@@ -347,7 +351,7 @@ async function aggregateWeek(season: number, week: number): Promise<PlayerWeekSt
         // WR/TE run routes on ~85% of their snaps
         player.routes = Math.round(player.snaps * 0.85);
       } else if (player.position === 'RB') {
-        // RB run routes on ~50% of their snaps (other half is pass blocking)
+        // RB run routes on ~50% of snaps (other half is pass blocking)
         player.routes = Math.round(player.snaps * 0.50);
       } else if (player.position === 'QB') {
         // QBs don't run routes
@@ -397,6 +401,8 @@ async function upsertWeekStats(stats: PlayerWeekStats[]): Promise<number> {
           rushingYards: stat.rushingYards,
           rushingTds: stat.rushingTds,
           rushingEpa: stat.rushingEpa,
+          rzRushAtt: stat.rzRushAtt,
+          rzTargets: stat.rzTargets,
         })
         .onConflictDoUpdate({
           target: [
@@ -427,6 +433,8 @@ async function upsertWeekStats(stats: PlayerWeekStats[]): Promise<number> {
             rushingYards: stat.rushingYards,
             rushingTds: stat.rushingTds,
             rushingEpa: stat.rushingEpa,
+            rzRushAtt: stat.rzRushAtt,
+            rzTargets: stat.rzTargets,
             updatedAt: new Date(),
           },
         });
