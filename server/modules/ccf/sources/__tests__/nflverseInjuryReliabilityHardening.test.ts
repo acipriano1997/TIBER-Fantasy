@@ -10,6 +10,7 @@ import {
   buildCCFNflverseInjuryReliabilityPolicy,
   fingerprintCCFNflverseInjuryReliabilityPolicy,
 } from "../nflverseInjuryCertificationPolicy";
+import { runCCFNflverseInjuryCheckpoint } from "../nflverseInjuryCheckpointRunner";
 import { buildCCFNflverseInjuryReliabilityObservation } from "../nflverseInjuryReliability";
 
 const HEADER =
@@ -199,5 +200,121 @@ describe("nflverse injury/practice prospective reliability policies", () => {
     expect(fingerprintCCFNflverseInjuryReliabilityPolicy(input)).toBe(
       fingerprintCCFNflverseInjuryReliabilityPolicy(input),
     );
+  });
+});
+
+describe("nflverse injury reliability checkpoint runner", () => {
+  let archiveRootDir: string;
+
+  beforeEach(async () => {
+    archiveRootDir = await fs.mkdtemp(path.join(os.tmpdir(), "ccf-injury-checkpoint-"));
+  });
+
+  afterEach(async () => {
+    await fs.rm(archiveRootDir, { recursive: true, force: true });
+  });
+
+  function policyAndReceipt() {
+    const receipt = identityReceipt("2026-09-17T14:00:00Z", "2026-09-17T13:30:00Z");
+    return {
+      receipt,
+      policy: buildCCFNflverseInjuryReliabilityPolicy({
+        capability: "injury_designation",
+        identityReceipt: receipt,
+        frozenAt: "2026-09-17T14:30:00Z",
+      }),
+    };
+  }
+
+  it("derives a successful checkpoint observation from the frozen policy", async () => {
+    const { receipt, policy } = policyAndReceipt();
+    const fetchImpl = jest.fn(async () => new Response(WEEK2_CSV, { status: 200 })) as unknown as typeof fetch;
+    const result = await runCCFNflverseInjuryCheckpoint({
+      policy,
+      identityReceipt: receipt,
+      season: 2026,
+      checkpointId: "w2-thu-1600-et",
+      archiveRootDir,
+      fetchImpl,
+      now: () => new Date("2026-09-17T20:05:00Z"),
+    });
+
+    expect(result.snapshot?.requestedWeek).toBe(2);
+    expect(result.observation).toMatchObject({
+      sourceId: CCF_NFLVERSE_INJURY_DESIGNATION_SOURCE_ID_V2,
+      checkpointId: "w2-thu-1600-et",
+      scheduledFor: "2026-09-17T20:00:00Z",
+      capturedAt: "2026-09-17T20:05:00.000Z",
+      captureStatus: "success",
+      parserVersion: "ccf-nflverse-injuries-candidate-v2",
+      identityEligibleCount: 1,
+      identityResolvedCount: 1,
+      criticalFieldEligibleCount: 1,
+      criticalFieldMissingCount: 0,
+    });
+    expect(result.observation.notes).toContain(`policy_fingerprint:${result.policyFingerprint}`);
+  });
+
+  it("refuses to run before the frozen checkpoint without touching the network", async () => {
+    const { receipt, policy } = policyAndReceipt();
+    const fetchImpl = jest.fn();
+
+    await expect(
+      runCCFNflverseInjuryCheckpoint({
+        policy,
+        identityReceipt: receipt,
+        season: 2026,
+        checkpointId: "w2-thu-1600-et",
+        archiveRootDir,
+        fetchImpl: fetchImpl as unknown as typeof fetch,
+        now: () => new Date("2026-09-17T19:59:59Z"),
+      }),
+    ).rejects.toThrow(/cannot run before/);
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("rejects a mismatched identity receipt before touching the network", async () => {
+    const { policy } = policyAndReceipt();
+    const mismatched = identityReceipt("2026-09-17T13:59:00Z", "2026-09-17T13:29:00Z");
+    const fetchImpl = jest.fn();
+
+    await expect(
+      runCCFNflverseInjuryCheckpoint({
+        policy,
+        identityReceipt: mismatched,
+        season: 2026,
+        checkpointId: "w2-thu-1600-et",
+        archiveRootDir,
+        fetchImpl: fetchImpl as unknown as typeof fetch,
+        now: () => new Date("2026-09-17T20:05:00Z"),
+      }),
+    ).rejects.toThrow(/identity receipt does not match/);
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("records provider fetch failures as explicit reliability failure observations", async () => {
+    const { receipt, policy } = policyAndReceipt();
+    const fetchImpl = jest.fn(async () => new Response("unavailable", { status: 503 })) as unknown as typeof fetch;
+    const result = await runCCFNflverseInjuryCheckpoint({
+      policy,
+      identityReceipt: receipt,
+      season: 2026,
+      checkpointId: "w2-thu-1600-et",
+      archiveRootDir,
+      fetchImpl,
+      now: () => new Date("2026-09-17T20:05:00Z"),
+    });
+
+    expect(result.snapshot).toBeNull();
+    expect(result.observation).toMatchObject({
+      captureStatus: "failure",
+      parserVersion: null,
+      archiveRef: null,
+      schemaStatus: "not_evaluated",
+      rowCount: 0,
+      identityEligibleCount: 0,
+      correctionStatus: "not_evaluated",
+    });
+    expect(result.observation.notes).toEqual(["capture_failed_before_archive"]);
   });
 });
