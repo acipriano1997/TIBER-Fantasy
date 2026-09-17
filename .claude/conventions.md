@@ -90,3 +90,14 @@ Routes go in `server/routes/<name>Routes.ts` and register in `server/routes.ts`.
 - **Always bind** frontend servers to `0.0.0.0:5000`
 - **Always test** API endpoints via curl before marking tasks complete
 - **Position scope:** Skill positions only — QB, RB, WR, TE. No kickers, defense, or linemen.
+
+## Development Throughput Conventions
+
+- **Parallelize uncertainty; serialize commitment.** Research, fixtures, tests, and inert prework may be prepared in parallel, while runtime activation and promotion stay narrow and explicit.
+- Use `scripts/throughput/classify-change.mjs` as the default PR risk classifier. Unknown paths fail closed to `CRITICAL`.
+- Use `prework_` naming only for code that is intentionally runtime-inert. Runtime source must not import/re-export held prework, and held-prework changes must not also modify activation surfaces.
+- Prefer the smallest meaningful proof first: changed tests, related tests, or the applicable domain gate. Do not repeatedly run broad suites when they add no new evidence.
+- PR-only fast paths never waive dedicated domain gates. Every push to `main` remains a promotion boundary and receives broad/dedicated validation.
+- Keep workflow evidence states explicit: `PASS`, `FAIL`, or `NOT_RUN`. A workflow with no runner/step evidence is infrastructure `NOT_RUN`, not a product failure.
+- Keep PRs/commits to one semantic purpose with one clear proof whenever practical. This is a rollback and evidence rule, not a reason to split an inseparable contract change.
+- See `docs/dev/DEVELOPMENT_THROUGHPUT_ARCHITECTURE.md` for the full routing and evidence policy.
