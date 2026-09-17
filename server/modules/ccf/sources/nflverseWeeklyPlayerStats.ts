@@ -42,6 +42,14 @@ export interface CCFNflverseWeeklyPlayerStat {
   receivingEpa: number;
   receivingTwoPointConversions: number;
 
+  /**
+   * Provider aggregate across all fumble-lost contexts. FFCC scoring must use
+   * this field instead of reconstructing the total from rushing/receiving
+   * components, which would miss sack and other turnover contexts.
+   */
+  fumblesLostTotal: number;
+  specialTeamsTouchdowns: number;
+
   fantasyPoints: number | null;
   fantasyPointsPpr: number | null;
 }
@@ -124,10 +132,17 @@ interface RawPlayerStatRow {
   receiving_first_downs?: string;
   receiving_epa?: string;
   receiving_2pt_conversions?: string;
+  fumbles_lost_total?: string;
+  special_teams_tds?: string;
   fantasy_points?: string;
   fantasy_points_ppr?: string;
 }
 
+/**
+ * Official box-score counting fields that FFCC depends on directly for scoring
+ * or source-quality evaluation. nflverse emits these as numeric counts; blank
+ * or NA values must therefore fail closed rather than be silently coerced to 0.
+ */
 const REQUIRED_COLUMNS = [
   "player_id",
   "position",
@@ -136,17 +151,24 @@ const REQUIRED_COLUMNS = [
   "season_type",
   "team",
   "opponent_team",
+  "completions",
   "attempts",
   "passing_yards",
   "passing_tds",
   "passing_interceptions",
+  "sacks_suffered",
+  "passing_2pt_conversions",
   "carries",
   "rushing_yards",
   "rushing_tds",
+  "rushing_2pt_conversions",
   "receptions",
   "targets",
   "receiving_yards",
   "receiving_tds",
+  "receiving_2pt_conversions",
+  "fumbles_lost_total",
+  "special_teams_tds",
 ] as const;
 
 const DEFAULT_POSITIONS: CCFNflversePosition[] = ["QB", "RB", "WR", "TE"];
@@ -182,6 +204,10 @@ function numeric(
   return value;
 }
 
+function requiredCount(row: RawPlayerStatRow, key: keyof RawPlayerStatRow): number {
+  return numeric(row, key, { required: true });
+}
+
 function nullableNumeric(row: RawPlayerStatRow, key: keyof RawPlayerStatRow): number | null {
   const raw = row[key]?.trim();
   if (raw == null || raw === "" || raw.toLowerCase() === "na") {
@@ -214,8 +240,8 @@ function parsePlayerStatRow(row: RawPlayerStatRow): CCFNflverseWeeklyPlayerStat 
     return null;
   }
 
-  const season = numeric(row, "season", { required: true });
-  const week = numeric(row, "week", { required: true });
+  const season = requiredCount(row, "season");
+  const week = requiredCount(row, "week");
   if (!Number.isInteger(season) || !Number.isInteger(week)) {
     throw new CCFNflverseSourceError(`season/week must be integers for player ${playerId}`);
   }
@@ -229,33 +255,35 @@ function parsePlayerStatRow(row: RawPlayerStatRow): CCFNflverseWeeklyPlayerStat 
     seasonType,
     team: nullableText(row.team),
     opponentTeam: nullableText(row.opponent_team),
-    completions: numeric(row, "completions"),
-    passingAttempts: numeric(row, "attempts"),
-    passingYards: numeric(row, "passing_yards"),
-    passingTouchdowns: numeric(row, "passing_tds"),
-    passingInterceptions: numeric(row, "passing_interceptions"),
-    sacksTaken: numeric(row, "sacks_suffered"),
+    completions: requiredCount(row, "completions"),
+    passingAttempts: requiredCount(row, "attempts"),
+    passingYards: requiredCount(row, "passing_yards"),
+    passingTouchdowns: requiredCount(row, "passing_tds"),
+    passingInterceptions: requiredCount(row, "passing_interceptions"),
+    sacksTaken: requiredCount(row, "sacks_suffered"),
     passingAirYards: numeric(row, "passing_air_yards"),
     passingEpa: numeric(row, "passing_epa"),
     passingCpoe: nullableNumeric(row, "passing_cpoe"),
-    passingTwoPointConversions: numeric(row, "passing_2pt_conversions"),
-    carries: numeric(row, "carries"),
-    rushingYards: numeric(row, "rushing_yards"),
-    rushingTouchdowns: numeric(row, "rushing_tds"),
+    passingTwoPointConversions: requiredCount(row, "passing_2pt_conversions"),
+    carries: requiredCount(row, "carries"),
+    rushingYards: requiredCount(row, "rushing_yards"),
+    rushingTouchdowns: requiredCount(row, "rushing_tds"),
     rushingFumblesLost: numeric(row, "rushing_fumbles_lost"),
     rushingFirstDowns: numeric(row, "rushing_first_downs"),
     rushingEpa: numeric(row, "rushing_epa"),
-    rushingTwoPointConversions: numeric(row, "rushing_2pt_conversions"),
-    receptions: numeric(row, "receptions"),
-    targets: numeric(row, "targets"),
-    receivingYards: numeric(row, "receiving_yards"),
-    receivingTouchdowns: numeric(row, "receiving_tds"),
+    rushingTwoPointConversions: requiredCount(row, "rushing_2pt_conversions"),
+    receptions: requiredCount(row, "receptions"),
+    targets: requiredCount(row, "targets"),
+    receivingYards: requiredCount(row, "receiving_yards"),
+    receivingTouchdowns: requiredCount(row, "receiving_tds"),
     receivingFumblesLost: numeric(row, "receiving_fumbles_lost"),
     receivingAirYards: numeric(row, "receiving_air_yards"),
     receivingYardsAfterCatch: numeric(row, "receiving_yards_after_catch"),
     receivingFirstDowns: numeric(row, "receiving_first_downs"),
     receivingEpa: numeric(row, "receiving_epa"),
-    receivingTwoPointConversions: numeric(row, "receiving_2pt_conversions"),
+    receivingTwoPointConversions: requiredCount(row, "receiving_2pt_conversions"),
+    fumblesLostTotal: requiredCount(row, "fumbles_lost_total"),
+    specialTeamsTouchdowns: requiredCount(row, "special_teams_tds"),
     fantasyPoints: nullableNumeric(row, "fantasy_points"),
     fantasyPointsPpr: nullableNumeric(row, "fantasy_points_ppr"),
   };
