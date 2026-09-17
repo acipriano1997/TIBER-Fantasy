@@ -97,6 +97,8 @@ jobs:
           server/modules/ccf/scoring/__tests__/scoringRules.test.ts
           server/modules/ccf/sources/__tests__/nflverseWeeklyPlayerStats.test.ts
           server/modules/ccf/sources/__tests__/archivedNflverseWeeklyPlayerStats.test.ts
+          server/modules/ccf/sources/__tests__/nflverseWeeklyPlayerStatsReliability.test.ts
+          server/modules/ccf/sources/__tests__/nflverseWeeklyPlayerStatsCertificationPolicy.test.ts
           server/modules/ccf/sources/__tests__/nflversePlayByPlay.test.ts
           server/modules/ccf/sources/__tests__/nflverseRecoveryCandidates.test.ts
           server/modules/ccf/sources/__tests__/archivedNflverseSnapCounts.test.ts
