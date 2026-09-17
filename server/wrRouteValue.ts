@@ -1,4 +1,4 @@
-export const WR_ROUTE_VALUE_VERSION = "2.0.0" as const;
+export const WR_ROUTE_VALUE_VERSION = "2.0.1" as const;
 
 export type RouteFamily =
   | "post"
@@ -33,10 +33,7 @@ export const PPR_ROUTE_SCORING: RouteScoringSettings = {
   receivingTouchdown: 6,
 };
 
-/**
- * One record represents one receiver route run, not one target.
- * This is deliberate: target-only feeds cannot estimate target probability per route.
- */
+/** One record is one receiver route run, not one target. */
 export interface WrRouteObservation {
   playerId: string;
   season: number;
@@ -56,15 +53,13 @@ export interface WrRouteObservation {
 export interface WrRouteValueAsOf {
   season: number;
   week: number;
-  /** v2 is intentionally pregame-only. Same-week postgame observations are never eligible. */
+  /** v2 is intentionally pregame-only; target-week outcomes are ineligible. */
   timeframe: "pregame";
 }
 
 export interface WrRouteValueOptions {
   scoring?: RouteScoringSettings;
-  /** Prior route count used for empirical-Bayes shrinkage toward the league route-family mean. */
   priorRoutes?: number;
-  /** Prior target count used for target-conditional rate shrinkage. */
   priorTargets?: number;
 }
 
@@ -84,15 +79,15 @@ export interface WrRouteFamilyValue {
   explosiveRatePerRoute: number;
   endZoneTargetRatePerRoute: number;
   expectedPprPerRoute: number;
-  /** 25th percentile of weekly family PPR/route, shrunk toward the league family distribution. */
+  /** Shrunk p25 of player-week PPR/route for this family. */
   floorPprPerRoute: number;
-  /** 90th percentile of weekly family PPR/route, shrunk toward the league family distribution. */
+  /** Shrunk p90 of player-week PPR/route for this family. */
   ceilingPprPerRoute: number;
-  /** Null means the player has no eligible historical red-zone routes; absence is not treated as zero. */
+  /** Null means no eligible player red-zone routes, not zero production. */
   redZonePprPerRoute: number | null;
   leagueExpectedPprPerRoute: number;
   advantageVsLeague: number;
-  /** Data weight after shrinkage, 0-1. This is sample confidence, not forecast certainty. */
+  /** Sample weight, not forecast probability. */
   confidence: number;
 }
 
@@ -190,7 +185,7 @@ interface Aggregate {
   pprPoints: number;
   redZoneRoutes: number;
   redZonePprPoints: number;
-  weeklyPprPerRoute: number[];
+  playerWeekPprPerRoute: number[];
 }
 
 function finiteOrZero(value: number | null | undefined): number {
@@ -213,32 +208,24 @@ export function normalizeRouteFamily(value: RouteFamily | string): RouteFamily {
   return ROUTE_ALIASES[normalizeKey(value)] ?? "other";
 }
 
-export function routeArchetype(family: RouteFamily | string): RouteArchetype {
-  return ROUTE_ARCHETYPES[normalizeRouteFamily(family)];
+export function routeArchetype(value: RouteFamily | string): RouteArchetype {
+  return ROUTE_ARCHETYPES[normalizeRouteFamily(value)];
 }
 
 export function isRouteObservationEligible(
   observation: Pick<WrRouteObservation, "season" | "week">,
   asOf: WrRouteValueAsOf,
 ): boolean {
-  return (
-    observation.season < asOf.season ||
-    (observation.season === asOf.season && observation.week < asOf.week)
-  );
+  return observation.season < asOf.season ||
+    (observation.season === asOf.season && observation.week < asOf.week);
 }
 
-function scoreObservation(
-  row: WrRouteObservation,
-  scoring: RouteScoringSettings,
-): number {
+function scoreObservation(row: WrRouteObservation, scoring: RouteScoringSettings): number {
   const caught = row.targeted && row.caught === true;
-  const yards = caught ? finiteOrZero(row.receivingYards) : 0;
-  const touchdown = caught && row.touchdown === true;
-  return (
-    (caught ? scoring.reception : 0) +
-    yards * scoring.receivingYard +
-    (touchdown ? scoring.receivingTouchdown : 0)
-  );
+  if (!caught) return 0;
+  return scoring.reception +
+    finiteOrZero(row.receivingYards) * scoring.receivingYard +
+    (row.touchdown === true ? scoring.receivingTouchdown : 0);
 }
 
 function percentile(values: number[], p: number): number {
@@ -263,13 +250,11 @@ function shrinkMean(
   priorDenominator: number,
 ): number {
   if (denominator <= 0) return leagueRate;
-  return (
-    numerator + leagueRate * priorDenominator
-  ) / (denominator + priorDenominator);
+  return (numerator + leagueRate * priorDenominator) / (denominator + priorDenominator);
 }
 
 function aggregate(rows: WrRouteObservation[], scoring: RouteScoringSettings): Aggregate {
-  const weekly = new Map<string, { routes: number; points: number }>();
+  const playerWeeks = new Map<string, { routes: number; points: number }>();
   const out: Aggregate = {
     routes: 0,
     targets: 0,
@@ -286,7 +271,7 @@ function aggregate(rows: WrRouteObservation[], scoring: RouteScoringSettings): A
     pprPoints: 0,
     redZoneRoutes: 0,
     redZonePprPoints: 0,
-    weeklyPprPerRoute: [],
+    playerWeekPprPerRoute: [],
   };
 
   for (const row of rows) {
@@ -299,6 +284,7 @@ function aggregate(rows: WrRouteObservation[], scoring: RouteScoringSettings): A
     if (row.targeted) out.targets += 1;
     if (caught) out.catches += 1;
     out.receivingYards += yards;
+
     if (caught && typeof row.yac === "number" && Number.isFinite(row.yac)) {
       out.yac += row.yac;
       out.yacReceptions += 1;
@@ -316,16 +302,17 @@ function aggregate(rows: WrRouteObservation[], scoring: RouteScoringSettings): A
       out.redZonePprPoints += points;
     }
 
-    const weekKey = `${row.season}:${row.week}`;
-    const week = weekly.get(weekKey) ?? { routes: 0, points: 0 };
-    week.routes += 1;
-    week.points += points;
-    weekly.set(weekKey, week);
+    // Player-week, not league-week, preserves the cross-player outcome distribution.
+    const key = `${row.playerId}:${row.season}:${row.week}`;
+    const sample = playerWeeks.get(key) ?? { routes: 0, points: 0 };
+    sample.routes += 1;
+    sample.points += points;
+    playerWeeks.set(key, sample);
   }
 
-  out.weeklyPprPerRoute = [...weekly.values()]
-    .filter((week) => week.routes > 0)
-    .map((week) => week.points / week.routes);
+  out.playerWeekPprPerRoute = [...playerWeeks.values()]
+    .filter((sample) => sample.routes > 0)
+    .map((sample) => sample.points / sample.routes);
   return out;
 }
 
@@ -333,9 +320,7 @@ function rowsForFamily(rows: WrRouteObservation[], family: RouteFamily): WrRoute
   return rows.filter((row) => normalizeRouteFamily(row.routeFamily) === family);
 }
 
-function weightedAverage(
-  values: Array<{ value: number | null; weight: number }>,
-): number | null {
+function weightedAverage(values: Array<{ value: number | null; weight: number }>): number | null {
   const eligible = values.filter(
     (entry): entry is { value: number; weight: number } =>
       entry.value !== null && Number.isFinite(entry.value) && entry.weight > 0,
@@ -345,10 +330,20 @@ function weightedAverage(
   return eligible.reduce((sum, entry) => sum + entry.value * entry.weight, 0) / totalWeight;
 }
 
+function emptyOverall(): WrRouteValueProfile["overall"] {
+  return {
+    expectedPprPerRoute: null,
+    floorPprPerRoute: null,
+    ceilingPprPerRoute: null,
+    redZonePprPerRoute: null,
+    advantageVsLeague: null,
+    confidence: 0,
+  };
+}
+
 /**
- * Builds player-specific route-family value using only observations available before
- * the requested pregame week. Route families are descriptors, not hard-coded fantasy
- * multipliers: the numeric hierarchy is learned from the supplied historical sample.
+ * Player-specific route-family value using only observations strictly before the
+ * requested pregame week. Route labels explain mechanisms; observations set value.
  */
 export function buildWrRouteValueProfile(
   playerId: string,
@@ -369,117 +364,88 @@ export function buildWrRouteValueProfile(
   ).length;
   const leagueRows = leagueObservations.filter((row) => isRouteObservationEligible(row, asOf));
 
-  const base: Omit<WrRouteValueProfile, "available" | "reason" | "families" | "overall"> = {
+  const common = {
     version: WR_ROUTE_VALUE_VERSION,
     playerId,
     asOf,
     eligibleRoutes: playerRows.length,
     excludedSameOrFutureRoutes,
     doctrine: {
-      unit: "per_route_run",
-      targetOnlyFeedAllowed: false,
-      sameWeekPregameLeakageAllowed: false,
-      sparseSamplesShrinkToLeagueFamilyMean: true,
-      routeFamilyValueIsPlayerSpecific: true,
+      unit: "per_route_run" as const,
+      targetOnlyFeedAllowed: false as const,
+      sameWeekPregameLeakageAllowed: false as const,
+      sparseSamplesShrinkToLeagueFamilyMean: true as const,
+      routeFamilyValueIsPlayerSpecific: true as const,
     },
   };
 
   if (playerRows.length === 0) {
     return {
-      ...base,
+      ...common,
       available: false,
       reason: "no_eligible_player_route_history",
       families: [],
-      overall: {
-        expectedPprPerRoute: null,
-        floorPprPerRoute: null,
-        ceilingPprPerRoute: null,
-        redZonePprPerRoute: null,
-        advantageVsLeague: null,
-        confidence: 0,
-      },
+      overall: emptyOverall(),
     };
   }
-
   if (leagueRows.length === 0) {
     return {
-      ...base,
+      ...common,
       available: false,
       reason: "no_eligible_league_route_baseline",
       families: [],
-      overall: {
-        expectedPprPerRoute: null,
-        floorPprPerRoute: null,
-        ceilingPprPerRoute: null,
-        redZonePprPerRoute: null,
-        advantageVsLeague: null,
-        confidence: 0,
-      },
+      overall: emptyOverall(),
     };
   }
 
   const globalLeague = aggregate(leagueRows, scoring);
-  const globalLeaguePpr = globalLeague.routes > 0 ? globalLeague.pprPoints / globalLeague.routes : 0;
-  const globalLeagueFloor = percentile(globalLeague.weeklyPprPerRoute, 0.25);
-  const globalLeagueCeiling = percentile(globalLeague.weeklyPprPerRoute, 0.9);
-  const globalLeagueRz =
-    globalLeague.redZoneRoutes > 0
-      ? globalLeague.redZonePprPoints / globalLeague.redZoneRoutes
-      : globalLeaguePpr;
+  const globalPpr = globalLeague.pprPoints / globalLeague.routes;
+  const globalFloor = percentile(globalLeague.playerWeekPprPerRoute, 0.25);
+  const globalCeiling = percentile(globalLeague.playerWeekPprPerRoute, 0.9);
+  const globalRz = globalLeague.redZoneRoutes > 0
+    ? globalLeague.redZonePprPoints / globalLeague.redZoneRoutes
+    : globalPpr;
 
   const playerFamilies = [...new Set(playerRows.map((row) => normalizeRouteFamily(row.routeFamily)))];
-  const families: WrRouteFamilyValue[] = playerFamilies.map((family) => {
+  const families = playerFamilies.map<WrRouteFamilyValue>((family) => {
     const player = aggregate(rowsForFamily(playerRows, family), scoring);
-    const leagueFamilyRows = rowsForFamily(leagueRows, family);
-    const league = aggregate(leagueFamilyRows, scoring);
+    const league = aggregate(rowsForFamily(leagueRows, family), scoring);
 
-    const leaguePpr = league.routes > 0 ? league.pprPoints / league.routes : globalLeaguePpr;
-    const leagueTargetRate = league.routes > 0 ? league.targets / league.routes : globalLeague.targets / globalLeague.routes;
+    const leaguePpr = league.routes > 0 ? league.pprPoints / league.routes : globalPpr;
+    const leagueTargetRate = league.routes > 0
+      ? league.targets / league.routes
+      : globalLeague.targets / globalLeague.routes;
     const leagueCatchRate = league.targets > 0 ? league.catches / league.targets : 0;
-    const leagueYardsPerRoute = league.routes > 0 ? league.receivingYards / league.routes : globalLeague.receivingYards / globalLeague.routes;
-    const leagueTdRate = league.routes > 0 ? league.touchdowns / league.routes : globalLeague.touchdowns / globalLeague.routes;
-    const leagueFirstDownRate = league.routes > 0 ? league.firstDowns / league.routes : globalLeague.firstDowns / globalLeague.routes;
-    const leagueExplosiveRate = league.routes > 0 ? league.explosives / league.routes : globalLeague.explosives / globalLeague.routes;
-    const leagueEndZoneRate = league.routes > 0 ? league.endZoneTargets / league.routes : globalLeague.endZoneTargets / globalLeague.routes;
+    const leagueYardsPerRoute = league.routes > 0
+      ? league.receivingYards / league.routes
+      : globalLeague.receivingYards / globalLeague.routes;
+    const leagueTdRate = league.routes > 0
+      ? league.touchdowns / league.routes
+      : globalLeague.touchdowns / globalLeague.routes;
+    const leagueFirstDownRate = league.routes > 0
+      ? league.firstDowns / league.routes
+      : globalLeague.firstDowns / globalLeague.routes;
+    const leagueExplosiveRate = league.routes > 0
+      ? league.explosives / league.routes
+      : globalLeague.explosives / globalLeague.routes;
+    const leagueEndZoneRate = league.routes > 0
+      ? league.endZoneTargets / league.routes
+      : globalLeague.endZoneTargets / globalLeague.routes;
 
-    const familyWeight = player.routes / (player.routes + priorRoutes);
-    const leagueFloor = league.weeklyPprPerRoute.length > 0
-      ? percentile(league.weeklyPprPerRoute, 0.25)
-      : globalLeagueFloor;
-    const leagueCeiling = league.weeklyPprPerRoute.length > 0
-      ? percentile(league.weeklyPprPerRoute, 0.9)
-      : globalLeagueCeiling;
-    const playerFloor = percentile(player.weeklyPprPerRoute, 0.25);
-    const playerCeiling = percentile(player.weeklyPprPerRoute, 0.9);
+    const confidence = player.routes / (player.routes + priorRoutes);
+    const leagueFloor = league.playerWeekPprPerRoute.length > 0
+      ? percentile(league.playerWeekPprPerRoute, 0.25)
+      : globalFloor;
+    const leagueCeiling = league.playerWeekPprPerRoute.length > 0
+      ? percentile(league.playerWeekPprPerRoute, 0.9)
+      : globalCeiling;
+    const playerFloor = percentile(player.playerWeekPprPerRoute, 0.25);
+    const playerCeiling = percentile(player.playerWeekPprPerRoute, 0.9);
 
     const expectedPprPerRoute = shrinkMean(player.pprPoints, player.routes, leaguePpr, priorRoutes);
-    const targetRate = clamp01(shrinkMean(player.targets, player.routes, leagueTargetRate, priorRoutes));
-    const catchRateOnTargets = player.targets > 0
-      ? clamp01(shrinkMean(player.catches, player.targets, leagueCatchRate, priorTargets))
-      : null;
-    const receivingYardsPerRoute = Math.max(
-      0,
-      shrinkMean(player.receivingYards, player.routes, leagueYardsPerRoute, priorRoutes),
-    );
-    const touchdownRatePerRoute = clamp01(
-      shrinkMean(player.touchdowns, player.routes, leagueTdRate, priorRoutes),
-    );
-    const firstDownRatePerRoute = clamp01(
-      shrinkMean(player.firstDowns, player.routes, leagueFirstDownRate, priorRoutes),
-    );
-    const explosiveRatePerRoute = clamp01(
-      shrinkMean(player.explosives, player.routes, leagueExplosiveRate, priorRoutes),
-    );
-    const endZoneTargetRatePerRoute = clamp01(
-      shrinkMean(player.endZoneTargets, player.routes, leagueEndZoneRate, priorRoutes),
-    );
-
     const leagueRz = league.redZoneRoutes > 0
       ? league.redZonePprPoints / league.redZoneRoutes
-      : globalLeagueRz;
-    const redZonePprPerRoute = player.redZoneRoutes > 0
-      ? shrinkMean(player.redZonePprPoints, player.redZoneRoutes, leagueRz, Math.max(1, priorRoutes / 4))
-      : null;
+      : globalRz;
 
     return {
       family,
@@ -487,39 +453,73 @@ export function buildWrRouteValueProfile(
       routes: player.routes,
       routeShare: player.routes / playerRows.length,
       targets: player.targets,
-      targetRate,
-      catchRateOnTargets,
-      receivingYardsPerRoute,
+      targetRate: clamp01(shrinkMean(player.targets, player.routes, leagueTargetRate, priorRoutes)),
+      catchRateOnTargets: player.targets > 0
+        ? clamp01(shrinkMean(player.catches, player.targets, leagueCatchRate, priorTargets))
+        : null,
+      receivingYardsPerRoute: Math.max(
+        0,
+        shrinkMean(player.receivingYards, player.routes, leagueYardsPerRoute, priorRoutes),
+      ),
       yacPerReception: player.yacReceptions > 0 ? player.yac / player.yacReceptions : null,
       airYardsPerTarget: player.airYardTargets > 0 ? player.airYards / player.airYardTargets : null,
-      touchdownRatePerRoute,
-      firstDownRatePerRoute,
-      explosiveRatePerRoute,
-      endZoneTargetRatePerRoute,
+      touchdownRatePerRoute: clamp01(
+        shrinkMean(player.touchdowns, player.routes, leagueTdRate, priorRoutes),
+      ),
+      firstDownRatePerRoute: clamp01(
+        shrinkMean(player.firstDowns, player.routes, leagueFirstDownRate, priorRoutes),
+      ),
+      explosiveRatePerRoute: clamp01(
+        shrinkMean(player.explosives, player.routes, leagueExplosiveRate, priorRoutes),
+      ),
+      endZoneTargetRatePerRoute: clamp01(
+        shrinkMean(player.endZoneTargets, player.routes, leagueEndZoneRate, priorRoutes),
+      ),
       expectedPprPerRoute,
-      floorPprPerRoute: blend(playerFloor, leagueFloor, familyWeight),
-      ceilingPprPerRoute: blend(playerCeiling, leagueCeiling, familyWeight),
-      redZonePprPerRoute,
+      floorPprPerRoute: blend(playerFloor, leagueFloor, confidence),
+      ceilingPprPerRoute: blend(playerCeiling, leagueCeiling, confidence),
+      redZonePprPerRoute: player.redZoneRoutes > 0
+        ? shrinkMean(
+            player.redZonePprPoints,
+            player.redZoneRoutes,
+            leagueRz,
+            Math.max(1, priorRoutes / 4),
+          )
+        : null,
       leagueExpectedPprPerRoute: leaguePpr,
       advantageVsLeague: expectedPprPerRoute - leaguePpr,
-      confidence: clamp01(familyWeight),
+      confidence: clamp01(confidence),
     };
   });
 
-  families.sort((a, b) => b.routeShare - a.routeShare || b.expectedPprPerRoute - a.expectedPprPerRoute);
+  families.sort(
+    (a, b) => b.routeShare - a.routeShare || b.expectedPprPerRoute - a.expectedPprPerRoute,
+  );
 
   return {
-    ...base,
+    ...common,
     available: true,
     reason: null,
     families,
     overall: {
-      expectedPprPerRoute: weightedAverage(families.map((f) => ({ value: f.expectedPprPerRoute, weight: f.routes }))),
-      floorPprPerRoute: weightedAverage(families.map((f) => ({ value: f.floorPprPerRoute, weight: f.routes }))),
-      ceilingPprPerRoute: weightedAverage(families.map((f) => ({ value: f.ceilingPprPerRoute, weight: f.routes }))),
-      redZonePprPerRoute: weightedAverage(families.map((f) => ({ value: f.redZonePprPerRoute, weight: f.routes }))),
-      advantageVsLeague: weightedAverage(families.map((f) => ({ value: f.advantageVsLeague, weight: f.routes }))),
-      confidence: weightedAverage(families.map((f) => ({ value: f.confidence, weight: f.routes }))) ?? 0,
+      expectedPprPerRoute: weightedAverage(
+        families.map((family) => ({ value: family.expectedPprPerRoute, weight: family.routes })),
+      ),
+      floorPprPerRoute: weightedAverage(
+        families.map((family) => ({ value: family.floorPprPerRoute, weight: family.routes })),
+      ),
+      ceilingPprPerRoute: weightedAverage(
+        families.map((family) => ({ value: family.ceilingPprPerRoute, weight: family.routes })),
+      ),
+      redZonePprPerRoute: weightedAverage(
+        families.map((family) => ({ value: family.redZonePprPerRoute, weight: family.routes })),
+      ),
+      advantageVsLeague: weightedAverage(
+        families.map((family) => ({ value: family.advantageVsLeague, weight: family.routes })),
+      ),
+      confidence: weightedAverage(
+        families.map((family) => ({ value: family.confidence, weight: family.routes })),
+      ) ?? 0,
     },
   };
 }
