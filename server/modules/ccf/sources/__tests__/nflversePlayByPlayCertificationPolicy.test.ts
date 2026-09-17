@@ -54,7 +54,7 @@ describe("nflverse play-by-play prospective reliability policy", () => {
     expect(policy.checkpoints).toEqual(CCF_NFLVERSE_PBP_CHECKPOINTS_2026_V1);
     expect(policy.frozenAt).toBe("2026-09-16T18:30:00Z");
     expect(policy.identityBindingRef).toMatch(
-      /^ccf:\/\/nfl-player-identity-linkage\/sha256\/[a-f0-9]{64}$/,
+      /^ccf:\/\/nfl-player-identity\/sha256\/[a-f0-9]{64}$/,
     );
   });
 
