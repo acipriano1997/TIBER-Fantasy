@@ -152,6 +152,7 @@ const ROUTE_ALIASES: Record<string, RouteFamily> = {
   go: "go_fade",
   fade: "go_fade",
   go_fade: "go_fade",
+  "9": "go_fade",
   nine: "go_fade",
   streak: "go_fade",
   vertical: "go_fade",
@@ -302,7 +303,6 @@ function aggregate(rows: WrRouteObservation[], scoring: RouteScoringSettings): A
       out.redZonePprPoints += points;
     }
 
-    // Player-week, not league-week, preserves the cross-player outcome distribution.
     const key = `${row.playerId}:${row.season}:${row.week}`;
     const sample = playerWeeks.get(key) ?? { routes: 0, points: 0 };
     sample.routes += 1;
@@ -341,10 +341,6 @@ function emptyOverall(): WrRouteValueProfile["overall"] {
   };
 }
 
-/**
- * Player-specific route-family value using only observations strictly before the
- * requested pregame week. Route labels explain mechanisms; observations set value.
- */
 export function buildWrRouteValueProfile(
   playerId: string,
   playerObservations: WrRouteObservation[],
