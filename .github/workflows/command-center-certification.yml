@@ -2,6 +2,37 @@ name: Command Center Certification
 
 on:
   pull_request:
+    paths:
+      - 'server/index.ts'
+      - 'server/middleware/personalUserScope.ts'
+      - 'server/routes/leagueDashboardRoutes.ts'
+      - 'server/routes/leagueSyncRoutes.ts'
+      - 'server/routes/weeklyDecisionRuntimeRoutes.ts'
+      - 'server/services/leagueDashboardTruthBoundary.ts'
+      - 'server/services/commandCenterLeagueContextService.ts'
+      - 'server/services/weeklyDecisionRuntimeService.ts'
+      - 'server/leagueContext/**'
+      - 'server/platformSync/leagueAwareSync.ts'
+      - 'shared/weeklyDecisionContract.ts'
+      - 'client/src/pages/CommandCenterV1.tsx'
+      - 'server/middleware/__tests__/personalUserScope.test.ts'
+      - 'server/services/__tests__/leagueDashboardTruthBoundary.test.ts'
+      - 'server/services/__tests__/commandCenterLeagueContextService.test.ts'
+      - 'server/services/__tests__/weeklyDecisionRuntimeService.test.ts'
+      - 'server/services/__tests__/weeklyDecisionContract.test.ts'
+      - 'server/services/__tests__/weeklyDecisionSourceLineage.test.ts'
+      - 'server/services/__tests__/weeklyDecisionLedger.test.ts'
+      - 'server/services/__tests__/weeklyDecisionGoldenTraces.test.ts'
+      - 'server/routes/__tests__/leagueContextCommandCenter.test.ts'
+      - 'server/routes/__tests__/weeklyDecisionRuntimeRoutes.test.ts'
+      - 'server/modules/management/__tests__/forgeTeamDirectionFreshnessPolicy.test.ts'
+      - 'server/leagueContext/__tests__/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'build.sh'
+      - 'tsconfig.json'
+      - 'jest.config.cjs'
+      - '.github/workflows/command-center-certification.yml'
   push:
     branches:
       - main

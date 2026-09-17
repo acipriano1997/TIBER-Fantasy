@@ -1,0 +1,211 @@
+name: Development Throughput Router
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: development-throughput-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  classify:
+    name: Classify change risk
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      tier: ${{ steps.route.outputs.tier }}
+      run_focused: ${{ steps.route.outputs.run_focused }}
+      run_full: ${{ steps.route.outputs.run_full }}
+      held_prework: ${{ steps.route.outputs.held_prework }}
+      docs_only: ${{ steps.route.outputs.docs_only }}
+      changed_count: ${{ steps.route.outputs.changed_count }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Self-test throughput contracts
+        run: node --test scripts/throughput/__tests__/throughput.test.mjs
+      - name: Resolve changed files
+        id: files
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          CURRENT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            base="$PR_BASE"
+            head="$PR_HEAD"
+          elif [ -n "${PUSH_BEFORE:-}" ] && ! printf '%s' "$PUSH_BEFORE" | grep -Eq '^0+$'; then
+            base="$PUSH_BEFORE"
+            head="$CURRENT_SHA"
+          else
+            base="$(git rev-parse HEAD^)"
+            head="$CURRENT_SHA"
+          fi
+          git diff --name-only "$base" "$head" | sed '/^$/d' > /tmp/tiber-changed-files.txt
+          echo "base=$base" >> "$GITHUB_OUTPUT"
+          echo "head=$head" >> "$GITHUB_OUTPUT"
+          echo "Changed files:"
+          cat /tmp/tiber-changed-files.txt
+      - name: Route validation
+        id: route
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          promotion=()
+          if [ "$EVENT_NAME" != "pull_request" ]; then
+            promotion=(--promotion)
+          fi
+          node scripts/throughput/classify-change.mjs \
+            --github-output "$GITHUB_OUTPUT" \
+            "${promotion[@]}" \
+            < /tmp/tiber-changed-files.txt \
+            | tee /tmp/tiber-throughput-route.json
+      - name: Publish routing summary
+        shell: bash
+        run: |
+          {
+            echo '## Development throughput routing'
+            echo
+            echo '- Tier: `${{ steps.route.outputs.tier }}`'
+            echo '- Changed files: `${{ steps.route.outputs.changed_count }}`'
+            echo '- Focused validation: `${{ steps.route.outputs.run_focused }}`'
+            echo '- Broad/promotion validation required: `${{ steps.route.outputs.run_full }}`'
+            echo '- Held-prework boundary: `${{ steps.route.outputs.held_prework }}`'
+            echo
+            echo 'Unknown or ambiguous paths fail closed to CRITICAL. This router never waives a dedicated domain gate.'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  held-prework-boundary:
+    name: Verify held prework remains inert
+    needs: classify
+    if: needs.classify.outputs.held_prework == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Resolve changed files
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          CURRENT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            base="$PR_BASE"
+            head="$PR_HEAD"
+          elif [ -n "${PUSH_BEFORE:-}" ] && ! printf '%s' "$PUSH_BEFORE" | grep -Eq '^0+$'; then
+            base="$PUSH_BEFORE"
+            head="$CURRENT_SHA"
+          else
+            base="$(git rev-parse HEAD^)"
+            head="$CURRENT_SHA"
+          fi
+          git diff --name-only "$base" "$head" | sed '/^$/d' > /tmp/tiber-changed-files.txt
+      - name: Verify no runtime activation
+        run: node scripts/throughput/verify-held-prework.mjs < /tmp/tiber-changed-files.txt
+
+  focused-validation:
+    name: Focused validation
+    needs: classify
+    if: needs.classify.outputs.run_focused == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Resolve changed files
+        shell: bash
+        env:
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          git diff --name-only "$PR_BASE" "$PR_HEAD" | sed '/^$/d' > /tmp/tiber-changed-files.txt
+      - name: Run changed or related Jest tests
+        shell: bash
+        env:
+          ROUTE_TIER: ${{ needs.classify.outputs.tier }}
+        run: |
+          set -euo pipefail
+          mapfile -t changed_tests < <(grep -E '(__tests__/.*|\.(test|spec)\.[cm]?[jt]sx?$)' /tmp/tiber-changed-files.txt || true)
+          mapfile -t changed_sources < <(grep -E '\.[jt]sx?$' /tmp/tiber-changed-files.txt | grep -Ev '(^|/)prework(_|/)' || true)
+
+          if [ "$ROUTE_TIER" = "TEST_ONLY" ] || [ "$ROUTE_TIER" = "HELD_PREWORK" ]; then
+            if [ "${#changed_tests[@]}" -eq 0 ]; then
+              echo 'No Jest-compatible changed tests; throughput self-tests/guard are the applicable proof.'
+              exit 0
+            fi
+            npm test -- "${changed_tests[@]}" --coverage=false --passWithNoTests
+            exit 0
+          fi
+
+          if [ "${#changed_sources[@]}" -eq 0 ]; then
+            echo 'No Jest-related implementation files found.'
+            exit 0
+          fi
+
+          npx jest --config jest.config.cjs --runInBand --findRelatedTests \
+            "${changed_sources[@]}" --coverage=false --passWithNoTests
+
+  routing-summary:
+    name: Throughput decision record
+    needs:
+      - classify
+      - held-prework-boundary
+      - focused-validation
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Record evidence state
+        shell: bash
+        run: |
+          {
+            echo '## Throughput decision record'
+            echo
+            echo '- Classification: `${{ needs.classify.outputs.tier }}`'
+            echo '- Classifier job: `${{ needs.classify.result }}`'
+            echo '- Held-prework guard: `${{ needs.held-prework-boundary.result }}`'
+            echo '- Focused validation: `${{ needs.focused-validation.result }}`'
+            echo '- Broad validation required: `${{ needs.classify.outputs.run_full }}`'
+            echo
+            echo 'A skipped focused job is not a product PASS. Critical changes and all promotion-boundary pushes rely on the repository’s broad/dedicated certification workflows.'
+          } >> "$GITHUB_STEP_SUMMARY"

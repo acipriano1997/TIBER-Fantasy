@@ -2,6 +2,20 @@ name: Core Build
 
 on:
   pull_request:
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - 'reports/**'
+      - '.claude/**'
+      - '**/__tests__/**'
+      - '**/fixtures/**'
+      - '**/*.test.ts'
+      - '**/*.test.tsx'
+      - '**/*.spec.ts'
+      - '**/*.spec.tsx'
+      - '**/prework_*.ts'
+      - '**/prework_*.tsx'
+      - 'scripts/throughput/**'
   push:
     branches:
       - main
