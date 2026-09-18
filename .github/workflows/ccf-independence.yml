@@ -88,6 +88,7 @@ jobs:
           server/modules/ccf/certification/__tests__/historicalDatasetManifest.test.ts
           server/modules/ccf/certification/__tests__/historicalDatasetProtocolBinding.test.ts
           server/modules/ccf/certification/__tests__/historicalDatasetFreezeReceipt.test.ts
+          server/modules/ccf/certification/__tests__/candidateParameterArtifact.test.ts
           server/modules/ccf/certification/__tests__/backtestProgressHistory.test.ts
           server/modules/ccf/certification/__tests__/predictiveValidation.test.ts
           server/modules/ccf/certification/__tests__/forecastMetrics.test.ts
