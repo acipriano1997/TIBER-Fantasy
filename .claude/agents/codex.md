@@ -7,6 +7,16 @@ Workflow: Creates PRs on GitHub, merged by Architect J after review
 
 ---
 
+### Unreleased — 2026-09-18: FFCC deep-analytics coverage audit
+- **Branch:** `codex/ffcc-deep-analytics-gap-audit`
+- **Summary:** Completed a duplication-aware deep-analytics audit, created the canonical gap/ownership/promotion map, and added an inert evidence contract so future advanced analytics share point-in-time, missingness, family, and authority semantics instead of becoming separate scoring brains.
+- **Key Files:**
+  - `docs/architecture/FFCC_DEEP_ANALYTICS_GAP_AUDIT_2026-09-18.md`
+  - `server/prework_deepAnalyticsEvidenceV1.ts`
+  - `server/__tests__/prework_deepAnalyticsEvidenceV1.test.ts`
+  - `METRICS_ROADMAP.md`
+- **Validation:** PR should run the focused Jest test plus held-prework inertness verification. Runtime influence is hard-coded false in the prework contract.
+
 ### Unreleased — 2026-08-09: Rankings season-honesty review corrections
 - **Branch:** `codex/pr311-correction-round`
 - **Summary:** Closed the remaining Fantasy #307 Phase A review findings across postseason defaults/archive labels and stale-calendar API/UI behavior, including a real mounted fresh-to-stale container regression.

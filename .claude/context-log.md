@@ -5,6 +5,12 @@ Every agent should append an entry here after completing work.
 
 ---
 
+### 2026-09-18 — Codex: FFCC deep-analytics coverage audit and inert prework
+- **What changed:** Audited current FFCC analytics against live repository capabilities and the 2025–2026 public football-analytics frontier; separated already-covered/legacy signals from true gaps; defined the high-value receiving, trench, redistribution, role-state, joint-distribution, and decision-utility lanes; added a held-prework evidence vocabulary with point-in-time diagnostic eligibility and no runtime authority; demoted the stale metrics roadmap from automatic scoring authority.
+- **Files modified:** `docs/architecture/FFCC_DEEP_ANALYTICS_GAP_AUDIT_2026-09-18.md`, `server/prework_deepAnalyticsEvidenceV1.ts`, `server/__tests__/prework_deepAnalyticsEvidenceV1.test.ts`, `METRICS_ROADMAP.md`, `replit.md`, agent/context logs.
+- **Validation:** Focused prework test and held-prework inertness guard are expected PR gates; no runtime imports, scoring weights, recommendation authority, source promotion, or final-holdout access were added.
+- **Notes:** Highest-value future lanes are route/coverage + intent, run-scheme/blocking, teammate redistribution, latent role-state detection, and joint outcome/decision utility. Tracking-only fields must not be fabricated from nflverse proxies.
+
 ### 2026-08-09 — Codex: Rankings season-honesty review corrections
 - **What changed:** Corrected `/tiers` archive labels to use the forward ranking season, added a calendar-specific unavailable state, cleared retained season selection on a mounted stale-calendar transition, keyed that transition separately in React Query, defaulted parameterless postseason rankings to the configured forward season, and restricted stale-calendar explicit queries to configured historical seasons before any cache/scoring read.
 - **Files modified:** `client/src/pages/TiberTiers.tsx`, `client/src/pages/tiberTiersV2Mapper.ts`, `server/routes/rankingsV2Routes.ts`, and focused rendered/container/route tests.
