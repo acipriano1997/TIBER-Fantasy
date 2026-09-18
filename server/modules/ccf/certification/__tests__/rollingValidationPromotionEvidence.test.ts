@@ -81,6 +81,18 @@ function protocol(): CCFPredictiveValidationProtocol {
         confidenceLowerBoundMustBeatZero: false,
         appliesTo: "overall",
       },
+      {
+        criterionId: "fantasy-mae-vs-usage-both",
+        target: "fantasy_points",
+        metric: "mae",
+        comparatorArm: "usage_rate",
+        candidateArm: "native_candidate",
+        direction: "lower_is_better",
+        minimumAbsoluteImprovement: 0,
+        minimumRelativeImprovement: null,
+        confidenceLowerBoundMustBeatZero: false,
+        appliesTo: "both",
+      },
     ],
     outcomeAccessedBeforeFreeze: false,
     oneTouchFinalHoldoutRequired: true,
@@ -218,7 +230,13 @@ describe("CCF rolling validation promotion evidence", () => {
       certificationOnly: true,
       productionInferenceAuthorized: false,
     });
-    expect(result.criterionEvidence).toHaveLength(1);
+    expect(result.criterionEvidence).toHaveLength(2);
+    expect(
+      result.criterionEvidence.map((row) => row.criterion.criterionId),
+    ).toEqual([
+      "fantasy-mae-vs-usage",
+      "fantasy-mae-vs-usage-both",
+    ]);
     const evidence = result.criterionEvidence[0];
     expect(evidence.criterion).toMatchObject({
       criterionId: "fantasy-mae-vs-usage",
