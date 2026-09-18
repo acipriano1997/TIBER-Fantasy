@@ -72,9 +72,14 @@ const CRITICAL_FIELD_POLICY: Record<CCFNflverseInjuryCertificationCapability, st
   practice_participation: "ccf://policy/practice-participation-fields-v1",
 };
 
+export const CCF_NFLVERSE_INJURY_DESIGNATION_SOURCE_ID_V2 =
+  "nflverse-injuries-designation-v2" as const;
+export const CCF_NFLVERSE_PRACTICE_PARTICIPATION_SOURCE_ID_V2 =
+  "nflverse-injuries-practice-v2" as const;
+
 const SOURCE_ID: Record<CCFNflverseInjuryCertificationCapability, string> = {
-  injury_designation: "nflverse-injuries-designation-v2",
-  practice_participation: "nflverse-injuries-practice-v2",
+  injury_designation: CCF_NFLVERSE_INJURY_DESIGNATION_SOURCE_ID_V2,
+  practice_participation: CCF_NFLVERSE_PRACTICE_PARTICIPATION_SOURCE_ID_V2,
 };
 
 const CORRECTION_POLICY_REF = "ccf://policy/nflverse-injury-corrections-v1";
