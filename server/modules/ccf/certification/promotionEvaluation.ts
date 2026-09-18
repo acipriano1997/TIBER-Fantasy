@@ -201,17 +201,24 @@ export function evaluateCCFPredictivePromotion(
       );
     }
 
+    const candidateValue = overallGateApplied ? row.candidateValue! : null;
+    const comparatorValue = overallGateApplied ? row.comparatorValue! : null;
+    const pairedSampleSize = overallGateApplied ? row.pairedSampleSize! : null;
+    const independentTimeBlocks = overallGateApplied
+      ? row.independentTimeBlocks!
+      : null;
+
     const absoluteImprovement = overallGateApplied
-      ? improvement(criterion, row.candidateValue, row.comparatorValue)
+      ? improvement(criterion, candidateValue!, comparatorValue!)
       : null;
     const relative = overallGateApplied && absoluteImprovement != null
-      ? relativeImprovement(absoluteImprovement, row.comparatorValue)
+      ? relativeImprovement(absoluteImprovement, comparatorValue!)
       : null;
 
     const sampleGatePassed = !overallGateApplied ||
-      row.pairedSampleSize >= protocol.samplePolicy.minimumOverallPairedRows;
+      pairedSampleSize! >= protocol.samplePolicy.minimumOverallPairedRows;
     const independentBlockGatePassed = !overallGateApplied ||
-      row.independentTimeBlocks >= protocol.samplePolicy.minimumIndependentTimeBlocks;
+      independentTimeBlocks! >= protocol.samplePolicy.minimumIndependentTimeBlocks;
     const absoluteImprovementGatePassed = !overallGateApplied ||
       criterion.minimumAbsoluteImprovement == null ||
       (absoluteImprovement != null &&
