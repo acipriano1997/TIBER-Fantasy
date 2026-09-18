@@ -176,6 +176,31 @@ describe("CCF historical lineup feasible set", () => {
     }
   });
 
+  it("fails closed on contradictory historical bye and lock timing state", () => {
+    for (const invalidPlayer of [
+      player("wr-1", "WR", {
+        byeWeekKnown: true,
+        byeWeek: 0,
+      }),
+      player("wr-1", "WR", {
+        lockState: "unlocked",
+        lockAt: "2024-09-22T15:00:00Z",
+      }),
+    ]) {
+      const input = frozen(baseSlots(), [
+        player("qb-1", "QB"),
+        invalidPlayer,
+      ]);
+
+      expect(() =>
+        buildCCFHistoricalLineupFeasibleSet({
+          rosterSnapshot: input.snapshot,
+          slotGeometry: input.geometry,
+        }),
+      ).toThrow();
+    }
+  });
+
   it("fails closed rather than truncating an exact feasible set at the safety limit", () => {
     const input = frozen();
 
