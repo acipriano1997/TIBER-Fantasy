@@ -21,6 +21,8 @@ Intelligence Feed System:
 ## System Architecture
 The platform utilizes a 3-tier ELT architecture (Bronze → Silver → Gold layers) emphasizing data quality and confidence scoring.
 
+**FFCC deep-analytics governance (2026-09-18):** Advanced football analytics are duplication-gated and family-mapped before they may influence CCF. The canonical gap audit is `docs/architecture/FFCC_DEEP_ANALYTICS_GAP_AUDIT_2026-09-18.md`. New route/coverage, run-scheme/blocking, teammate-redistribution, latent role-state, joint-distribution, or decision-utility work remains held prework until its producer/source is qualified, point-in-time history exists, and existing validation/promotion gates approve it. TIBER-Fantasy must not fabricate tracking-only evidence or add independent heuristic bonuses that double-count existing mechanisms.
+
 **Core Infrastructure:**
 - **Backend**: Node.js/TypeScript (Express.js) and Python (Flask).
 - **Frontend**: React 18, TypeScript, Tailwind CSS, TanStack Query, shadcn/ui.
