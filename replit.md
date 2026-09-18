@@ -90,3 +90,6 @@ TIBER Management Dashboard is now the first product-shell step toward “sync my
 - Evidence is eligible through exactly 45 elapsed UTC days. Warning, stale, unknown, missing, malformed, future, or unavailable states fail closed; `promoted_at` is retained only for diagnostics and cannot refresh eligibility.
 - One versioned receipt drives the classifier and backend diagnostics and is exposed to Management UI and snapshot export. Rejected raw observations remain inspectable but cannot affect FORGE coverage, direction, or confidence.
 - This boundary does not alter artifact bytes, scoring/direction thresholds, databases, auth, or deployment.
+
+### CCF authority prerequisites — 2026-09-14
+The independence release checklist now requires complete native-family census/registry evidence, all eight declared surface graphs, exact operator-owned trusted bindings for every critical node, and matching canonical model-certification records. The trusted binding registry intentionally remains empty until genuine source/runtime attestations exist; graph/binding validation is not a production authority receipt, and frozen historical certification remains open. See `docs/architecture/CCF_UNIVERSAL_RECOMMENDATION_AUTHORITY_GRAPH.md`.

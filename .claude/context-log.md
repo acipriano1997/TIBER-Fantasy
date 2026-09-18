@@ -694,3 +694,37 @@ Every agent should append an entry here after completing work.
 - **Validation:** Focused runtime/Draft Review/production-routing suites passed 11/11; deployment-equivalent `sh build.sh` passed; repository typecheck retained its existing unrelated diagnostics with no touched-file matches; `git diff --check` passed.
 - **Notes:** This is source containment only. No environment was changed and nothing was deployed. Enabling the profile and smoking an exact release SHA remain separately authorized operator actions.
 - **Review repairs:** Exact-head review found that the existing service worker could replay cached API responses across a runtime-profile change. All same-origin API GETs—including mixed-case paths that Express treats as API routes—are now network-only with `cache: no-store`; activation removes the legacy dynamic API cache, while only versioned static/document caches remain. The client still fails closed to the public shell if the capability request cannot reach the server. The public-only desktop shell also clears the absent sidebar's content offset.
+
+## 2026-09-14 — CCF universal authority prerequisite hardening
+
+- Scope: FFCC / TIBER-Fantasy, existing draft PR #25 only.
+- Added strict eight-surface declared authority graph schema, deterministic fingerprint, transitive lineage/stage/time checks, and canonical certified-backtest identity matching.
+- Closed status-only producer-family bypass and missing/declassified/duplicate required census/registry paths; universal checklist now exposes surface/model blockers.
+- Added adversarial regression coverage and focused CI wiring; updated authority/checklist/queue documentation.
+- Validation at commit preparation: code reviewed through GitHub connector; no local runtime available. Fresh hosted CCF TypeScript/test/build and repository checks pending on this revision; consult exact PR-head Actions for results.
+- This validates declarations and release prerequisites, not authentic source/runtime bindings or predictive accuracy. No production models, historical scores, or certification records fabricated; no merge, deployment, or recommendation activation.
+- Carry forward: native runtime bindings, frozen production candidate/dataset, chronological OOS certification, and user's real local Chrome/ESPN verification.
+
+- Hosted follow-up: initial revision dcbde24 failed focused TypeScript on Set spread (TS2802); replaced with Array.from without changing compiler settings or gate strictness. Other three workflows passed. Fresh full checks pending on the compatibility fix.
+
+### 2026-09-15 — Codex: PR #33 CCF predictive-validation CI repair
+- **What changed:** Replaced the promotion evaluator's compiler-incompatible direct `MapIterator` iteration with `Array.from` and removed the temporary PR-comment writer/`pull-requests: write` permission from the CCF workflow while retaining read-only step-summary diagnostics.
+- **Files modified:** `server/modules/ccf/certification/promotionEvaluation.ts`, `.github/workflows/ccf-independence.yml`, and agent logs.
+- **Validation:** Exact expanded CCF workflow set passed 34 suites / 211 tests; predictive-validation subset passed 3 suites / 23 tests; CCF-scoped TypeScript diagnostics are zero while the repository retains 508 unrelated baseline diagnostics; server and deployment-equivalent builds passed with the existing OLC duplicate-member warning; `git diff --check` passed.
+- **Notes:** Compatibility/CI repair only. No protocol thresholds, evidence, outcomes, metrics, authority, model status, merge, deployment, or Football Unwritten work changed.
+
+### 2026-09-15 — Codex: CCF trusted authority binding prerequisite
+- **What changed:** Added a fail-closed operator-owned binding layer between declared eight-surface authority graphs and release eligibility. Every critical node must match one exact active graph/surface/node, producer, producer-family, evidence-kind, provenance, attestation/support-window, and binding-evidence record. The canonical registry intentionally remains empty.
+- **Files modified:** `server/modules/ccf/independence/authorityGraph.ts`, `releaseChecklist.ts`, focused authority/checklist tests, CCF authority/release/queue docs, `replit.md`, and agent logs.
+- **Validation:** Exact CCF independence workflow passed 24 suites / 142 tests after the change; focused authority/checklist replay passed 39/39 after the compiler-compatible fix; scoped CCF typecheck had zero diagnostics while the repository retained 508 unrelated baseline diagnostics; server and deployment-equivalent builds passed with the existing OLC duplicate-member warning; diff check passed.
+- **Notes:** This closes the generic declared-label-versus-binding equality gap but does not register genuine production bindings, validate referenced artifact contents, certify a model, activate a route, merge, deploy, or grant recommendation authority. Trusted per-surface extraction and real source/runtime attestations remain open.
+
+### 2026-09-15 — Codex: CCF recovery stack authority-base repair
+- **What changed:** Reconciled the draft injury/recovery source branch with the latest trusted authority and generic source-qualification foundation while preserving its current recovery-source candidates and explicit permission/reliability blockers.
+- **Validation:** The exact branch CCF workflow passed 31 suites / 197 tests; CCF and touched-file TypeScript diagnostics remained zero while the repository retained 508 unrelated baseline diagnostics; both builds passed with the existing OLC duplicate-member warning; diff checks passed.
+- **Notes:** This is branch-stack maintenance only. No external recovery source was promoted, no evidence was fabricated, and no recommendation authority, merge, deployment, or publication occurred.
+
+### 2026-09-15 — Codex: CCF predictive stack reconciliation
+- **What changed:** Reconciled the predictive-validation branch with the repaired injury/recovery and trusted-authority base. Preserved the predictive CI compatibility fix, read-only workflow permissions, source qualification gates, recovery-source blockers, and trusted binding requirements.
+- **Validation:** The exact expanded CCF workflow passed 34 suites / 221 tests; CCF and touched-file TypeScript diagnostics remained zero against 508 unrelated repository diagnostics; both builds passed with the existing OLC duplicate-member warning; conflict-marker and diff checks passed.
+- **Notes:** Stack repair only. No source/model was promoted, no certification metrics were invented, and no recommendation activation, deployment, or publication occurred.
