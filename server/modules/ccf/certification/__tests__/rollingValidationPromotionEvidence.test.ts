@@ -38,7 +38,7 @@ function protocol(): CCFPredictiveValidationProtocol {
       },
     },
     targets: ["fantasy_points"],
-    arms: ["native_candidate", "usage_rate"],
+    arms: ["native_candidate", "historical_mean", "recent_mean", "usage_rate"],
     primaryMetrics: ["mae"],
     secondaryMetrics: ["rmse"],
     subgroupDimensions: ["position"],
