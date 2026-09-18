@@ -169,14 +169,14 @@ export function buildCCFRollingValidationPromotionEvaluation(
     protocol.promotionCriteria.map((criterion) => criterion.criterionId),
   );
 
-  for (const id of overallById.keys()) {
+  for (const id of Array.from(overallById.keys())) {
     if (!expectedIds.has(id)) {
       throw new CCFRollingValidationPromotionEvaluationError(
         `unexpected overall criterion evidence ${id}`,
       );
     }
   }
-  for (const id of subgroupById.keys()) {
+  for (const id of Array.from(subgroupById.keys())) {
     if (!expectedIds.has(id)) {
       throw new CCFRollingValidationPromotionEvaluationError(
         `unexpected subgroup criterion evidence ${id}`,
