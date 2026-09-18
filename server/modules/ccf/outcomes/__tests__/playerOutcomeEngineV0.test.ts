@@ -219,6 +219,24 @@ describe("CCF Player Outcome Engine v0 inference kernel", () => {
     ).toThrow(/required model feature opportunity.mean_target_share is missing/);
   });
 
+
+  it("rejects required model features that have no traceable source evidence", () => {
+    const untraceable = featureSet();
+    untraceable.features[TARGETS] = {
+      ...untraceable.features[TARGETS],
+      sourceRefs: [],
+    } as CCFWeeklyNativeFeatureSet["features"][string];
+
+    expect(() =>
+      runCCFPlayerOutcomeEngineV0({
+        featureSet: untraceable,
+        artifact: artifact(),
+        scoringFormat: "CUSTOM",
+        scoringFingerprint: SCORING_FINGERPRINT,
+      }),
+    ).toThrow(/must carry unique non-empty sourceRefs/);
+  });
+
   it("rejects scoring mismatch and model artifacts frozen after the inference cutoff", () => {
     expect(() =>
       runCCFPlayerOutcomeEngineV0({
