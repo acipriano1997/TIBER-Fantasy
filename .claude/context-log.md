@@ -694,3 +694,21 @@ Every agent should append an entry here after completing work.
 - **Validation:** Focused runtime/Draft Review/production-routing suites passed 11/11; deployment-equivalent `sh build.sh` passed; repository typecheck retained its existing unrelated diagnostics with no touched-file matches; `git diff --check` passed.
 - **Notes:** This is source containment only. No environment was changed and nothing was deployed. Enabling the profile and smoking an exact release SHA remain separately authorized operator actions.
 - **Review repairs:** Exact-head review found that the existing service worker could replay cached API responses across a runtime-profile change. All same-origin API GETs—including mixed-case paths that Express treats as API routes—are now network-only with `cache: no-store`; activation removes the legacy dynamic API cache, while only versioned static/document caches remain. The client still fails closed to the public shell if the capability request cannot reach the server. The public-only desktop shell also clears the absent sidebar's content offset.
+
+## 2026-09-14 — CCF universal authority prerequisite hardening
+
+- Scope: FFCC / TIBER-Fantasy, existing draft PR #25 only.
+- Added strict eight-surface declared authority graph schema, deterministic fingerprint, transitive lineage/stage/time checks, and canonical certified-backtest identity matching.
+- Closed status-only producer-family bypass and missing/declassified/duplicate required census/registry paths; universal checklist now exposes surface/model blockers.
+- Added adversarial regression coverage and focused CI wiring; updated authority/checklist/queue documentation.
+- Validation at commit preparation: code reviewed through GitHub connector; no local runtime available. Fresh hosted CCF TypeScript/test/build and repository checks pending on this revision; consult exact PR-head Actions for results.
+- This validates declarations and release prerequisites, not authentic source/runtime bindings or predictive accuracy. No production models, historical scores, or certification records fabricated; no merge, deployment, or recommendation activation.
+- Carry forward: native runtime bindings, frozen production candidate/dataset, chronological OOS certification, and user's real local Chrome/ESPN verification.
+
+- Hosted follow-up: initial revision dcbde24 failed focused TypeScript on Set spread (TS2802); replaced with Array.from without changing compiler settings or gate strictness. Other three workflows passed. Fresh full checks pending on the compatibility fix.
+
+### 2026-09-15 — Codex: CCF trusted authority binding prerequisite
+- **What changed:** Added a fail-closed operator-owned binding layer between declared eight-surface authority graphs and release eligibility. Every critical node must match one exact active graph/surface/node, producer, producer-family, evidence-kind, provenance, attestation/support-window, and binding-evidence record. The canonical registry intentionally remains empty.
+- **Files modified:** `server/modules/ccf/independence/authorityGraph.ts`, `releaseChecklist.ts`, focused authority/checklist tests, CCF authority/release/queue docs, `replit.md`, and agent logs.
+- **Validation:** Exact CCF independence workflow passed 24 suites / 142 tests after the change; focused authority/checklist replay passed 39/39 after the compiler-compatible fix; scoped CCF typecheck had zero diagnostics while the repository retained 508 unrelated baseline diagnostics; server and deployment-equivalent builds passed with the existing OLC duplicate-member warning; diff check passed.
+- **Notes:** This closes the generic declared-label-versus-binding equality gap but does not register genuine production bindings, validate referenced artifact contents, certify a model, activate a route, merge, deploy, or grant recommendation authority. Trusted per-surface extraction and real source/runtime attestations remain open.
