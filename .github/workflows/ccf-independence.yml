@@ -77,6 +77,7 @@ jobs:
           server/modules/ccf/independence/__tests__/releaseChecklist.test.ts
           server/modules/ccf/independence/__tests__/certifyNativeOutcome.test.ts
           server/modules/ccf/independence/__tests__/personalBetaReadiness.test.ts
+          server/scripts/__tests__/ccfVerifyHistoricalDatasetFreeze.test.ts
           server/modules/ccf/certification/__tests__/chronologicalSplit.test.ts
           server/modules/ccf/certification/__tests__/rollingBacktest.test.ts
           server/modules/ccf/certification/__tests__/simpleBenchmarks.test.ts
@@ -86,6 +87,7 @@ jobs:
           server/modules/ccf/certification/__tests__/historicalFreeze.test.ts
           server/modules/ccf/certification/__tests__/historicalDatasetManifest.test.ts
           server/modules/ccf/certification/__tests__/historicalDatasetProtocolBinding.test.ts
+          server/modules/ccf/certification/__tests__/historicalDatasetFreezeReceipt.test.ts
           server/modules/ccf/certification/__tests__/backtestProgressHistory.test.ts
           server/modules/ccf/certification/__tests__/predictiveValidation.test.ts
           server/modules/ccf/certification/__tests__/forecastMetrics.test.ts
