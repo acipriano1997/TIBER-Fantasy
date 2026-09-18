@@ -34,6 +34,9 @@ export const DEEP_ANALYTICS_FAMILIES_V1 = [
   "INJURY_AVAILABILITY",
   "GAME_ENVIRONMENT",
   "MARKET_CHALLENGER",
+  "MARKET_DYNAMICS",
+  "LEAGUE_BEHAVIOR",
+  "ROSTER_PORTFOLIO",
   "JOINT_DEPENDENCE",
   "DECISION_OPTIONALITY",
 ] as const;
@@ -186,6 +189,15 @@ export const DEEP_ANALYTICS_PRIORITY_LANES_V1 = [
       "JOINT_DEPENDENCE",
       "DECISION_OPTIONALITY",
       "GAME_ENVIRONMENT",
+    ] as DeepAnalyticsFamilyV1[],
+  },
+  {
+    lane: "DRAFT_AND_LEAGUE_MARKET_UTILITY",
+    families: [
+      "MARKET_DYNAMICS",
+      "LEAGUE_BEHAVIOR",
+      "ROSTER_PORTFOLIO",
+      "DECISION_OPTIONALITY",
     ] as DeepAnalyticsFamilyV1[],
   },
 ] as const;
