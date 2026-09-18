@@ -107,10 +107,6 @@ function round2(value: number): number {
   return Number(value.toFixed(2));
 }
 
-function nonNegative(value: number): number {
-  return Math.max(0, value);
-}
-
 function erf(value: number): number {
   const sign = value < 0 ? -1 : 1;
   const x = Math.abs(value);
@@ -325,7 +321,7 @@ export function buildCCFRoleBaselineCandidate(
     evidence.values,
     parameters.meanWeights,
   );
-  const median = nonNegative(parameters.meanIntercept + roleAdjustment);
+  const median = parameters.meanIntercept + roleAdjustment;
   const rawVolatility =
     parameters.volatilityIntercept +
     weightedTotal(
@@ -335,10 +331,10 @@ export function buildCCFRoleBaselineCandidate(
     );
   const sigma = Math.max(parameters.minimumVolatility, rawVolatility);
 
-  const p10 = nonNegative(median - NORMAL_P10_Z * sigma);
-  const p25 = nonNegative(median - NORMAL_P25_Z * sigma);
-  const p75 = nonNegative(median + NORMAL_P25_Z * sigma);
-  const p90 = nonNegative(median + NORMAL_P10_Z * sigma);
+  const p10 = median - NORMAL_P10_Z * sigma;
+  const p25 = median - NORMAL_P25_Z * sigma;
+  const p75 = median + NORMAL_P25_Z * sigma;
+  const p90 = median + NORMAL_P10_Z * sigma;
 
   const mechanism: CCFMechanismContribution = {
     family: "role_opportunity_baseline",
