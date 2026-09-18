@@ -13,6 +13,7 @@ const HEADER = [
   "week",
   "play_type",
   "posteam",
+  "play",
   "passer_player_id",
   "rusher_player_id",
   "receiver_player_id",
@@ -21,6 +22,7 @@ const HEADER = [
   "qb_dropback",
   "qb_scramble",
   "qb_kneel",
+  "qb_spike",
   "sack",
   "complete_pass",
   "two_point_attempt",
@@ -31,12 +33,24 @@ const HEADER = [
   "down",
   "goal_to_go",
   "yardline_100",
+  "half_seconds_remaining",
+  "game_seconds_remaining",
+  "score_differential",
 ].join(",");
 
 function csvRow(values: Record<string, string | number | null>): string {
   const columns = HEADER.split(",");
+  const defaults: Record<string, string | number> = {
+    play: 1,
+    qb_spike: 0,
+    half_seconds_remaining: 600,
+    game_seconds_remaining: 2400,
+    score_differential: 0,
+  };
   return columns.map((column) => {
-    const value = values[column];
+    const value = Object.prototype.hasOwnProperty.call(values, column)
+      ? values[column]
+      : defaults[column];
     return value == null ? "" : String(value);
   }).join(",");
 }
@@ -128,11 +142,16 @@ describe("nflverse play-by-play source", () => {
       week: 1,
       playType: "pass",
       offenseTeam: "AAA",
+      normalPlay: true,
       passerPlayerId: "QB1",
       receiverPlayerId: "WR1",
       passAttempt: true,
       completePass: true,
+      qbSpike: false,
       yardline100: 15,
+      halfSecondsRemaining: 600,
+      gameSecondsRemaining: 2400,
+      scoreDifferential: 0,
       missingBinaryFields: [],
     });
     expect(rows.some((row) => row.week === 2 || row.seasonType === "POST")).toBe(false);
@@ -149,6 +168,9 @@ describe("nflverse play-by-play source", () => {
         week: 1,
         play_type: "no_play",
         posteam: "AAA",
+        play: null,
+        qb_spike: null,
+        score_differential: null,
         down: 1,
       }),
     ].join("\n");
@@ -157,13 +179,48 @@ describe("nflverse play-by-play source", () => {
     expect(row.playType).toBe("no_play");
     expect(row.passAttempt).toBe(false);
     expect(row.missingBinaryFields).toEqual(expect.arrayContaining([
+      "play",
       "pass_attempt",
       "rush_attempt",
       "qb_dropback",
       "qb_kneel",
+      "qb_spike",
       "complete_pass",
       "two_point_attempt",
     ]));
+  });
+
+  it("rejects impossible negative clock context", () => {
+    const csv = [
+      HEADER,
+      csvRow({
+        play_id: 12,
+        game_id: "2026_01_AAA_BBB",
+        season: 2026,
+        season_type: "REG",
+        week: 1,
+        play_type: "run",
+        posteam: "AAA",
+        rusher_player_id: "RB1",
+        pass_attempt: 0,
+        rush_attempt: 1,
+        qb_dropback: 0,
+        qb_scramble: 0,
+        qb_kneel: 0,
+        sack: 0,
+        complete_pass: 0,
+        two_point_attempt: 0,
+        touchdown: 0,
+        goal_to_go: 0,
+        half_seconds_remaining: -1,
+        game_seconds_remaining: 1200,
+        score_differential: 0,
+      }),
+    ].join("\n");
+
+    expect(() =>
+      parseNflversePlayByPlayCsv(csv, { season: 2026, week: 1 }),
+    ).toThrow(/half_seconds_remaining must be non-negative/);
   });
 
   it("fails closed when the upstream schema loses a required opportunity column", () => {
@@ -173,6 +230,15 @@ describe("nflverse play-by-play source", () => {
     expect(() => parseNflversePlayByPlayCsv(`${headerWithoutReceiver}\n`, { season: 2026, week: 1 })).toThrow(
       /schema missing required columns: receiver_player_id/,
     );
+  });
+
+  it("fails closed when canonical game-context columns disappear", () => {
+    const headerWithoutScore = HEADER.split(",")
+      .filter((column) => column !== "score_differential")
+      .join(",");
+    expect(() =>
+      parseNflversePlayByPlayCsv(`${headerWithoutScore}\n`, { season: 2026, week: 1 }),
+    ).toThrow(/schema missing required columns: score_differential/);
   });
 
   it("fails closed when play_type is absent from the qualification schema", () => {

@@ -12,6 +12,7 @@ const HEADER = [
   "week",
   "play_type",
   "posteam",
+  "play",
   "passer_player_id",
   "rusher_player_id",
   "receiver_player_id",
@@ -20,6 +21,7 @@ const HEADER = [
   "qb_dropback",
   "qb_scramble",
   "qb_kneel",
+  "qb_spike",
   "sack",
   "complete_pass",
   "two_point_attempt",
@@ -30,12 +32,24 @@ const HEADER = [
   "down",
   "goal_to_go",
   "yardline_100",
+  "half_seconds_remaining",
+  "game_seconds_remaining",
+  "score_differential",
 ].join(",");
 
 function csvRow(values: Record<string, string | number | null>): string {
+  const defaults: Record<string, string | number> = {
+    play: 1,
+    qb_spike: 0,
+    half_seconds_remaining: 600,
+    game_seconds_remaining: 2400,
+    score_differential: 0,
+  };
   return HEADER.split(",")
     .map((column) => {
-      const value = values[column];
+      const value = Object.prototype.hasOwnProperty.call(values, column)
+        ? values[column]
+        : defaults[column];
       return value == null ? "" : String(value);
     })
     .join(",");
@@ -126,7 +140,15 @@ describe("prospective archived nflverse play-by-play capture", () => {
     });
 
     expect(snapshot.rows).toHaveLength(2);
-    expect(snapshot.rows[0]).toMatchObject({ playType: "pass", missingBinaryFields: [] });
+    expect(snapshot.rows[0]).toMatchObject({
+      playType: "pass",
+      normalPlay: true,
+      qbSpike: false,
+      halfSecondsRemaining: 600,
+      gameSecondsRemaining: 2400,
+      scoreDifferential: 0,
+      missingBinaryFields: [],
+    });
     expect(snapshot.opportunities.find((row) => row.playerId === "00-0000002")).toMatchObject({
       targets: 1,
       receptions: 1,
@@ -139,7 +161,7 @@ describe("prospective archived nflverse play-by-play capture", () => {
     expect(snapshot.archive.manifest).toMatchObject({
       provider: "nflverse",
       dataset: "play_by_play",
-      parserVersion: "ccf-nflverse-play-by-play-candidate-v2",
+      parserVersion: "ccf-nflverse-play-by-play-candidate-v3",
       temporalMode: "archived_point_in_time",
       knownAtBasis: "ccf_capture",
       knownAt: "2026-09-16T18:00:00.000Z",
