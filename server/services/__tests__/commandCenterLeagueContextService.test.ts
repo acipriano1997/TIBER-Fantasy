@@ -1,6 +1,10 @@
 import {
   resolveCommandCenterLeagueContext,
 } from '../commandCenterLeagueContextService';
+import {
+  clearContractLeagueRuleProfiles,
+  registerContractLeagueRuleProfile,
+} from '../../leagueRules/contractLeagueRegistry';
 
 const NOW = new Date('2026-09-15T19:30:00.000Z');
 const sixPointScoring = {
@@ -26,7 +30,31 @@ function sleeperLeague(overrides: Record<string, unknown> = {}) {
   } as any;
 }
 
+function registerSyntheticContractProfile() {
+  registerContractLeagueRuleProfile({
+    id: 'synthetic-service-contract',
+    leagueName: 'Synthetic Service Contract',
+    sourceFiles: {
+      operationalWorkbook: { driveFileId: 'synthetic-service-workbook' },
+      rulesSource: { sourceId: 'synthetic-service-rules' },
+    },
+    verifiedCore: { salaryCap: 500, rookieDraftRounds: 3 },
+    knownConflicts: [],
+    unknownOrUnverified: [],
+    leagueSpecificPolicy: {},
+  });
+}
+
 describe('resolveCommandCenterLeagueContext', () => {
+  beforeEach(() => {
+    clearContractLeagueRuleProfiles();
+    registerSyntheticContractProfile();
+  });
+
+  afterEach(() => {
+    clearContractLeagueRuleProfiles();
+  });
+
   test('preserves live six-point passing TD scoring and certifies decision context', async () => {
     const resolved = await resolveCommandCenterLeagueContext(
       {
@@ -55,18 +83,18 @@ describe('resolveCommandCenterLeagueContext', () => {
     const resolved = await resolveCommandCenterLeagueContext(
       {
         id: 'internal-contract',
-        leagueName: '4th and Long',
+        leagueName: 'Synthetic Service Contract',
         platform: 'sleeper',
         season: 2026,
         leagueIdExternal: 'league-123',
       },
       {
-        getSleeperLeague: async () => sleeperLeague({ name: '4th and Long' }),
+        getSleeperLeague: async () => sleeperLeague({ name: 'Synthetic Service Contract' }),
         now: () => NOW,
       },
     );
 
-    expect(resolved.context?.contractProfile?.id).toBe('4th-and-long');
+    expect(resolved.context?.contractProfile?.id).toBe('synthetic-service-contract');
     expect(resolved.health?.contractWorkbook).toBe('unavailable');
     expect(resolved.readiness.trade?.ready).toBe(false);
     expect(resolved.readiness.trade?.blockers.join(' ')).toMatch(/contract workbook snapshot/i);
