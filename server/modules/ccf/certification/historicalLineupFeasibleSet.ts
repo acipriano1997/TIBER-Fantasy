@@ -111,6 +111,16 @@ function assertKnownRosterState(
         `player ${player.playerId} has unknown bye-week state at the historical cutoff`,
       );
     }
+    if (
+      player.byeWeek != null &&
+      (!Number.isInteger(player.byeWeek) ||
+        player.byeWeek < 1 ||
+        player.byeWeek > 25)
+    ) {
+      throw new CCFHistoricalLineupFeasibleSetError(
+        `player ${player.playerId} has invalid bye-week state at the historical cutoff`,
+      );
+    }
     if (player.lockState === "unknown") {
       throw new CCFHistoricalLineupFeasibleSetError(
         `player ${player.playerId} has unknown lock state at the historical cutoff`,
@@ -129,7 +139,12 @@ function assertKnownRosterState(
         );
       }
     } else if (player.lockAt != null) {
-      timestamp(`${player.playerId}.lockAt`, player.lockAt);
+      const lockAtMs = timestamp(`${player.playerId}.lockAt`, player.lockAt);
+      if (lockAtMs <= asOfMs) {
+        throw new CCFHistoricalLineupFeasibleSetError(
+          `player ${player.playerId} is marked unlocked after its lock time at the historical cutoff`,
+        );
+      }
     }
   }
 
