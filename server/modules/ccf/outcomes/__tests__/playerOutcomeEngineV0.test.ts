@@ -66,12 +66,18 @@ function artifact(
       confidenceLogit: head(1),
     },
     abstainBelowCoverage: 0.75,
+    trainingDatasetFingerprint: "dataset-fixture-fingerprint",
+    trainingDatasetFrozenAt: "2026-09-09T12:00:00Z",
+    validationProtocolFingerprint: "protocol-fixture-fingerprint",
+    validationProtocolFrozenAt: "2026-09-10T00:00:00Z",
+    sourcePlanFingerprint: "source-plan-fixture-fingerprint",
+    featureSetFingerprint: "feature-set-fixture-fingerprint",
+    decisionPolicyFingerprint: "decision-policy-fixture-fingerprint",
+    supportedPopulation: "synthetic-rb-population",
     trainedAt: "2026-09-10T12:00:00Z",
-    validationKnownAt: "2026-09-12T12:00:00Z",
     frozenAt: "2026-09-13T12:00:00Z",
     trainingDatasetRef: "ccf://historical-dataset/sha256/training-fixture",
     validationProtocolRef: "ccf://predictive-validation/protocol-v1",
-    validationReceiptRef: "ccf://predictive-validation-receipt/sha256/fixture",
     notes: ["synthetic inference-kernel test artifact"],
     ...overrides,
   };
@@ -227,13 +233,43 @@ describe("CCF Player Outcome Engine v0 inference kernel", () => {
       runCCFPlayerOutcomeEngineV0({
         featureSet: featureSet(),
         artifact: artifact({
+          trainedAt: "2026-09-17T12:00:00Z",
           frozenAt: "2026-09-18T12:00:00Z",
-          validationKnownAt: "2026-09-18T11:00:00Z",
         }),
         scoringFormat: "CUSTOM",
         scoringFingerprint: SCORING_FINGERPRINT,
       }),
     ).toThrow(/frozen after the feature-set asOf cutoff/);
+  });
+
+
+  it("enforces candidate-artifact chronology before predictive validation can exist", () => {
+    expect(() =>
+      validateCCFPlayerOutcomeModelArtifactV0(
+        artifact({
+          trainingDatasetFrozenAt: "2026-09-10T06:00:00Z",
+          validationProtocolFrozenAt: "2026-09-10T00:00:00Z",
+        }),
+      ),
+    ).toThrow(/training dataset must be frozen no later than the validation protocol/);
+
+    expect(() =>
+      validateCCFPlayerOutcomeModelArtifactV0(
+        artifact({
+          validationProtocolFrozenAt: "2026-09-10T13:00:00Z",
+          trainedAt: "2026-09-10T12:00:00Z",
+        }),
+      ),
+    ).toThrow(/validation protocol must be frozen before model training/);
+
+    expect(() =>
+      validateCCFPlayerOutcomeModelArtifactV0(
+        artifact({
+          trainedAt: "2026-09-13T13:00:00Z",
+          frozenAt: "2026-09-13T12:00:00Z",
+        }),
+      ),
+    ).toThrow(/trainedAt must be no later than frozenAt/);
   });
 
   it("rejects malformed coefficient maps before inference", () => {
