@@ -220,7 +220,7 @@ function descriptorMap(
   return new Map(manifest.rows.map((row) => [row.rowId, row]));
 }
 
-function assertFeaturePacketMatches(
+export function assertCCFHistoricalFeaturePacketMatches(
   descriptor: CCFHistoricalDatasetRowDescriptor,
   packet: CCFHistoricalFeaturePacketV1,
 ): string {
@@ -258,7 +258,7 @@ function assertFeaturePacketMatches(
   return fingerprint;
 }
 
-function assertOutcomeWitnessMatches(
+export function assertCCFHistoricalOutcomeWitnessMatches(
   descriptor: CCFHistoricalDatasetRowDescriptor,
   witness: CCFHistoricalOutcomeWitnessV1,
 ): string {
@@ -341,11 +341,11 @@ export function executeCCFRollingValidation(
         );
       }
 
-      const featureSnapshotFingerprint = assertFeaturePacketMatches(
+      const featureSnapshotFingerprint = assertCCFHistoricalFeaturePacketMatches(
         descriptor,
         packet,
       );
-      const outcomeArtifactFingerprint = assertOutcomeWitnessMatches(
+      const outcomeArtifactFingerprint = assertCCFHistoricalOutcomeWitnessMatches(
         descriptor,
         witness,
       );
