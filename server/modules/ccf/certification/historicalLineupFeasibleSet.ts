@@ -176,7 +176,7 @@ function assertSlotBindings(
     }
   }
 
-  for (const player of players.values()) {
+  for (const player of Array.from(players.values())) {
     if (player.lockState !== "locked" || !player.observedStarterSlotId) continue;
     const slot = slotById.get(player.observedStarterSlotId);
     if (!slot || slot.lockedPlayerId !== player.playerId) {
