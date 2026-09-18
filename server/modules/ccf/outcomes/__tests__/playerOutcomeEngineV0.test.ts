@@ -124,6 +124,22 @@ function featureSet(
   };
 }
 
+function historicalFeatureSet(): CCFWeeklyNativeFeatureSet {
+  const result = featureSet({
+    season: 2024,
+    week: 8,
+    asOf: "2024-10-27T16:00:00Z",
+  });
+  for (const feature of Object.values(result.features)) {
+    if (feature.status === "available") {
+      feature.knownAt = "2024-10-20T23:59:59Z";
+    } else if (feature.knownAt != null) {
+      feature.knownAt = "2024-10-20T23:59:59Z";
+    }
+  }
+  return result;
+}
+
 describe("CCF Player Outcome Engine v0 inference kernel", () => {
   it("runs a frozen trained artifact without embedding repository-owned coefficients", () => {
     const result = runCCFPlayerOutcomeEngineV0({
@@ -265,11 +281,7 @@ describe("CCF Player Outcome Engine v0 inference kernel", () => {
 
 
   it("supports certification-only historical replay without weakening live inference chronology", () => {
-    const historical = featureSet({
-      season: 2024,
-      week: 8,
-      asOf: "2024-10-27T16:00:00Z",
-    });
+    const historical = historicalFeatureSet();
     const replayArtifact = artifact({
       trainingDatasetFingerprint: "rolling-fold-training-fingerprint",
       validationProtocolFingerprint: "frozen-protocol-fingerprint",
@@ -315,11 +327,7 @@ describe("CCF Player Outcome Engine v0 inference kernel", () => {
   });
 
   it("fails closed when historical replay authorization can see the future or mismatches governed fingerprints", () => {
-    const historical = featureSet({
-      season: 2024,
-      week: 8,
-      asOf: "2024-10-27T16:00:00Z",
-    });
+    const historical = historicalFeatureSet();
     const replayArtifact = artifact({
       trainingDatasetFingerprint: "rolling-fold-training-fingerprint",
       validationProtocolFingerprint: "frozen-protocol-fingerprint",
