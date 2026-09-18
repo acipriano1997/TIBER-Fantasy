@@ -15,6 +15,7 @@ import type { CCFRollingValidationDiagnosticEvidenceV1 } from "./rollingValidati
 import type { CCFRollingValidationSubgroupPromotionEvidenceV1 } from "./rollingValidationSubgroupPromotionEvidence";
 import type { CCFRollingValidationPromotionEvaluationV1 } from "./rollingValidationPromotionEvaluation";
 import type { CCFRollingValidationTiberOffEvidenceV1 } from "./rollingValidationTiberOffEvidence";
+import type { CCFRollingValidationLineupRegretEvidenceV1 } from "./rollingValidationLineupRegretEvidence";
 
 export type CCFRollingValidationReadinessStatus =
   | "evidence_available"
@@ -56,6 +57,7 @@ export interface BuildCCFRollingValidationReadinessAuditInput {
   subgroupEvidence: CCFRollingValidationSubgroupPromotionEvidenceV1;
   promotionEvaluation: CCFRollingValidationPromotionEvaluationV1;
   tiberOffEvidence: CCFRollingValidationTiberOffEvidenceV1;
+  lineupRegretEvidence?: CCFRollingValidationLineupRegretEvidenceV1;
 }
 
 export class CCFRollingValidationReadinessAuditError extends Error {
@@ -220,9 +222,13 @@ function buildChecks(
     ),
     check(
       "lineup_regret",
-      "missing",
-      [],
-      ["historical_lineup_decision_and_feasible-choice_evidence_not_frozen"],
+      input.lineupRegretEvidence ? "evidence_available" : "missing",
+      input.lineupRegretEvidence
+        ? [input.lineupRegretEvidence.evidenceRef]
+        : [],
+      input.lineupRegretEvidence
+        ? []
+        : ["historical_lineup_decision_witnesses_missing_or_not_bound"],
     ),
     check(
       "subgroup_stability",
@@ -347,6 +353,14 @@ export function buildCCFRollingValidationReadinessAudit(
     replayBindingId,
     protocolFingerprint,
   );
+  if (input.lineupRegretEvidence) {
+    assertSealedPacket(
+      "lineup regret evidence",
+      input.lineupRegretEvidence,
+      replayBindingId,
+      protocolFingerprint,
+    );
+  }
 
   if (input.promotionEvaluation.promotionEvaluated !== true) {
     throw new CCFRollingValidationReadinessAuditError(

@@ -330,6 +330,43 @@ describe("CCF rolling validation readiness audit", () => {
     expect(result.partialCheckCount).toBe(1);
   });
 
+  it("recognizes a replay-bound lineup regret evidence packet without upgrading other blockers", () => {
+    const frozen = protocol();
+    const input = packets(frozen);
+    input.lineupRegretEvidence = {
+      contractVersion: "ccf-rolling-validation-lineup-regret-evidence-v1",
+      replayBindingId:
+        "ccf://rolling-replay-binding/sha256/readiness",
+      protocolFingerprint:
+        fingerprintCCFPredictiveValidationProtocol(frozen),
+      policyVersion: "ccf-lineup-regret-policy-v1",
+      catastrophicRegretThreshold: 10,
+      decisionCount: 2,
+      metrics: {},
+      decisionEvidenceRefs: ["ccf://historical-lineup/decision-1"],
+      evidenceRef: "ccf://lineup-regret/readiness",
+      finalHoldoutAccessed: false,
+      certificationOnly: true,
+      productionInferenceAuthorized: false,
+    } as any;
+
+    const result = buildCCFRollingValidationReadinessAudit({
+      protocol: frozen,
+      ...input,
+    });
+
+    expect(
+      result.checks.find((row) => row.name === "lineup_regret"),
+    ).toMatchObject({
+      status: "evidence_available",
+      evidenceRefs: ["ccf://lineup-regret/readiness"],
+      blockers: [],
+    });
+    expect(result.availableCheckCount).toBe(8);
+    expect(result.missingCheckCount).toBe(1);
+    expect(result.finalHoldoutReady).toBe(false);
+  });
+
   it("marks missing predeclared diagnostic evidence instead of inferring it", () => {
     const frozen = protocol();
     const input = packets(frozen);
