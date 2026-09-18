@@ -1,11 +1,13 @@
 import Papa from "papaparse";
 
 export const CCF_NFLVERSE_PBP_BINARY_FIELDS = [
+  "play",
   "pass_attempt",
   "rush_attempt",
   "qb_dropback",
   "qb_scramble",
   "qb_kneel",
+  "qb_spike",
   "sack",
   "complete_pass",
   "two_point_attempt",
@@ -24,6 +26,7 @@ export interface CCFNflversePlayByPlayRow {
   seasonType: "REG" | "POST";
   playType: string | null;
   offenseTeam: string | null;
+  normalPlay: boolean;
   passerPlayerId: string | null;
   rusherPlayerId: string | null;
   receiverPlayerId: string | null;
@@ -32,6 +35,7 @@ export interface CCFNflversePlayByPlayRow {
   qbDropback: boolean;
   qbScramble: boolean;
   qbKneel: boolean;
+  qbSpike: boolean;
   sack: boolean;
   completePass: boolean;
   twoPointAttempt: boolean;
@@ -42,6 +46,9 @@ export interface CCFNflversePlayByPlayRow {
   down: number | null;
   goalToGo: boolean;
   yardline100: number | null;
+  halfSecondsRemaining: number | null;
+  gameSecondsRemaining: number | null;
+  scoreDifferential: number | null;
   /**
    * Binary fields that were blank/NA in the provider row. Their computation
    * value remains false for backward-compatible aggregation, while reliability
@@ -121,6 +128,7 @@ interface RawPbpRow {
   week?: string;
   play_type?: string;
   posteam?: string;
+  play?: string;
   passer_player_id?: string;
   rusher_player_id?: string;
   receiver_player_id?: string;
@@ -129,6 +137,7 @@ interface RawPbpRow {
   qb_dropback?: string;
   qb_scramble?: string;
   qb_kneel?: string;
+  qb_spike?: string;
   sack?: string;
   complete_pass?: string;
   two_point_attempt?: string;
@@ -139,6 +148,9 @@ interface RawPbpRow {
   down?: string;
   goal_to_go?: string;
   yardline_100?: string;
+  half_seconds_remaining?: string;
+  game_seconds_remaining?: string;
+  score_differential?: string;
 }
 
 const REQUIRED_COLUMNS = [
@@ -149,6 +161,7 @@ const REQUIRED_COLUMNS = [
   "week",
   "play_type",
   "posteam",
+  "play",
   "passer_player_id",
   "rusher_player_id",
   "receiver_player_id",
@@ -158,6 +171,9 @@ const REQUIRED_COLUMNS = [
   "yards_gained",
   "down",
   "yardline_100",
+  "half_seconds_remaining",
+  "game_seconds_remaining",
+  "score_differential",
 ] as const;
 
 function nullableText(value: string | undefined): string | null {
@@ -184,6 +200,19 @@ function nullableNumber(row: RawPbpRow, key: keyof RawPbpRow): number | null {
   if (!Number.isFinite(value)) {
     throw new CCFNflversePlayByPlaySourceError(
       `numeric field ${String(key)} is invalid: ${raw}`,
+    );
+  }
+  return value;
+}
+
+function nullableNonNegativeNumber(
+  row: RawPbpRow,
+  key: keyof RawPbpRow,
+): number | null {
+  const value = nullableNumber(row, key);
+  if (value != null && value < 0) {
+    throw new CCFNflversePlayByPlaySourceError(
+      `numeric field ${String(key)} must be non-negative: ${value}`,
     );
   }
   return value;
@@ -234,6 +263,7 @@ function parsePbpRow(row: RawPbpRow): CCFNflversePlayByPlayRow | null {
     seasonType,
     playType: nullableText(row.play_type)?.toLowerCase() ?? null,
     offenseTeam: nullableText(row.posteam),
+    normalPlay: flag("play"),
     passerPlayerId: nullableText(row.passer_player_id),
     rusherPlayerId: nullableText(row.rusher_player_id),
     receiverPlayerId: nullableText(row.receiver_player_id),
@@ -242,6 +272,7 @@ function parsePbpRow(row: RawPbpRow): CCFNflversePlayByPlayRow | null {
     qbDropback: flag("qb_dropback"),
     qbScramble: flag("qb_scramble"),
     qbKneel: flag("qb_kneel"),
+    qbSpike: flag("qb_spike"),
     sack: flag("sack"),
     completePass: flag("complete_pass"),
     twoPointAttempt: flag("two_point_attempt"),
@@ -252,6 +283,9 @@ function parsePbpRow(row: RawPbpRow): CCFNflversePlayByPlayRow | null {
     down: nullableNumber(row, "down"),
     goalToGo: flag("goal_to_go"),
     yardline100: nullableNumber(row, "yardline_100"),
+    halfSecondsRemaining: nullableNonNegativeNumber(row, "half_seconds_remaining"),
+    gameSecondsRemaining: nullableNonNegativeNumber(row, "game_seconds_remaining"),
+    scoreDifferential: nullableNumber(row, "score_differential"),
     missingBinaryFields,
   };
 }

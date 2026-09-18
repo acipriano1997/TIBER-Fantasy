@@ -10,10 +10,10 @@ import {
   type CCFSourceReliabilityPolicy,
 } from "./sourceReliabilityReview";
 
-export const CCF_NFLVERSE_PBP_SOURCE_ID_V2 =
-  "nflverse-play-by-play-opportunity-v2" as const;
-export const CCF_NFLVERSE_PBP_CRITICAL_FIELD_POLICY_REF_V2 =
-  "ccf://policy/nflverse-pbp-opportunity-critical-fields-v2" as const;
+export const CCF_NFLVERSE_PBP_SOURCE_ID_V3 =
+  "nflverse-play-by-play-opportunity-v3" as const;
+export const CCF_NFLVERSE_PBP_CRITICAL_FIELD_POLICY_REF_V3 =
+  "ccf://policy/nflverse-pbp-opportunity-critical-fields-v3" as const;
 export const CCF_NFLVERSE_PBP_CORRECTION_POLICY_REF_V1 =
   "ccf://policy/nflverse-pbp-opportunity-corrections-v1" as const;
 export const CCF_NFLVERSE_PBP_CHECKPOINT_POLICY_REF_V1 =
@@ -64,14 +64,14 @@ export function buildCCFNflversePlayByPlayReliabilityPolicy(
   const identityBindingRef = refCCFNFLPlayerIdentityLinkageReceipt(input.identityReceipt);
   const policy: CCFSourceReliabilityPolicy = {
     schemaVersion: "ccf-source-reliability-policy-v1",
-    policyId: "nflverse-pbp-opportunity-pb01-prospective-2026-v1",
-    sourceId: CCF_NFLVERSE_PBP_SOURCE_ID_V2,
+    policyId: "nflverse-pbp-opportunity-pb01-prospective-2026-v2",
+    sourceId: CCF_NFLVERSE_PBP_SOURCE_ID_V3,
     producer: "nflverse",
     intendedUse: "ffcc_native_weekly_recommendation",
     frozenAt: input.frozenAt,
-    parserVersion: "ccf-nflverse-play-by-play-candidate-v2",
+    parserVersion: "ccf-nflverse-play-by-play-candidate-v3",
     identityBindingRef,
-    criticalFieldPolicyRef: CCF_NFLVERSE_PBP_CRITICAL_FIELD_POLICY_REF_V2,
+    criticalFieldPolicyRef: CCF_NFLVERSE_PBP_CRITICAL_FIELD_POLICY_REF_V3,
     correctionPolicyRef: CCF_NFLVERSE_PBP_CORRECTION_POLICY_REF_V1,
     checkpointPolicyRef: CCF_NFLVERSE_PBP_CHECKPOINT_POLICY_REF_V1,
     checkpoints: CCF_NFLVERSE_PBP_CHECKPOINTS_2026_V1.map((checkpoint) => ({
@@ -89,8 +89,8 @@ export function buildCCFNflversePlayByPlayReliabilityPolicy(
     notes: [
       "policy must be frozen before the first prospective checkpoint",
       "two-week Tuesday/Wednesday captures measure post-week availability plus correction stability",
-      "parser v2 preserves play_type and provider binary missingness before qualification",
-      "critical missingness is play-type-aware and does not classify throwaways or non-play rows as missing receiver opportunities",
+      "parser v3 preserves play_type, normal-play/spike flags, provider binary missingness, half/game clocks, and possession-team score differential before qualification",
+      "critical missingness is play-type-aware, requires native game-context evidence for opportunity-bearing plays, and does not classify throwaways or non-play rows as missing receiver opportunities",
       "full canonical identity resolution is required for every derived player opportunity",
       "passing reliability does not clear intended-use rights, source promotion, or operator attestation",
       ...(input.notes ?? []),
