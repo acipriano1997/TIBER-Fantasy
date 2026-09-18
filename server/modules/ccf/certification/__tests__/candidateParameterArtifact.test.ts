@@ -370,7 +370,7 @@ describe("role baseline parameter loader convergence", () => {
     const scoringFingerprint =
       fingerprintCCFLeagueScoringRules(CCF_BASE_PPR_RULES);
     const { frozenProtocol, freezeReceipt } = frozenPair(scoringFingerprint);
-    return buildCCFCandidateParameterArtifact({
+    const artifact = buildCCFCandidateParameterArtifact({
       freezeReceipt,
       protocol: frozenProtocol,
       modelFamily,
@@ -384,16 +384,20 @@ describe("role baseline parameter loader convergence", () => {
       hyperparameterFingerprint: "role-loader-hyperparameters-sha256",
       evidenceRefs: ["ccf://training-log/train-role-baseline-loader-001"],
     });
+    return { artifact, frozenProtocol, freezeReceipt };
   }
 
   it("verifies exact frozen bytes and runs the candidate through one governed model path", () => {
     const parameterContent = roleParameterContent();
-    const artifact = roleArtifact(parameterContent);
+    const { artifact, frozenProtocol, freezeReceipt } =
+      roleArtifact(parameterContent);
     const loaded =
-      loadCCFRoleBaselineParametersFromCandidateArtifact(
+      loadCCFRoleBaselineParametersFromCandidateArtifact({
         artifact,
         parameterContent,
-      );
+        freezeReceipt,
+        protocol: frozenProtocol,
+      });
 
     expect(loaded).toMatchObject({
       candidateOnly: true,
@@ -433,13 +437,16 @@ describe("role baseline parameter loader convergence", () => {
 
   it("rejects mutated parameter bytes before JSON is trusted", () => {
     const parameterContent = roleParameterContent();
-    const artifact = roleArtifact(parameterContent);
+    const { artifact, frozenProtocol, freezeReceipt } =
+      roleArtifact(parameterContent);
 
     expect(() =>
-      loadCCFRoleBaselineParametersFromCandidateArtifact(
+      loadCCFRoleBaselineParametersFromCandidateArtifact({
         artifact,
-        parameterContent + " ",
-      ),
+        parameterContent: parameterContent + " ",
+        freezeReceipt,
+        protocol: frozenProtocol,
+      }),
     ).toThrow(/parameter bytes do not match the frozen candidate artifact/);
   });
 
@@ -447,36 +454,60 @@ describe("role baseline parameter loader convergence", () => {
     const parameterContent = roleParameterContent({
       scoringProfileFingerprint: "attacker-controlled",
     });
-    const artifact = roleArtifact(parameterContent);
+    const { artifact, frozenProtocol, freezeReceipt } =
+      roleArtifact(parameterContent);
 
     expect(() =>
-      loadCCFRoleBaselineParametersFromCandidateArtifact(
+      loadCCFRoleBaselineParametersFromCandidateArtifact({
         artifact,
         parameterContent,
-      ),
+        freezeReceipt,
+        protocol: frozenProtocol,
+      }),
     ).toThrow(/payload keys do not match the frozen payload schema/);
   });
 
   it("rejects a governed artifact from the wrong model family", () => {
     const parameterContent = roleParameterContent();
-    const artifact = roleArtifact(parameterContent, "some_other_model");
+    const { artifact, frozenProtocol, freezeReceipt } =
+      roleArtifact(parameterContent, "some_other_model");
 
     expect(() =>
-      loadCCFRoleBaselineParametersFromCandidateArtifact(
+      loadCCFRoleBaselineParametersFromCandidateArtifact({
         artifact,
         parameterContent,
-      ),
+        freezeReceipt,
+        protocol: frozenProtocol,
+      }),
     ).toThrow(/is not role_opportunity_baseline/);
+  });
+
+  it("rejects a parameter artifact loaded against a different frozen protocol context", () => {
+    const parameterContent = roleParameterContent();
+    const { artifact } = roleArtifact(parameterContent);
+    const unrelated = frozenPair("some-other-scoring-fingerprint");
+
+    expect(() =>
+      loadCCFRoleBaselineParametersFromCandidateArtifact({
+        artifact,
+        parameterContent,
+        freezeReceipt: unrelated.freezeReceipt,
+        protocol: unrelated.frozenProtocol,
+      }),
+    ).toThrow(/does not match the supplied historical dataset freeze receipt|does not match the supplied predictive validation protocol/);
   });
 
   it("rejects duplicate feature evidence refs at candidate execution", () => {
     const parameterContent = roleParameterContent();
-    const artifact = roleArtifact(parameterContent);
+    const { artifact, frozenProtocol, freezeReceipt } =
+      roleArtifact(parameterContent);
     const loaded =
-      loadCCFRoleBaselineParametersFromCandidateArtifact(
+      loadCCFRoleBaselineParametersFromCandidateArtifact({
         artifact,
         parameterContent,
-      );
+        freezeReceipt,
+        protocol: frozenProtocol,
+      });
 
     expect(() =>
       buildCCFRoleBaselineCandidate({
