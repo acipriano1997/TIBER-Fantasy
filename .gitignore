@@ -28,21 +28,18 @@ replit_move-*.txt
 # Replit config — contains userenv shared secrets, must not be tracked
 .replit
 
-# local DB backups
+# Local databases and backups
 backup_*.sql
-
-backup_*.sql
-*.dump
 *.dump
 *.sqlite
 *.sqlite3
+*.db-wal
+*.db-shm
+*.db-journal
 
+# Editor swap files
 *.swp
 *.swo
-
-# local backups
-backup_*.sql
-*.swp
 
 # TIBER Cowork plugin local config (contains API key)
 # Broad, unanchored pattern so nested/duplicate copies cannot slip through.
