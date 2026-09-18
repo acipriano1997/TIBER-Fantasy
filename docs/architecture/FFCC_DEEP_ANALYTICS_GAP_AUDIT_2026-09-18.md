@@ -106,6 +106,9 @@ The Player Outcome path is only one part of FFCC. A second pass across draft, wa
 | Draft roster correlation / stacking | PARTIAL/UNCLEAR | scoring-format-aware teammate/opponent correlation and roster-construction utility, especially best ball | P2 |
 | Draft bye/playoff concentration | PARTIAL/UNCLEAR | treat schedule concentration as portfolio risk/optionality rather than a generic penalty | P3 |
 | Auction draft price dynamics | OUTSIDE CURRENT FROZEN SCOPE | nomination order, budget elasticity, positional inflation, replacement price and room-specific price distributions | future |
+| Keeper cost / inflation utility | DECISION-LAYER GAP | compare keep cost against exact-league replacement/scarcity, lost pick/auction capital, expected room inflation and future roster optionality | P2 |
+| Guillotine / chopped survival utility | DECISION-LAYER GAP | weekly elimination probability, floor-vs-ceiling utility, FAAB reserve value, expected future chopped-player supply and opponent bankroll behavior | P2 |
+| Best-ball advance / spike-week portfolio | PARTIAL/FORMAT-SPECIFIC | joint weekly ceiling/correlation, roster uniqueness and playoff-week advance utility should consume certified distributions rather than a separate player score | P2/P3 |
 | **Season/playoff path simulation** | TRUE GAP / DECISION-LAYER | probability distribution over weekly wins, playoff qualification/byes and championship paths from roster + schedule + joint player outcomes | **P1/P2** |
 | Opponent-roster conditional strategy | TRUE GAP | lineup/waiver/trade utility conditional on specific league opponents, standings, remaining schedule and replacement pools | P2 |
 | Waiver opponent-demand model | PARTIAL | probability of competing claims/bids using roster need, churn, budget and league behavior rather than global roster percentage | P2 |
@@ -131,6 +134,8 @@ That model must be exact-league aware and must preserve uncertainty when the dra
 ### Season-management boundary
 
 Season and playoff simulations should consume certified weekly player/team distributions rather than becoming a second prediction engine. They are downstream decision utilities and should remain separable from Player Outcome model authority.
+
+The same rule applies to keeper, auction, guillotine/chopped and best-ball formats: league mechanics change the utility function and replacement market, not the underlying football truth. Format-specific strategy must sit downstream of certified player distributions and exact league rules.
 
 ## Cross-repository duplicate check
 
