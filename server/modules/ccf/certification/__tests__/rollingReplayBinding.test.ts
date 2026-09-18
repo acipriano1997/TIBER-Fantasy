@@ -235,7 +235,7 @@ function artifact(
     },
     abstainBelowCoverage: 1,
     trainingDatasetFingerprint: trainingFingerprint,
-    trainingDatasetFrozenAt: "2026-09-17T22:06:00Z",
+    trainingDatasetFrozenAt: "2026-09-17T22:00:00Z",
     validationProtocolFingerprint:
       fingerprintCCFPredictiveValidationProtocol(frozenProtocol),
     validationProtocolFrozenAt: frozenProtocol.frozenAt,
