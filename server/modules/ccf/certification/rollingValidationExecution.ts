@@ -304,14 +304,14 @@ export function executeCCFRollingValidation(
   const witnesses = indexByRowId("outcome witness", input.outcomeWitnesses);
   const expected = new Set(replayBinding.evaluationRowIds);
 
-  for (const rowId of featurePackets.keys()) {
+  for (const rowId of Array.from(featurePackets.keys())) {
     if (!expected.has(rowId)) {
       throw new CCFRollingValidationExecutionError(
         `feature packet ${rowId} is outside the rolling validation window`,
       );
     }
   }
-  for (const rowId of witnesses.keys()) {
+  for (const rowId of Array.from(witnesses.keys())) {
     if (!expected.has(rowId)) {
       const descriptor = descriptors.get(rowId);
       if (descriptor?.outcomeAccess === "sealed_final_holdout") {
