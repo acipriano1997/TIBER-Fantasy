@@ -60,14 +60,28 @@ function player(
     opportunitiesWhileLeading: overrides.opportunitiesWhileLeading ?? 2,
     opportunitiesWhileTied: overrides.opportunitiesWhileTied ?? 1,
     opportunitiesWhileTrailing: overrides.opportunitiesWhileTrailing ?? 3,
-    carryShare: overrides.carryShare ?? week / 10,
-    targetShare: overrides.targetShare ?? week / 10 + 0.1,
+    carryShare:
+      overrides.carryShare === undefined ? week / 10 : overrides.carryShare,
+    targetShare:
+      overrides.targetShare === undefined ? week / 10 + 0.1 : overrides.targetShare,
     carryTargetOpportunityShare:
-      overrides.carryTargetOpportunityShare ?? week / 10 + 0.05,
-    airYardsShare: overrides.airYardsShare ?? week / 10 + 0.02,
-    redZoneOpportunityShare: overrides.redZoneOpportunityShare ?? week / 10,
-    goalLineOpportunityShare: overrides.goalLineOpportunityShare ?? week / 10,
-    twoMinuteOpportunityShare: overrides.twoMinuteOpportunityShare ?? week / 10,
+      overrides.carryTargetOpportunityShare === undefined
+        ? week / 10 + 0.05
+        : overrides.carryTargetOpportunityShare,
+    airYardsShare:
+      overrides.airYardsShare === undefined ? week / 10 + 0.02 : overrides.airYardsShare,
+    redZoneOpportunityShare:
+      overrides.redZoneOpportunityShare === undefined
+        ? week / 10
+        : overrides.redZoneOpportunityShare,
+    goalLineOpportunityShare:
+      overrides.goalLineOpportunityShare === undefined
+        ? week / 10
+        : overrides.goalLineOpportunityShare,
+    twoMinuteOpportunityShare:
+      overrides.twoMinuteOpportunityShare === undefined
+        ? week / 10
+        : overrides.twoMinuteOpportunityShare,
     sourceRefs: overrides.sourceRefs ?? [`ccf://fixture/player/week-${week}`],
   };
 }
