@@ -3,6 +3,15 @@ import {
   fingerprintCCFCandidateParameterArtifact,
   type CCFCandidateParameterArtifact,
 } from "../certification/candidateParameterArtifact";
+import {
+  fingerprintCCFHistoricalDatasetFreezeReceipt,
+  type CCFHistoricalDatasetFreezeReceipt,
+} from "../certification/historicalDatasetFreezeReceipt";
+import {
+  fingerprintCCFPredictiveValidationProtocol,
+  validateCCFPredictiveValidationProtocol,
+  type CCFPredictiveValidationProtocol,
+} from "../certification/predictiveValidationProtocol";
 import type { CCFPosition } from "./contract";
 import type { CCFRoleBaselineParameters } from "./roleBaselineCandidate";
 
@@ -22,6 +31,13 @@ export interface CCFRoleBaselineParameterPayloadV1 {
     boomFpts: number;
   };
   parameterConfidence: number;
+}
+
+export interface LoadCCFRoleBaselineParametersInput {
+  artifact: CCFCandidateParameterArtifact;
+  parameterContent: string;
+  freezeReceipt: CCFHistoricalDatasetFreezeReceipt;
+  protocol: CCFPredictiveValidationProtocol;
 }
 
 export interface CCFLoadedRoleBaselineParameters {
@@ -216,10 +232,15 @@ function sha256(value: string): string {
  * verified against the exact bytes supplied here.
  */
 export function loadCCFRoleBaselineParametersFromCandidateArtifact(
-  artifact: CCFCandidateParameterArtifact,
-  parameterContent: string,
+  input: LoadCCFRoleBaselineParametersInput,
 ): CCFLoadedRoleBaselineParameters {
+  const { artifact, parameterContent, freezeReceipt } = input;
+  const protocol = validateCCFPredictiveValidationProtocol(input.protocol);
   const artifactFingerprint = fingerprintCCFCandidateParameterArtifact(artifact);
+  const freezeReceiptFingerprint =
+    fingerprintCCFHistoricalDatasetFreezeReceipt(freezeReceipt);
+  const protocolFingerprint =
+    fingerprintCCFPredictiveValidationProtocol(protocol);
 
   if (artifact.modelFamily !== "role_opportunity_baseline") {
     throw new CCFRoleBaselineParameterLoaderError(
@@ -237,6 +258,77 @@ export function loadCCFRoleBaselineParametersFromCandidateArtifact(
   if (!/^[a-f0-9]{64}$/.test(artifact.parameterContentSha256)) {
     throw new CCFRoleBaselineParameterLoaderError(
       "artifact parameterContentSha256 is invalid",
+    );
+  }
+
+  if (
+    artifact.datasetFreezeReceiptId !== freezeReceipt.receiptId ||
+    artifact.datasetFreezeReceiptFingerprint !== freezeReceiptFingerprint
+  ) {
+    throw new CCFRoleBaselineParameterLoaderError(
+      "candidate artifact does not match the supplied historical dataset freeze receipt",
+    );
+  }
+  if (
+    artifact.protocolId !== protocol.protocolId ||
+    artifact.protocolFingerprint !== protocolFingerprint
+  ) {
+    throw new CCFRoleBaselineParameterLoaderError(
+      "candidate artifact does not match the supplied predictive validation protocol",
+    );
+  }
+  if (
+    !freezeReceipt.protocolBinding ||
+    freezeReceipt.protocolBinding.protocolId !== protocol.protocolId ||
+    freezeReceipt.protocolBinding.protocolFingerprint !== protocolFingerprint
+  ) {
+    throw new CCFRoleBaselineParameterLoaderError(
+      "historical dataset freeze receipt is not bound to the supplied predictive protocol",
+    );
+  }
+  if (
+    artifact.datasetFingerprint !== freezeReceipt.datasetFingerprint ||
+    artifact.datasetFingerprint !== protocol.datasetFingerprint
+  ) {
+    throw new CCFRoleBaselineParameterLoaderError(
+      "candidate artifact dataset fingerprint is not bound to the supplied freeze/protocol",
+    );
+  }
+  if (
+    artifact.scoringProfileFingerprint !== protocol.scoringProfileFingerprint ||
+    artifact.featureSetFingerprint !== protocol.featureSetFingerprint
+  ) {
+    throw new CCFRoleBaselineParameterLoaderError(
+      "candidate artifact scoring/feature fingerprints do not match the supplied protocol",
+    );
+  }
+
+  const trainingStartedAt = Date.parse(artifact.trainingStartedAt);
+  const trainingCompletedAt = Date.parse(artifact.trainingCompletedAt);
+  const artifactFrozenAt = Date.parse(artifact.frozenAt);
+  const receiptVerifiedAt = Date.parse(freezeReceipt.verifiedAt);
+  const protocolFrozenAt = Date.parse(protocol.frozenAt);
+  if (
+    ![
+      trainingStartedAt,
+      trainingCompletedAt,
+      artifactFrozenAt,
+      receiptVerifiedAt,
+      protocolFrozenAt,
+    ].every(Number.isFinite)
+  ) {
+    throw new CCFRoleBaselineParameterLoaderError(
+      "candidate artifact/freeze/protocol timestamps must be valid",
+    );
+  }
+  if (
+    trainingStartedAt < receiptVerifiedAt ||
+    trainingStartedAt < protocolFrozenAt ||
+    trainingCompletedAt < trainingStartedAt ||
+    artifactFrozenAt < trainingCompletedAt
+  ) {
+    throw new CCFRoleBaselineParameterLoaderError(
+      "candidate artifact training chronology does not match the governed freeze/protocol",
     );
   }
 
