@@ -9,14 +9,24 @@ import {
   materializeCCFNFLPlayerIdentityRegistrySnapshot,
 } from "../nflPlayerIdentityRegistrySnapshot";
 import {
+  CCF_NFLVERSE_INJURY_DESIGNATION_SOURCE_ID_V2,
+  CCF_NFLVERSE_PRACTICE_PARTICIPATION_SOURCE_ID_V2,
   createCCFNflverseInjuryCertificationPolicies,
   createCCFNflverseInjuryCertificationPoliciesFromArchivedIdentitySnapshot,
 } from "../nflverseInjuryCertificationPolicy";
+import { runCCFNflverseInjuryCheckpoint } from "../nflverseInjuryCheckpointRunner";
 
 const REGISTRY_SHA = "a".repeat(64);
 const ARCHIVE_REF = `ccf://raw/tiber/player_identity_map_gsis_tiber/sha256/${"b".repeat(64)}`;
 const SCHEMA_REF =
   "github://acipriano1997/TIBER-Fantasy/migrations/0014_canonical_tiber_player_id.sql";
+
+const INJURY_HEADER =
+  "season,game_type,team,week,gsis_id,position,full_name,first_name,last_name,report_primary_injury,report_secondary_injury,report_status,practice_primary_injury,practice_secondary_injury,practice_status,date_modified";
+const WEEK2_INJURY_CSV = [
+  INJURY_HEADER,
+  "2026,REG,DAL,2,00-0039991,WR,Receiver One,Receiver,One,Hamstring,,Questionable,Hamstring,,Limited Participation,2026-09-17 16:05:00",
+].join("\n");
 
 function realShapeReceipt(
   overrides: Partial<CCFNFLPlayerIdentityLinkageReceipt> = {},
@@ -255,3 +265,140 @@ describe("receipt-bound nflverse injury/practice certification policies", () => 
     }
   });
 });
+
+describe("injury/practice checkpoint execution against the authoritative frozen policy", () => {
+  let checkpointArchiveRootDir: string;
+
+  beforeEach(async () => {
+    checkpointArchiveRootDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), "ccf-injury-checkpoint-"),
+    );
+  });
+
+  afterEach(async () => {
+    await fs.rm(checkpointArchiveRootDir, { recursive: true, force: true });
+  });
+
+  function frozenPolicyBundle() {
+    const identityReceipt = realShapeReceipt();
+    const bundle = createCCFNflverseInjuryCertificationPolicies({
+      identityReceipt,
+      frozenAt: "2026-09-16T19:00:00Z",
+      checkpoints: CHECKPOINTS,
+    });
+    return { identityReceipt, bundle };
+  }
+
+  it("keeps checkpoint execution bound to the authoritative policy source identifiers", () => {
+    const { bundle } = frozenPolicyBundle();
+    expect(bundle.injuryDesignation.sourceId).toBe(
+      CCF_NFLVERSE_INJURY_DESIGNATION_SOURCE_ID_V2,
+    );
+    expect(bundle.practiceParticipation.sourceId).toBe(
+      CCF_NFLVERSE_PRACTICE_PARTICIPATION_SOURCE_ID_V2,
+    );
+  });
+
+  it("derives a successful checkpoint observation from an already-frozen designation policy", async () => {
+    const { identityReceipt, bundle } = frozenPolicyBundle();
+    const fetchImpl = jest.fn(async () =>
+      new Response(WEEK2_INJURY_CSV, {
+        status: 200,
+        headers: {
+          etag: "injury-etag",
+          "last-modified": "Thu, 17 Sep 2026 20:00:00 GMT",
+        },
+      }),
+    ) as unknown as typeof fetch;
+
+    const result = await runCCFNflverseInjuryCheckpoint({
+      policy: bundle.injuryDesignation,
+      identityReceipt,
+      season: 2026,
+      checkpointId: "w2-thu",
+      archiveRootDir: checkpointArchiveRootDir,
+      fetchImpl,
+      now: () => new Date("2026-09-17T20:05:00Z"),
+    });
+
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(result.snapshot).not.toBeNull();
+    expect(result.policyFingerprint).toMatch(/^[a-f0-9]{64}$/);
+    expect(result.observation).toMatchObject({
+      sourceId: CCF_NFLVERSE_INJURY_DESIGNATION_SOURCE_ID_V2,
+      checkpointId: "w2-thu",
+      captureStatus: "success",
+      parserVersion: "ccf-nflverse-injuries-candidate-v2",
+    });
+  });
+
+  it("records provider capture failures as explicit reliability observations", async () => {
+    const { identityReceipt, bundle } = frozenPolicyBundle();
+    const fetchImpl = jest.fn(async () =>
+      new Response("unavailable", {
+        status: 503,
+        statusText: "Service Unavailable",
+      }),
+    ) as unknown as typeof fetch;
+
+    const result = await runCCFNflverseInjuryCheckpoint({
+      policy: bundle.practiceParticipation,
+      identityReceipt,
+      season: 2026,
+      checkpointId: "w2-thu",
+      archiveRootDir: checkpointArchiveRootDir,
+      fetchImpl,
+      now: () => new Date("2026-09-17T20:05:00Z"),
+    });
+
+    expect(result.snapshot).toBeNull();
+    expect(result.observation).toMatchObject({
+      sourceId: CCF_NFLVERSE_PRACTICE_PARTICIPATION_SOURCE_ID_V2,
+      checkpointId: "w2-thu",
+      captureStatus: "failure",
+      parserVersion: null,
+      archiveRef: null,
+      rowCount: 0,
+    });
+  });
+
+  it("rejects early checkpoint execution before any provider request", async () => {
+    const { identityReceipt, bundle } = frozenPolicyBundle();
+    const fetchImpl = jest.fn() as unknown as typeof fetch;
+
+    await expect(
+      runCCFNflverseInjuryCheckpoint({
+        policy: bundle.injuryDesignation,
+        identityReceipt,
+        season: 2026,
+        checkpointId: "w2-thu",
+        archiveRootDir: checkpointArchiveRootDir,
+        fetchImpl,
+        now: () => new Date("2026-09-17T19:59:59Z"),
+      }),
+    ).rejects.toThrow(/cannot run before/);
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("rejects an identity receipt that does not match the frozen policy before network access", async () => {
+    const { bundle } = frozenPolicyBundle();
+    const mismatchedReceipt = realShapeReceipt({
+      receiptId: "nflverse-gsis-to-tiber-bbbbbbbbbbbbbbbb",
+    });
+    const fetchImpl = jest.fn() as unknown as typeof fetch;
+
+    await expect(
+      runCCFNflverseInjuryCheckpoint({
+        policy: bundle.injuryDesignation,
+        identityReceipt: mismatchedReceipt,
+        season: 2026,
+        checkpointId: "w2-thu",
+        archiveRootDir: checkpointArchiveRootDir,
+        fetchImpl,
+        now: () => new Date("2026-09-17T20:05:00Z"),
+      }),
+    ).rejects.toThrow(/identity receipt does not match/);
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+});
+
