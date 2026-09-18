@@ -1,5 +1,14 @@
 # Advanced Metrics Roadmap
 
+> [!IMPORTANT]
+> **Status: legacy tactical metric backlog, not current FFCC analytics authority.**
+>
+> This file predates the 2026 CCF/Player Outcome, source-governance, and external-model boundaries. It remains useful as an inventory of candidate nflverse-derived metrics, but its old phase ordering and "automatically flow to FORGE Alpha" language do not authorize runtime scoring changes.
+>
+> For the current deep-analytics coverage map, duplication checks, ownership boundaries, anti-double-counting doctrine, priorities, and promotion gates, see `docs/architecture/FFCC_DEEP_ANALYTICS_GAP_AUDIT_2026-09-18.md`.
+>
+> New analytics must preserve point-in-time provenance, explicit missingness, family-level ablation, current CCF recommendation authority, and the frozen certification scope.
+
 ## ✅ Already Implemented (Gold Layer)
 - YPRR, TPRR, target share, ADOT
 - EPA per target, EPA per rush
@@ -89,8 +98,4 @@
 
 ## 🎨 UI Integration Notes
 
-All new Gold layer metrics will automatically flow to:
-- Data Lab (sortable columns)
-- FORGE Alpha (additional pillar inputs)
-- Chart Builder (X/Y axis options)
-- Player cards (contextual stats)
+Historical UI note: these metrics were originally intended for Data Lab and related research surfaces. No metric in this file should automatically enter FORGE, CCF, rankings, or recommendation logic. Runtime influence requires its own governed producer/consumer contract and promotion evidence.
