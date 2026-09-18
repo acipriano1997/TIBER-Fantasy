@@ -69,7 +69,7 @@ jobs:
           server/modules/ccf/outcomes/__tests__/playerOutcomeEngineV0.test.ts
           server/modules/ccf/lineup/__tests__/lineupDecision.test.ts
           server/modules/ccf/lineup/__tests__/lineupDecisionAdmission.test.ts
-          server/modules/ccf/lineup/__tests__/rosterStateSnapshot.test.ts
+          server/modules/ccf/lineup/__tests__/rosterStateSnapshot.test.ts\n          server/modules/ccf/lineup/__tests__/lineupSlotGeometry.test.ts
           server/modules/ccf/lineup/__tests__/lineupReleaseGate.test.ts
           server/modules/ccf/lineup/__tests__/positionCoverage.test.ts
           server/modules/ccf/independence/__tests__/authorityGraph.test.ts
