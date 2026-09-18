@@ -48,7 +48,7 @@ These systems may need modernization or externalization, but a new analytics pro
 | **Receiver separation / route win context** | TRUE GAP / DATA-BLOCKED | separation independent of QB, route win rate, target-window quality, press/release performance | Data/tracking producer → Forecast/CCF | **P1** |
 | **First-read / designed-target intent** | TRUE GAP | progression priority, first-read share, designed targets, clear-outs/decoys, screen intent | Data/charting producer → Forecast/CCF | **P1** |
 | Target quality | PARTIAL | air-yard/EPA inputs do not fully separate throw quality, coverage difficulty, catch-point contest and receiver creation | Data → Forecast/CCF | P2 |
-| **Teammate on/off redistribution** | TRUE GAP | conditional route/target/carry/high-value-touch redistribution when a teammate is absent or role-limited | Data → Role/Opportunity → Forecast/CCF | **P1** |
+| **Teammate on/off redistribution** | PARTIAL / LEGACY | Forecast already has teammate-injury/vacated-target scenarios and bounded heuristic adjustments; missing is a source-backed empirical on/off redistribution model for routes/targets/carries/high-value touches | Data → Role/Opportunity → Forecast/CCF | **P1** |
 | Target competition | PARTIAL | legacy target-competition paths exist, but no governed conditional allocation model was found | Role/Opportunity | P1 |
 | YAC quality | PARTIAL | xYAC is known in the metrics roadmap, but canonical YAC-over-expected opportunity/outcome decomposition is incomplete | Data → Forecast | P2 |
 | Catch-point / contested opportunity | TRUE GAP / DATA-BLOCKED | contest difficulty, defender responsibility, catch probability context | tracking producer → Forecast | P3 |
@@ -56,7 +56,7 @@ These systems may need modernization or externalization, but a new analytics pro
 | **Run blocking assignments** | TRUE GAP / DATA-BLOCKED | blocker-defender assignment, block type, double teams, penetration, block duration, disruption without tackle | Data/tracking producer → Forecast | **P1** |
 | RB yards created vs blocking | TRUE GAP / DATA-BLOCKED | expected rushing outcome conditional on geometry/blocking and yards over expectation | Forecast | P1 |
 | Box/front structure | PARTIAL/UNCLEAR | no governed player-level RB scheme-fit interaction with box count/front family was found | Data/Teamstate → Forecast | P2 |
-| Contact balance | DATA-BLOCKED | yards after contact, forced missed tackles, tackle probability vs actual | tracking/charting producer | P2 |
+| Contact balance / evasion | PARTIAL / DATA-BLOCKED | TIBER-Data has a mature RB contact-evasion observation contract and validation corpus but explicitly has no admitted source or promoted artifact; source-backed YAC-contact, forced-missed-tackle and survival evidence remains blocked | TIBER-Data → Forecast | P2 |
 | QB designed rush vs scramble | PARTIAL | richer red-zone contract anticipates splits, but a complete governed opportunity model is not active | Data → Role/Opportunity | P2 |
 | **Pass protection × pressure** | PARTIAL / DATA-BLOCKED | time-to-pressure, quick-pressure probability, blocker/rusher matchup, chips, doubles, pressure-over-expectation | Data/tracking producer → Forecast | **P1** |
 | QB clean-pocket/pressure response | PARTIAL | EPA/CPOE/sack context exists, but no fully governed pressure-state outcome distribution | Forecast | P2 |
@@ -128,6 +128,18 @@ That model must be exact-league aware and must preserve uncertainty when the dra
 ### Season-management boundary
 
 Season and playoff simulations should consume certified weekly player/team distributions rather than becoming a second prediction engine. They are downstream decision utilities and should remain separable from Player Outcome model authority.
+
+## Cross-repository duplicate check
+
+A final ownership pass across TIBER-Data, TIBER-Teamstate, TIBER-Forecast, TIBER-Strategy, TIBER-FORGE and TIBER-Rookies changed several classifications:
+
+- **Receiving role / route participation:** TIBER-Data already has a fail-closed route-participation proxy scaffold and nflverse participation audit. It explicitly blocks claims of true routes/YPRR/TPRR without source-backed full-route coverage. Future receiving interaction work should extend that ownership boundary rather than infer routes downstream.
+- **Formation:** TIBER-Data has source-verified candidate formation-summary work. It remains unpromoted and team-level; player-level formation × opportunity interaction is still incomplete.
+- **Pressure:** TIBER-Data explicitly deferred pressure-rate-allowed because no accepted open source was available. Pressure interaction therefore remains data-blocked; zero-fill or sack/hit proxies must not be promoted as pressure truth.
+- **RB contact/evasion:** TIBER-Data has a detailed observation contract, rights/provenance model and validation corpus, but states that no admitted source or promoted artifact exists. This is partial infrastructure, not a production signal.
+- **Teammate injury / vacated opportunity:** TIBER-Forecast already contains teammate-injury scenarios and bounded heuristic adjustments. This makes the category partial/legacy, not absent; the missing layer is empirical conditional redistribution with team-level opportunity conservation.
+- **Rookie/devy route and draft evidence:** TIBER-Rookies already owns route-profile and draft-capital/result evidence. FFCC should consume promoted rookie artifacts and must not recreate that producer logic.
+- Searches found no corresponding governed implementation for first-read intent, run-scheme/blocking assignments, joint player covariance, formal role change-point inference, lineup win-probability utility, or live draft survival probability. Those remain genuine gaps.
 
 ## Corrections to earlier assumptions
 
@@ -211,13 +223,13 @@ Many P1 interactions require richer tracking or charting than nflverse PBP can p
 
 Potential evidence classes must be qualified separately:
 
-- NFL tracking-derived classifications and responsibility models;
-- licensed/manual route, coverage, first-read and separation charting;
+- openly available NFL tracking-derived classifications or public research artifacts whose terms permit TIBER use;
+- open/public or internally charted route, coverage, first-read and separation evidence with auditable provenance;
 - canonical nflverse PBP/participation fields where semantics are sufficient;
 - team/coach regime reports produced upstream;
 - injury/workload observations with decision-time snapshots.
 
-If a source cannot be archived with stable provenance and point-in-time semantics, it may remain a research challenger but cannot silently become native CCF truth.
+If a source cannot be archived with stable provenance and point-in-time semantics, it may remain a research challenger but cannot silently become native CCF truth. **Paywalled or proprietary analytics providers are benchmark inspiration only and are not admissible production dependencies for FFCC.**
 
 ## External benchmark evidence reviewed
 
