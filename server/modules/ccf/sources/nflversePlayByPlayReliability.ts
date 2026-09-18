@@ -30,22 +30,31 @@ export class CCFNflversePlayByPlayReliabilityError extends Error {
   }
 }
 
-const REQUIRED_PARSER_VERSION = "ccf-nflverse-play-by-play-candidate-v2";
+const REQUIRED_PARSER_VERSION = "ccf-nflverse-play-by-play-candidate-v3";
 const PASS_BINARY_FIELDS: CCFNflversePbpBinaryField[] = [
+  "play",
   "pass_attempt",
   "qb_dropback",
+  "qb_scramble",
+  "qb_kneel",
+  "qb_spike",
   "sack",
   "complete_pass",
   "two_point_attempt",
 ];
 const RUN_BINARY_FIELDS: CCFNflversePbpBinaryField[] = [
+  "play",
   "rush_attempt",
+  "qb_scramble",
   "qb_kneel",
+  "qb_spike",
   "two_point_attempt",
 ];
 const KNEEL_BINARY_FIELDS: CCFNflversePbpBinaryField[] = [
+  "play",
   "rush_attempt",
   "qb_kneel",
+  "qb_spike",
 ];
 
 function hasText(value: string | null | undefined): value is string {
@@ -150,7 +159,13 @@ function auditCriticalOpportunityFields(
   for (const row of snapshot.rows) {
     const missingBinary = new Set(row.missingBinaryFields);
     const hasOpportunitySignal =
-      row.passAttempt || row.rushAttempt || row.qbDropback || row.sack || row.qbKneel;
+      row.normalPlay ||
+      row.passAttempt ||
+      row.rushAttempt ||
+      row.qbDropback ||
+      row.sack ||
+      row.qbKneel ||
+      row.qbSpike;
 
     if (!row.playType && hasOpportunitySignal) {
       check(true);
@@ -162,6 +177,10 @@ function auditCriticalOpportunityFields(
 
       if (row.qbDropback || row.passAttempt || row.sack) {
         check(!hasText(row.passerPlayerId));
+      }
+      if (row.normalPlay) {
+        check(row.halfSecondsRemaining == null);
+        check(row.scoreDifferential == null);
       }
 
       const receiverAttributionRequired =
@@ -182,6 +201,10 @@ function auditCriticalOpportunityFields(
         check(!hasText(row.rusherPlayerId));
         check(row.yardline100 == null);
       }
+      if (row.normalPlay) {
+        check(row.halfSecondsRemaining == null);
+        check(row.scoreDifferential == null);
+      }
     } else if (row.playType === "qb_kneel") {
       check(!hasText(row.offenseTeam));
       checkBinaryFields(missingBinary, KNEEL_BINARY_FIELDS);
@@ -189,6 +212,10 @@ function auditCriticalOpportunityFields(
       check(!hasText(row.offenseTeam));
       checkBinaryFields(missingBinary, PASS_BINARY_FIELDS);
       if (row.passAttempt) check(!hasText(row.passerPlayerId));
+      if (row.normalPlay) {
+        check(row.halfSecondsRemaining == null);
+        check(row.scoreDifferential == null);
+      }
     }
 
     if (row.twoPointAttempt) {
@@ -236,7 +263,7 @@ function isCoverageOnlyIdentityBlocker(blocker: string): boolean {
 
 /**
  * Build one prospective PBP opportunity reliability observation. The parser
- * preserves play_type and provider binary missingness so quality is measured
+ * preserves play_type, provider binary missingness, and native game context so quality is measured
  * only where a field or player attribution is semantically required.
  *
  * Throwaways and non-play rows are not converted into false receiver misses;

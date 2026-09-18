@@ -1,7 +1,7 @@
 import type { CCFNFLPlayerIdentityLinkageReceipt } from "../nflPlayerIdentityLinkage";
 import {
   CCF_NFLVERSE_PBP_CHECKPOINTS_2026_V1,
-  CCF_NFLVERSE_PBP_SOURCE_ID_V2,
+  CCF_NFLVERSE_PBP_SOURCE_ID_V3,
   buildCCFNflversePlayByPlayReliabilityPolicy,
   fingerprintCCFNflversePlayByPlayReliabilityPolicy,
 } from "../nflversePlayByPlayCertificationPolicy";
@@ -32,17 +32,17 @@ function identityReceipt(
 }
 
 describe("nflverse play-by-play prospective reliability policy", () => {
-  it("binds parser v2, exact identity evidence, and the frozen two-week checkpoints", () => {
+  it("binds parser v3, exact identity evidence, and the frozen two-week checkpoints", () => {
     const policy = buildCCFNflversePlayByPlayReliabilityPolicy({
       identityReceipt: identityReceipt(),
       frozenAt: "2026-09-16T18:30:00Z",
     });
 
     expect(policy).toMatchObject({
-      sourceId: CCF_NFLVERSE_PBP_SOURCE_ID_V2,
+      sourceId: CCF_NFLVERSE_PBP_SOURCE_ID_V3,
       producer: "nflverse",
       intendedUse: "ffcc_native_weekly_recommendation",
-      parserVersion: "ccf-nflverse-play-by-play-candidate-v2",
+      parserVersion: "ccf-nflverse-play-by-play-candidate-v3",
       minimumSuccessfulCaptures: 4,
       minimumCaptureSuccessRate: 1,
       minimumSchemaValidRate: 1,
