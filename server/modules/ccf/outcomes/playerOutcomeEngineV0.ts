@@ -66,6 +66,21 @@ export interface RunCCFPlayerOutcomeEngineV0Input {
   scoringFingerprint: string;
 }
 
+export interface CCFPlayerOutcomeHistoricalReplayAuthorizationV1 {
+  contractVersion: "ccf-player-outcome-historical-replay-authorization-v1";
+  targetDecisionAsOf: string;
+  trainingEvidenceMaxKnownAt: string;
+  trainingDatasetFingerprint: string;
+  validationProtocolFingerprint: string;
+  certificationOnly: true;
+  productionInferenceAuthorized: false;
+}
+
+export interface RunCCFPlayerOutcomeEngineV0HistoricalReplayInput
+  extends RunCCFPlayerOutcomeEngineV0Input {
+  replayAuthorization: CCFPlayerOutcomeHistoricalReplayAuthorizationV1;
+}
+
 export class CCFPlayerOutcomeModelArtifactError extends Error {
   constructor(message: string) {
     super(message);
@@ -425,8 +440,70 @@ function criticalFeatureProvenance(
     .sort((left, right) => left.feature.localeCompare(right.feature));
 }
 
-export function runCCFPlayerOutcomeEngineV0(
+function validateHistoricalReplayAuthorization(
+  authorization: CCFPlayerOutcomeHistoricalReplayAuthorizationV1,
+  artifact: CCFPlayerOutcomeModelArtifactV0,
+  featureSet: CCFWeeklyNativeFeatureSet,
+): void {
+  if (
+    authorization.contractVersion !==
+    "ccf-player-outcome-historical-replay-authorization-v1"
+  ) {
+    throw new CCFPlayerOutcomeInferenceUnavailableError(
+      "unsupported historical replay authorization version",
+    );
+  }
+  if (
+    authorization.certificationOnly !== true ||
+    authorization.productionInferenceAuthorized !== false
+  ) {
+    throw new CCFPlayerOutcomeInferenceUnavailableError(
+      "historical replay authorization cannot grant production inference authority",
+    );
+  }
+  const targetDecisionAsOfMs = Date.parse(authorization.targetDecisionAsOf);
+  const trainingEvidenceMaxKnownAtMs = Date.parse(
+    authorization.trainingEvidenceMaxKnownAt,
+  );
+  if (
+    !Number.isFinite(targetDecisionAsOfMs) ||
+    !Number.isFinite(trainingEvidenceMaxKnownAtMs)
+  ) {
+    throw new CCFPlayerOutcomeInferenceUnavailableError(
+      "historical replay authorization timestamps must be valid",
+    );
+  }
+  if (authorization.targetDecisionAsOf !== featureSet.asOf) {
+    throw new CCFPlayerOutcomeInferenceUnavailableError(
+      "historical replay targetDecisionAsOf must exactly match feature-set asOf",
+    );
+  }
+  if (trainingEvidenceMaxKnownAtMs > targetDecisionAsOfMs) {
+    throw new CCFPlayerOutcomeInferenceUnavailableError(
+      "historical replay training evidence cannot be known after the target decision",
+    );
+  }
+  if (
+    authorization.trainingDatasetFingerprint !==
+    artifact.trainingDatasetFingerprint
+  ) {
+    throw new CCFPlayerOutcomeInferenceUnavailableError(
+      "historical replay training dataset fingerprint does not match the model artifact",
+    );
+  }
+  if (
+    authorization.validationProtocolFingerprint !==
+    artifact.validationProtocolFingerprint
+  ) {
+    throw new CCFPlayerOutcomeInferenceUnavailableError(
+      "historical replay validation protocol fingerprint does not match the model artifact",
+    );
+  }
+}
+
+function runCCFPlayerOutcomeEngineV0Validated(
   input: RunCCFPlayerOutcomeEngineV0Input,
+  replayAuthorization?: CCFPlayerOutcomeHistoricalReplayAuthorizationV1,
 ): CCFPlayerOutcome {
   const artifact = validateCCFPlayerOutcomeModelArtifactV0(input.artifact);
   const featureSet = validateCCFWeeklyNativeFeatureSet(input.featureSet);
@@ -448,12 +525,20 @@ export function runCCFPlayerOutcomeEngineV0(
     );
   }
 
-  const asOfMs = Date.parse(featureSet.asOf);
-  const artifactFrozenAtMs = Date.parse(artifact.frozenAt);
-  if (artifactFrozenAtMs > asOfMs) {
-    throw new CCFPlayerOutcomeInferenceUnavailableError(
-      "model artifact was frozen after the feature-set asOf cutoff",
+  if (replayAuthorization) {
+    validateHistoricalReplayAuthorization(
+      replayAuthorization,
+      artifact,
+      featureSet,
     );
+  } else {
+    const asOfMs = Date.parse(featureSet.asOf);
+    const artifactFrozenAtMs = Date.parse(artifact.frozenAt);
+    if (artifactFrozenAtMs > asOfMs) {
+      throw new CCFPlayerOutcomeInferenceUnavailableError(
+        "model artifact was frozen after the feature-set asOf cutoff",
+      );
+    }
   }
 
   const { values, features } = resolveModelFeatures(featureSet, artifact);
@@ -529,4 +614,29 @@ export function runCCFPlayerOutcomeEngineV0(
   };
 
   return assertCCFNativeIndependence(outcome);
+}
+
+export function runCCFPlayerOutcomeEngineV0(
+  input: RunCCFPlayerOutcomeEngineV0Input,
+): CCFPlayerOutcome {
+  return runCCFPlayerOutcomeEngineV0Validated(input);
+}
+
+/**
+ * Certification-only historical replay.
+ *
+ * Operational artifact creation timestamps may occur after a historical target
+ * decision because the replay is executed later. The caller must instead
+ * provide an explicit authorization binding the artifact to the fold-specific
+ * training dataset/protocol and prove that all training evidence was known no
+ * later than the historical decision. This path never grants live inference
+ * authority.
+ */
+export function runCCFPlayerOutcomeEngineV0HistoricalReplay(
+  input: RunCCFPlayerOutcomeEngineV0HistoricalReplayInput,
+): CCFPlayerOutcome {
+  return runCCFPlayerOutcomeEngineV0Validated(
+    input,
+    input.replayAuthorization,
+  );
 }
