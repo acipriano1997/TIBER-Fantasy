@@ -242,6 +242,14 @@ Potential evidence classes must be qualified separately:
 
 If a source cannot be archived with stable provenance and point-in-time semantics, it may remain a research challenger but cannot silently become native CCF truth. **Paywalled or proprietary analytics providers are benchmark inspiration only and are not admissible production dependencies for FFCC.**
 
+## Beat Vegas cross-sport transfer companion
+
+A dedicated companion audit now records cross-sport statistical and betting-market structures that can improve Beat Vegas without changing current recommendation authority:
+
+- `docs/architecture/BEAT_VEGAS_CROSS_SPORT_TRANSFER_AUDIT_2026-09-18.md`
+
+It covers market-state history, consensus dispersion, de-vigged calibration, process-vs-outcome expected metrics, NBA-style on/off redistribution, tennis-style component decomposition, line-movement diagnostics, market-only ablation, source policy, and a staged BV-1 through BV-4 research sequence.
+
 ## External benchmark evidence reviewed
 
 This audit was compared against the current public analytics frontier, including NFL Next Gen Stats work on coverage responsibility, advanced motion, chip blocks, pressure probability, Route Classification 2.0, run-scheme classification and run-blocking assignments; the 2026 NFL Big Data Bowl player-movement/ghost-defender work; and Fantasy Points Data Suite 2.0 surfaces for teammate on/off splits, coverage, formation, personnel, motion, pressure, routes, alignment, first-read share and receiver separation.
