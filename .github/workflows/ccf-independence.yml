@@ -65,6 +65,7 @@ jobs:
           npm test --
           server/modules/ccf/outcomes/__tests__/contract.test.ts
           server/modules/ccf/outcomes/__tests__/fixtureEngine.test.ts
+          server/modules/ccf/outcomes/__tests__/roleBaselineCandidate.test.ts
           server/modules/ccf/independence/__tests__/authorityGraph.test.ts
           server/modules/ccf/independence/__tests__/weeklyDependencyCensus.test.ts
           server/modules/ccf/independence/__tests__/tiberCapabilityMigration.test.ts
