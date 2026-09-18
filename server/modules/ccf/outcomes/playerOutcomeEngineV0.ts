@@ -337,12 +337,14 @@ function resolveModelFeatures(
 
   for (const key of artifact.featureKeys) {
     const feature = featureSet.features[key];
-    if (!feature || feature.status !== "available") {
-      const detail = feature && feature.status !== "available"
-        ? `${feature.status}: ${feature.reason}`
-        : "not present";
+    if (!feature) {
       throw new CCFPlayerOutcomeInferenceUnavailableError(
-        `required model feature ${key} is ${detail}`,
+        `required model feature ${key} is not present`,
+      );
+    }
+    if (feature.status !== "available") {
+      throw new CCFPlayerOutcomeInferenceUnavailableError(
+        `required model feature ${key} is ${feature.status}: ${feature.reason}`,
       );
     }
     values.set(key, feature.value);
