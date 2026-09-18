@@ -2,7 +2,10 @@ import {
   buildCCFRollingValidationBaselineEvidence,
   type CCFRollingValidationBaselinePredictionV1,
 } from "../rollingValidationBaselineEvidence";
-import type { CCFPredictiveValidationProtocol } from "../predictiveValidationProtocol";
+import {
+  fingerprintCCFPredictiveValidationProtocol,
+  type CCFPredictiveValidationProtocol,
+} from "../predictiveValidationProtocol";
 import type { CCFRollingValidationExecutionV1 } from "../rollingValidationExecution";
 
 function protocol(): CCFPredictiveValidationProtocol {
@@ -89,9 +92,7 @@ function protocol(): CCFPredictiveValidationProtocol {
 
 function execution(frozenProtocol: CCFPredictiveValidationProtocol): CCFRollingValidationExecutionV1 {
   const protocolFingerprint =
-    require("../predictiveValidationProtocol").fingerprintCCFPredictiveValidationProtocol(
-      frozenProtocol,
-    );
+    fingerprintCCFPredictiveValidationProtocol(frozenProtocol);
   const outcome = (rowId: string, week: number, actual: number, predicted: number) => ({
     contractVersion: "ccf-historical-validation-prediction-v1" as const,
     rowId,
