@@ -146,12 +146,12 @@ export function buildCCFRollingValidationPromotionEvidence(
     (criterion) =>
       criterion.target === "fantasy_points" &&
       criterion.metric === "mae" &&
-      criterion.appliesTo === "overall" &&
+      criterion.appliesTo !== "supported_subgroups" &&
       supportedComparator(criterion.comparatorArm),
   );
   if (supportedCriteria.length === 0) {
     throw new CCFRollingValidationPromotionEvidenceError(
-      "frozen protocol contains no supported overall fantasy-points MAE criterion",
+      "frozen protocol contains no supported overall-or-both fantasy-points MAE criterion",
     );
   }
 

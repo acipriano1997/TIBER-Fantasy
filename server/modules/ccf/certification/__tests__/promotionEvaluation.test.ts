@@ -121,6 +121,41 @@ describe("CCF predictive promotion evaluation", () => {
     expect(result.criterionResults[0].confidenceGatePassed).toBe(false);
   });
 
+  it("does not invent overall gates for a subgroup-only frozen criterion", () => {
+    const frozen = protocol();
+    frozen.promotionCriteria[0] = {
+      ...frozen.promotionCriteria[0],
+      appliesTo: "supported_subgroups",
+    };
+
+    const result = evaluateCCFPredictivePromotion(
+      frozen,
+      [
+        evidence({
+          candidateValue: null,
+          comparatorValue: null,
+          pairedSampleSize: null,
+          independentTimeBlocks: null,
+          confidenceLowerBoundForImprovement: null,
+          supportedSubgroupsPassed: true,
+        }),
+      ] as never,
+    );
+
+    expect(result.passed).toBe(true);
+    expect(result.criterionResults[0]).toMatchObject({
+      absoluteImprovement: null,
+      relativeImprovement: null,
+      overallGateApplied: false,
+      subgroupGateApplied: true,
+      sampleGatePassed: true,
+      independentBlockGatePassed: true,
+      confidenceGatePassed: true,
+      subgroupGatePassed: true,
+      passed: true,
+    });
+  });
+
   it("binds metric/target/arm identity rather than trusting a criterion id alone", () => {
     expect(() =>
       evaluateCCFPredictivePromotion(protocol(), [

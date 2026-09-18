@@ -14,18 +14,20 @@ export interface CCFPromotionCriterionEvidence {
   metric: CCFPredictiveMetric;
   comparatorArm: CCFPredictiveValidationArm;
   candidateArm: "native_candidate";
-  candidateValue: number;
-  comparatorValue: number;
-  pairedSampleSize: number;
-  independentTimeBlocks: number;
+  candidateValue: number | null;
+  comparatorValue: number | null;
+  pairedSampleSize: number | null;
+  independentTimeBlocks: number | null;
   confidenceLowerBoundForImprovement: number | null;
   supportedSubgroupsPassed: boolean | null;
 }
 
 export interface CCFPromotionCriterionResult {
   criterionId: string;
-  absoluteImprovement: number;
+  absoluteImprovement: number | null;
   relativeImprovement: number | null;
+  overallGateApplied: boolean;
+  subgroupGateApplied: boolean;
   sampleGatePassed: boolean;
   independentBlockGatePassed: boolean;
   absoluteImprovementGatePassed: boolean;
@@ -52,7 +54,10 @@ function improvement(
     : candidateValue - comparatorValue;
 }
 
-function relativeImprovement(absoluteImprovement: number, comparatorValue: number): number | null {
+function relativeImprovement(
+  absoluteImprovement: number,
+  comparatorValue: number,
+): number | null {
   const denominator = Math.abs(comparatorValue);
   return denominator > 0 ? absoluteImprovement / denominator : null;
 }
@@ -75,6 +80,81 @@ function assertEvidenceIdentity(
   }
 }
 
+function assertOverallEvidence(
+  criterion: CCFPredictivePromotionCriterion,
+  row: CCFPromotionCriterionEvidence,
+): asserts row is CCFPromotionCriterionEvidence & {
+  candidateValue: number;
+  comparatorValue: number;
+  pairedSampleSize: number;
+  independentTimeBlocks: number;
+} {
+  if (
+    row.candidateValue == null ||
+    row.comparatorValue == null ||
+    !Number.isFinite(row.candidateValue) ||
+    !Number.isFinite(row.comparatorValue)
+  ) {
+    throw new Error(
+      `${criterion.criterionId} candidate/comparator values must be finite when overall evidence applies`,
+    );
+  }
+  if (
+    row.pairedSampleSize == null ||
+    !Number.isInteger(row.pairedSampleSize) ||
+    row.pairedSampleSize < 0
+  ) {
+    throw new Error(
+      `${criterion.criterionId} pairedSampleSize must be a non-negative integer when overall evidence applies`,
+    );
+  }
+  if (
+    row.independentTimeBlocks == null ||
+    !Number.isInteger(row.independentTimeBlocks) ||
+    row.independentTimeBlocks < 0
+  ) {
+    throw new Error(
+      `${criterion.criterionId} independentTimeBlocks must be a non-negative integer when overall evidence applies`,
+    );
+  }
+  if (
+    row.confidenceLowerBoundForImprovement != null &&
+    !Number.isFinite(row.confidenceLowerBoundForImprovement)
+  ) {
+    throw new Error(
+      `${criterion.criterionId} confidence lower bound must be finite when provided`,
+    );
+  }
+}
+
+function assertSubgroupOnlyEvidence(
+  criterion: CCFPredictivePromotionCriterion,
+  row: CCFPromotionCriterionEvidence,
+): void {
+  if (
+    row.candidateValue != null ||
+    row.comparatorValue != null ||
+    row.pairedSampleSize != null ||
+    row.independentTimeBlocks != null ||
+    row.confidenceLowerBoundForImprovement != null
+  ) {
+    throw new Error(
+      `${criterion.criterionId} subgroup-only criterion must not carry overall promotion measurements`,
+    );
+  }
+}
+
+function assertSubgroupEvidence(
+  criterion: CCFPredictivePromotionCriterion,
+  row: CCFPromotionCriterionEvidence,
+): void {
+  if (typeof row.supportedSubgroupsPassed !== "boolean") {
+    throw new Error(
+      `${criterion.criterionId} supported subgroup result is required by the frozen criterion`,
+    );
+  }
+}
+
 export function evaluateCCFPredictivePromotion(
   protocol: CCFPredictiveValidationProtocol,
   evidence: readonly CCFPromotionCriterionEvidence[],
@@ -85,28 +165,19 @@ export function evaluateCCFPredictivePromotion(
   const evidenceById = new Map<string, CCFPromotionCriterionEvidence>();
   for (const row of evidence) {
     if (!row.criterionId.trim()) throw new Error("criterionId is required");
-    if (evidenceById.has(row.criterionId)) throw new Error(`duplicate criterion evidence ${row.criterionId}`);
-    if (!Number.isFinite(row.candidateValue) || !Number.isFinite(row.comparatorValue)) {
-      throw new Error(`${row.criterionId} candidate/comparator values must be finite`);
-    }
-    if (!Number.isInteger(row.pairedSampleSize) || row.pairedSampleSize < 0) {
-      throw new Error(`${row.criterionId} pairedSampleSize must be a non-negative integer`);
-    }
-    if (!Number.isInteger(row.independentTimeBlocks) || row.independentTimeBlocks < 0) {
-      throw new Error(`${row.criterionId} independentTimeBlocks must be a non-negative integer`);
-    }
-    if (
-      row.confidenceLowerBoundForImprovement != null &&
-      !Number.isFinite(row.confidenceLowerBoundForImprovement)
-    ) {
-      throw new Error(`${row.criterionId} confidence lower bound must be finite when provided`);
+    if (evidenceById.has(row.criterionId)) {
+      throw new Error(`duplicate criterion evidence ${row.criterionId}`);
     }
     evidenceById.set(row.criterionId, row);
   }
 
-  const expectedIds = new Set(protocol.promotionCriteria.map((criterion) => criterion.criterionId));
+  const expectedIds = new Set(
+    protocol.promotionCriteria.map((criterion) => criterion.criterionId),
+  );
   for (const id of Array.from(evidenceById.keys())) {
-    if (!expectedIds.has(id)) throw new Error(`unexpected criterion evidence ${id}`);
+    if (!expectedIds.has(id)) {
+      throw new Error(`unexpected criterion evidence ${id}`);
+    }
   }
 
   const criterionResults = protocol.promotionCriteria.map((criterion) => {
@@ -114,29 +185,60 @@ export function evaluateCCFPredictivePromotion(
     if (!row) throw new Error(`missing criterion evidence ${criterion.criterionId}`);
     assertEvidenceIdentity(criterion, row);
 
-    const absoluteImprovement = improvement(criterion, row.candidateValue, row.comparatorValue);
-    const relative = relativeImprovement(absoluteImprovement, row.comparatorValue);
-    const sampleGatePassed =
-      row.pairedSampleSize >= protocol.samplePolicy.minimumOverallPairedRows;
-    const independentBlockGatePassed =
-      row.independentTimeBlocks >= protocol.samplePolicy.minimumIndependentTimeBlocks;
-    const absoluteImprovementGatePassed =
+    const overallGateApplied = criterion.appliesTo !== "supported_subgroups";
+    const subgroupGateApplied = criterion.appliesTo !== "overall";
+
+    if (overallGateApplied) {
+      assertOverallEvidence(criterion, row);
+    } else {
+      assertSubgroupOnlyEvidence(criterion, row);
+    }
+    if (subgroupGateApplied) {
+      assertSubgroupEvidence(criterion, row);
+    } else if (row.supportedSubgroupsPassed != null) {
+      throw new Error(
+        `${criterion.criterionId} overall-only criterion must not carry subgroup promotion evidence`,
+      );
+    }
+
+    const candidateValue = overallGateApplied ? row.candidateValue! : null;
+    const comparatorValue = overallGateApplied ? row.comparatorValue! : null;
+    const pairedSampleSize = overallGateApplied ? row.pairedSampleSize! : null;
+    const independentTimeBlocks = overallGateApplied
+      ? row.independentTimeBlocks!
+      : null;
+
+    const absoluteImprovement = overallGateApplied
+      ? improvement(criterion, candidateValue!, comparatorValue!)
+      : null;
+    const relative = overallGateApplied && absoluteImprovement != null
+      ? relativeImprovement(absoluteImprovement, comparatorValue!)
+      : null;
+
+    const sampleGatePassed = !overallGateApplied ||
+      pairedSampleSize! >= protocol.samplePolicy.minimumOverallPairedRows;
+    const independentBlockGatePassed = !overallGateApplied ||
+      independentTimeBlocks! >= protocol.samplePolicy.minimumIndependentTimeBlocks;
+    const absoluteImprovementGatePassed = !overallGateApplied ||
       criterion.minimumAbsoluteImprovement == null ||
-      absoluteImprovement >= criterion.minimumAbsoluteImprovement;
-    const relativeImprovementGatePassed =
+      (absoluteImprovement != null &&
+        absoluteImprovement >= criterion.minimumAbsoluteImprovement);
+    const relativeImprovementGatePassed = !overallGateApplied ||
       criterion.minimumRelativeImprovement == null ||
       (relative != null && relative >= criterion.minimumRelativeImprovement);
-    const confidenceGatePassed =
+    const confidenceGatePassed = !overallGateApplied ||
       !criterion.confidenceLowerBoundMustBeatZero ||
       (row.confidenceLowerBoundForImprovement != null &&
         row.confidenceLowerBoundForImprovement > 0);
-    const subgroupGatePassed =
-      criterion.appliesTo === "overall" || row.supportedSubgroupsPassed === true;
+    const subgroupGatePassed = !subgroupGateApplied ||
+      row.supportedSubgroupsPassed === true;
 
     return {
       criterionId: criterion.criterionId,
       absoluteImprovement,
       relativeImprovement: relative,
+      overallGateApplied,
+      subgroupGateApplied,
       sampleGatePassed,
       independentBlockGatePassed,
       absoluteImprovementGatePassed,
