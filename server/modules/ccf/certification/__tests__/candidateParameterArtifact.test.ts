@@ -10,15 +10,26 @@ import {
   type CCFHistoricalDatasetManifest,
 } from "../historicalDatasetManifest";
 import type { CCFPredictiveValidationProtocol } from "../predictiveValidationProtocol";
+import type { CCFWeeklyNativeFeatureSet } from "../../features/weeklyFeatureEvidence";
+import {
+  CCF_BASE_PPR_RULES,
+  fingerprintCCFLeagueScoringRules,
+} from "../../scoring/scoringRules";
+import { buildCCFRoleBaselineCandidate } from "../../outcomes/roleBaselineCandidate";
+import {
+  loadCCFRoleBaselineParametersFromCandidateArtifact,
+} from "../../outcomes/roleBaselineParameterLoader";
 
-function manifest(): CCFHistoricalDatasetManifest {
+function manifest(
+  scoringProfileFingerprint = "scoring-v1",
+): CCFHistoricalDatasetManifest {
   return {
     contractVersion: "ccf-historical-dataset-manifest-v1",
     datasetId: "parameter-training-history-v1",
     schemaVersion: "player-game-decision-v1",
     frozenAt: "2026-09-17T22:00:00Z",
     sourcePlanFingerprint: "source-plan-v1",
-    scoringProfileFingerprint: "scoring-v1",
+    scoringProfileFingerprint,
     featureSetFingerprint: "features-v1",
     decisionPolicyFingerprint: "decision-policy-v1",
     supportedPopulation: "QB/RB/WR/TE weekly fantasy decisions",
@@ -152,8 +163,10 @@ function protocol(dataset: CCFHistoricalDatasetManifest): CCFPredictiveValidatio
   };
 }
 
-function frozenPair() {
-  const dataset = manifest();
+function frozenPair(
+  scoringProfileFingerprint = "scoring-v1",
+) {
+  const dataset = manifest(scoringProfileFingerprint);
   const frozenProtocol = protocol(dataset);
   const freezeReceipt = buildCCFHistoricalDatasetFreezeReceipt({
     manifest: dataset,
@@ -266,5 +279,215 @@ describe("candidate parameter artifact", () => {
     expect(() => fingerprintCCFCandidateParameterArtifact(artifact)).toThrow(
       /artifactId does not match artifact contents/,
     );
+  });
+});
+
+
+const ROLE_TARGETS = "opportunity.targets_per_recorded_game";
+const ROLE_CARRIES = "opportunity.carries_per_recorded_game";
+const ROLE_TARGET_SHARE = "opportunity.mean_target_share";
+
+function roleParameterContent(
+  extra: Record<string, unknown> = {},
+): string {
+  return JSON.stringify({
+    contractVersion: "ccf-role-baseline-parameter-payload-v1",
+    position: "WR",
+    featureContractRef: "ccf://rolling-opportunity-feature-receipt-v1",
+    featureKeys: [ROLE_TARGETS, ROLE_CARRIES, ROLE_TARGET_SHARE],
+    meanIntercept: 2,
+    meanWeights: {
+      [ROLE_TARGETS]: 1,
+      [ROLE_CARRIES]: 0.5,
+      [ROLE_TARGET_SHARE]: 4,
+    },
+    volatilityIntercept: 3,
+    volatilityWeights: {
+      [ROLE_TARGETS]: 0,
+      [ROLE_CARRIES]: 0,
+      [ROLE_TARGET_SHARE]: 0,
+    },
+    minimumVolatility: 2,
+    thresholds: {
+      zeroOrNearZeroFpts: 2,
+      bustFpts: 7,
+      boomFpts: 18,
+    },
+    parameterConfidence: 0.7,
+    ...extra,
+  });
+}
+
+function roleFeatureSet(
+  sourceRefs: string[] = ["ccf://rolling-opportunity/targets"],
+): CCFWeeklyNativeFeatureSet {
+  return {
+    playerId: "ccf-player-1",
+    position: "WR",
+    season: 2026,
+    week: 3,
+    asOf: "2026-09-20T12:00:00Z",
+    features: {
+      [ROLE_TARGETS]: {
+        key: ROLE_TARGETS,
+        status: "available",
+        value: 7,
+        unit: "per_recorded_game",
+        producerFamily: "ccf_native_derived",
+        evidenceKind: "derived",
+        knownAt: "2026-09-19T12:00:00Z",
+        sourceRefs,
+      },
+      [ROLE_CARRIES]: {
+        key: ROLE_CARRIES,
+        status: "available",
+        value: 2,
+        unit: "per_recorded_game",
+        producerFamily: "ccf_native_derived",
+        evidenceKind: "derived",
+        knownAt: "2026-09-19T12:00:00Z",
+        sourceRefs: ["ccf://rolling-opportunity/carries"],
+      },
+      [ROLE_TARGET_SHARE]: {
+        key: ROLE_TARGET_SHARE,
+        status: "available",
+        value: 0.25,
+        unit: "share",
+        producerFamily: "ccf_native_derived",
+        evidenceKind: "derived",
+        knownAt: "2026-09-19T12:00:00Z",
+        sourceRefs: ["ccf://rolling-opportunity/target-share"],
+      },
+    },
+  };
+}
+
+describe("role baseline parameter loader convergence", () => {
+  function roleArtifact(
+    parameterContent = roleParameterContent(),
+    modelFamily = "role_opportunity_baseline",
+  ) {
+    const scoringFingerprint =
+      fingerprintCCFLeagueScoringRules(CCF_BASE_PPR_RULES);
+    const { frozenProtocol, freezeReceipt } = frozenPair(scoringFingerprint);
+    return buildCCFCandidateParameterArtifact({
+      freezeReceipt,
+      protocol: frozenProtocol,
+      modelFamily,
+      parameterRef: "ccf://parameters/role-baseline/exact-v1",
+      parameterContent,
+      trainingRunId: "train-role-baseline-loader-001",
+      trainingStartedAt: "2026-09-17T22:11:00Z",
+      trainingCompletedAt: "2026-09-17T22:20:00Z",
+      frozenAt: "2026-09-17T22:21:00Z",
+      trainingCodeFingerprint: "role-loader-training-code-sha256",
+      hyperparameterFingerprint: "role-loader-hyperparameters-sha256",
+      evidenceRefs: ["ccf://training-log/train-role-baseline-loader-001"],
+    });
+  }
+
+  it("verifies exact frozen bytes and runs the candidate through one governed model path", () => {
+    const parameterContent = roleParameterContent();
+    const artifact = roleArtifact(parameterContent);
+    const loaded =
+      loadCCFRoleBaselineParametersFromCandidateArtifact(
+        artifact,
+        parameterContent,
+      );
+
+    expect(loaded).toMatchObject({
+      candidateOnly: true,
+      artifactId: artifact.artifactId,
+      parameterContentSha256: artifact.parameterContentSha256,
+    });
+    expect(loaded.parameters).toMatchObject({
+      modelVersion: artifact.modelVersion,
+      frozenAt: artifact.frozenAt,
+      parameterArtifactRef: artifact.artifactId,
+      trainingDatasetFingerprint: artifact.datasetFingerprint,
+      scoringProfileFingerprint: artifact.scoringProfileFingerprint,
+      certificationState: "uncertified_candidate",
+    });
+
+    const candidate = buildCCFRoleBaselineCandidate({
+      featureSet: roleFeatureSet(),
+      scoringFormat: "PPR",
+      scoringRules: CCF_BASE_PPR_RULES,
+      parameters: loaded.parameters,
+    });
+
+    expect(candidate.candidateOnly).toBe(true);
+    expect(candidate.parameterArtifactRef).toBe(artifact.artifactId);
+    expect(candidate.outcome).toMatchObject({
+      playerId: "ccf-player-1",
+      position: "WR",
+      medianFpts: 11,
+      volatility: 3,
+      confidence: 0.7,
+      coverage: 1,
+      abstain: false,
+      modelVersion: artifact.modelVersion,
+      mode: "CCF_NATIVE",
+    });
+  });
+
+  it("rejects mutated parameter bytes before JSON is trusted", () => {
+    const parameterContent = roleParameterContent();
+    const artifact = roleArtifact(parameterContent);
+
+    expect(() =>
+      loadCCFRoleBaselineParametersFromCandidateArtifact(
+        artifact,
+        parameterContent + " ",
+      ),
+    ).toThrow(/parameter bytes do not match the frozen candidate artifact/);
+  });
+
+  it("rejects payloads that try to inject governance identity", () => {
+    const parameterContent = roleParameterContent({
+      scoringProfileFingerprint: "attacker-controlled",
+    });
+    const artifact = roleArtifact(parameterContent);
+
+    expect(() =>
+      loadCCFRoleBaselineParametersFromCandidateArtifact(
+        artifact,
+        parameterContent,
+      ),
+    ).toThrow(/payload keys do not match the frozen payload schema/);
+  });
+
+  it("rejects a governed artifact from the wrong model family", () => {
+    const parameterContent = roleParameterContent();
+    const artifact = roleArtifact(parameterContent, "some_other_model");
+
+    expect(() =>
+      loadCCFRoleBaselineParametersFromCandidateArtifact(
+        artifact,
+        parameterContent,
+      ),
+    ).toThrow(/is not role_opportunity_baseline/);
+  });
+
+  it("rejects duplicate feature evidence refs at candidate execution", () => {
+    const parameterContent = roleParameterContent();
+    const artifact = roleArtifact(parameterContent);
+    const loaded =
+      loadCCFRoleBaselineParametersFromCandidateArtifact(
+        artifact,
+        parameterContent,
+      );
+
+    expect(() =>
+      buildCCFRoleBaselineCandidate({
+        featureSet: roleFeatureSet([
+          "ccf://rolling-opportunity/targets",
+          "ccf://rolling-opportunity/targets",
+        ]),
+        scoringFormat: "PPR",
+        scoringRules: CCF_BASE_PPR_RULES,
+        parameters: loaded.parameters,
+      }),
+    ).toThrow(/unique non-empty source references/);
   });
 });
