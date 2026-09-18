@@ -4,6 +4,7 @@ import path from "path";
 import {
   CCFRawSourceArchiveError,
   archiveCCFSourceSnapshot,
+  verifyCCFArchivedSourceSnapshot,
 } from "../rawSourceArchive";
 import { assertCCFSourceSnapshotEligibleAt } from "../sourceSnapshot";
 
@@ -40,6 +41,10 @@ describe("CCF raw source archive", () => {
     expect(
       JSON.parse(await fs.readFile(archived.manifestPath, "utf8")),
     ).toEqual(archived.manifest);
+    await expect(verifyCCFArchivedSourceSnapshot(archived)).resolves.toMatchObject({
+      archiveDir: archived.archiveDir,
+      manifest: archived.manifest,
+    });
   });
 
   it("is idempotent for the exact same capture identity", async () => {
@@ -101,9 +106,51 @@ describe("CCF raw source archive", () => {
     const archived = await archiveCCFSourceSnapshot(input);
     await fs.writeFile(archived.contentPath, "tampered bytes", "utf8");
 
+    await expect(verifyCCFArchivedSourceSnapshot(archived)).rejects.toThrow(
+      CCFRawSourceArchiveError,
+    );
     await expect(archiveCCFSourceSnapshot(input)).rejects.toThrow(
       CCFRawSourceArchiveError,
     );
+  });
+
+  it("rejects a persisted manifest that no longer matches the archived snapshot object", async () => {
+    const archived = await archiveCCFSourceSnapshot({
+      rootDir,
+      provider: "nflverse",
+      dataset: "injuries",
+      sourceUrl: "https://example.test/injuries.csv",
+      license: "CC-BY-4.0",
+      parserVersion: "candidate-v1",
+      content: "original bytes",
+      retrievedAt: "2026-09-14T12:00:00Z",
+    });
+    const forged = { ...archived.manifest, parserVersion: "forged-v999" };
+    await fs.writeFile(archived.manifestPath, `${JSON.stringify(forged, null, 2)}\n`, "utf8");
+
+    await expect(verifyCCFArchivedSourceSnapshot(archived)).rejects.toThrow(
+      /stored manifest differs from supplied snapshot/,
+    );
+  });
+
+  it("rejects path substitution even when the supplied manifest object is unchanged", async () => {
+    const archived = await archiveCCFSourceSnapshot({
+      rootDir,
+      provider: "nflverse",
+      dataset: "injuries",
+      sourceUrl: "https://example.test/injuries.csv",
+      license: "CC-BY-4.0",
+      parserVersion: "candidate-v1",
+      content: "original bytes",
+      retrievedAt: "2026-09-14T12:00:00Z",
+    });
+
+    await expect(
+      verifyCCFArchivedSourceSnapshot({
+        ...archived,
+        contentPath: path.join(archived.archiveDir, "other.raw"),
+      }),
+    ).rejects.toThrow(/contentPath does not match archiveDir/);
   });
 
   it("supports provider-archive historical knownAt only with explicit proof", async () => {
