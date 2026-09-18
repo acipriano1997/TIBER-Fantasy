@@ -6,22 +6,32 @@ import type { CCFNFLPlayerIdentityLinkageReceipt } from "../nflPlayerIdentityLin
 import {
   CCF_NFLVERSE_PBP_CHECKPOINT_POLICY_REF_V1,
   CCF_NFLVERSE_PBP_CORRECTION_POLICY_REF_V1,
-  CCF_NFLVERSE_PBP_CRITICAL_FIELD_POLICY_REF_V2,
-  CCF_NFLVERSE_PBP_SOURCE_ID_V2,
+  CCF_NFLVERSE_PBP_CRITICAL_FIELD_POLICY_REF_V3,
+  CCF_NFLVERSE_PBP_SOURCE_ID_V3,
 } from "../nflversePlayByPlayCertificationPolicy";
 import { buildCCFNflversePlayByPlayReliabilityObservation } from "../nflversePlayByPlayReliability";
 
 const HEADER = [
   "play_id", "game_id", "season", "season_type", "week", "play_type", "posteam",
-  "passer_player_id", "rusher_player_id", "receiver_player_id", "pass_attempt",
-  "rush_attempt", "qb_dropback", "qb_scramble", "qb_kneel", "sack", "complete_pass",
+  "play", "passer_player_id", "rusher_player_id", "receiver_player_id", "pass_attempt",
+  "rush_attempt", "qb_dropback", "qb_scramble", "qb_kneel", "qb_spike", "sack", "complete_pass",
   "two_point_attempt", "touchdown", "air_yards", "yards_after_catch", "yards_gained",
-  "down", "goal_to_go", "yardline_100",
+  "down", "goal_to_go", "yardline_100", "half_seconds_remaining",
+  "game_seconds_remaining", "score_differential",
 ].join(",");
 
 function csvRow(values: Record<string, string | number | null>): string {
+  const defaults: Record<string, string | number> = {
+    play: 1,
+    qb_spike: 0,
+    half_seconds_remaining: 600,
+    game_seconds_remaining: 2400,
+    score_differential: 0,
+  };
   return HEADER.split(",").map((column) => {
-    const value = values[column];
+    const value = Object.prototype.hasOwnProperty.call(values, column)
+      ? values[column]
+      : defaults[column];
     return value == null ? "" : String(value);
   }).join(",");
 }
@@ -107,11 +117,11 @@ describe("nflverse play-by-play opportunity reliability", () => {
   ) {
     return {
       snapshot: pbpSnapshot,
-      sourceId: CCF_NFLVERSE_PBP_SOURCE_ID_V2,
+      sourceId: CCF_NFLVERSE_PBP_SOURCE_ID_V3,
       checkpointId: "w2-tue-1000-et",
       scheduledFor: "2026-09-22T14:00:00Z",
       identityReceipt: identityReceipt(),
-      criticalFieldPolicyRef: CCF_NFLVERSE_PBP_CRITICAL_FIELD_POLICY_REF_V2,
+      criticalFieldPolicyRef: CCF_NFLVERSE_PBP_CRITICAL_FIELD_POLICY_REF_V3,
       correctionPolicyRef: CCF_NFLVERSE_PBP_CORRECTION_POLICY_REF_V1,
       checkpointPolicyRef: CCF_NFLVERSE_PBP_CHECKPOINT_POLICY_REF_V1,
       ...overrides,
@@ -125,8 +135,8 @@ describe("nflverse play-by-play opportunity reliability", () => {
     );
 
     expect(observation).toMatchObject({
-      sourceId: CCF_NFLVERSE_PBP_SOURCE_ID_V2,
-      parserVersion: "ccf-nflverse-play-by-play-candidate-v2",
+      sourceId: CCF_NFLVERSE_PBP_SOURCE_ID_V3,
+      parserVersion: "ccf-nflverse-play-by-play-candidate-v3",
       rowCount: 2,
       identityEligibleCount: 3,
       identityResolvedCount: 3,
@@ -147,6 +157,24 @@ describe("nflverse play-by-play opportunity reliability", () => {
 
     expect(pbpSnapshot.rows[0].missingBinaryFields).toContain("pass_attempt");
     expect(observation.criticalFieldMissingCount).toBeGreaterThan(0);
+  });
+
+  it("measures missing canonical game context instead of inventing neutral state", async () => {
+    const csv = [
+      HEADER,
+      passRow({ half_seconds_remaining: "", score_differential: "" }),
+      runRow(),
+    ].join("\n");
+    const pbpSnapshot = await snapshot(csv);
+    const observation = buildCCFNflversePlayByPlayReliabilityObservation(
+      observationInput(pbpSnapshot),
+    );
+
+    expect(pbpSnapshot.rows[0]).toMatchObject({
+      halfSecondsRemaining: null,
+      scoreDifferential: null,
+    });
+    expect(observation.criticalFieldMissingCount).toBeGreaterThanOrEqual(2);
   });
 
   it("does not classify a throwaway as missing receiver attribution", async () => {

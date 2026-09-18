@@ -14,7 +14,7 @@ import {
 
 const NFLVERSE_DATA_LICENSE =
   "https://github.com/nflverse/nflverse-data/blob/main/LICENSE.md (CC BY 4.0 repository license; intended-use rights remain separately governed)";
-const PBP_PARSER_VERSION = "ccf-nflverse-play-by-play-candidate-v2";
+const PBP_PARSER_VERSION = "ccf-nflverse-play-by-play-candidate-v3";
 
 export interface CCFArchivedNflversePlayByPlayOptions
   extends CCFNflversePlayByPlayOptions {
@@ -40,8 +40,9 @@ export interface CCFArchivedNflversePlayByPlaySnapshot {
  * opportunity evidence is returned to CCF consumers.
  *
  * `knownAt` is always the CCF retrieval instant; source Last-Modified metadata
- * cannot backdate what CCF knew. Parser v2 additionally preserves upstream
- * play_type plus per-row binary-field missingness for later reliability review.
+ * cannot backdate what CCF knew. Parser v3 preserves upstream play_type,
+ * normal-play/spike flags, per-row binary missingness, game clocks, and
+ * possession-team score differential for canonical opportunity derivation.
  * This remains candidate/evaluation infrastructure only and does not clear
  * intended-use rights or source promotion.
  */
