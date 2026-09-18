@@ -150,7 +150,6 @@ function criterionEvidenceRef(
   row: Omit<CCFRollingValidationSubgroupCriterionEvidenceV1, "evidenceRef">,
 ): string {
   const canonical = JSON.stringify({
-    contractVersion: "ccf-rolling-validation-subgroup-criterion-evidence-v1",
     replayBindingId,
     ...row,
   });
