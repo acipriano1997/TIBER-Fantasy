@@ -44,12 +44,18 @@ export interface CCFPlayerOutcomeModelArtifactV0 {
     confidenceLogit: CCFLinearHeadV0;
   };
   abstainBelowCoverage: number;
+  trainingDatasetFingerprint: string;
+  trainingDatasetFrozenAt: string;
+  validationProtocolFingerprint: string;
+  validationProtocolFrozenAt: string;
+  sourcePlanFingerprint: string;
+  featureSetFingerprint: string;
+  decisionPolicyFingerprint: string;
+  supportedPopulation: string;
   trainedAt: string;
-  validationKnownAt: string;
   frozenAt: string;
   trainingDatasetRef: string;
   validationProtocolRef: string;
-  validationReceiptRef: string;
   notes: string[];
 }
 
@@ -147,9 +153,14 @@ export function validateCCFPlayerOutcomeModelArtifactV0(
   }
   requireText("modelVersion", artifact.modelVersion);
   requireText("scoringFingerprint", artifact.scoringFingerprint);
+  requireText("trainingDatasetFingerprint", artifact.trainingDatasetFingerprint);
+  requireText("validationProtocolFingerprint", artifact.validationProtocolFingerprint);
+  requireText("sourcePlanFingerprint", artifact.sourcePlanFingerprint);
+  requireText("featureSetFingerprint", artifact.featureSetFingerprint);
+  requireText("decisionPolicyFingerprint", artifact.decisionPolicyFingerprint);
+  requireText("supportedPopulation", artifact.supportedPopulation);
   requireText("trainingDatasetRef", artifact.trainingDatasetRef);
   requireText("validationProtocolRef", artifact.validationProtocolRef);
-  requireText("validationReceiptRef", artifact.validationReceiptRef);
 
   if (!["QB", "RB", "WR", "TE"].includes(artifact.position)) {
     throw new CCFPlayerOutcomeModelArtifactError("position must be QB, RB, WR, or TE");
@@ -215,17 +226,29 @@ export function validateCCFPlayerOutcomeModelArtifactV0(
   }
 
   probability("abstainBelowCoverage", artifact.abstainBelowCoverage);
+  const datasetFrozenAtMs = timestamp(
+    "trainingDatasetFrozenAt",
+    artifact.trainingDatasetFrozenAt,
+  );
+  const protocolFrozenAtMs = timestamp(
+    "validationProtocolFrozenAt",
+    artifact.validationProtocolFrozenAt,
+  );
   const trainedAtMs = timestamp("trainedAt", artifact.trainedAt);
-  const validationKnownAtMs = timestamp("validationKnownAt", artifact.validationKnownAt);
   const frozenAtMs = timestamp("frozenAt", artifact.frozenAt);
-  if (trainedAtMs > validationKnownAtMs) {
+  if (datasetFrozenAtMs > protocolFrozenAtMs) {
     throw new CCFPlayerOutcomeModelArtifactError(
-      "trainedAt must be no later than validationKnownAt",
+      "training dataset must be frozen no later than the validation protocol",
     );
   }
-  if (validationKnownAtMs > frozenAtMs) {
+  if (protocolFrozenAtMs > trainedAtMs) {
     throw new CCFPlayerOutcomeModelArtifactError(
-      "validationKnownAt must be no later than frozenAt",
+      "validation protocol must be frozen before model training",
+    );
+  }
+  if (trainedAtMs > frozenAtMs) {
+    throw new CCFPlayerOutcomeModelArtifactError(
+      "trainedAt must be no later than frozenAt",
     );
   }
 
