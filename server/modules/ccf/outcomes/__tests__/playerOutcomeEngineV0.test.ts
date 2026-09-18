@@ -3,6 +3,7 @@ import type { CCFWeeklyNativeFeatureSet } from "../../features/weeklyFeatureEvid
 import {
   fingerprintCCFPlayerOutcomeModelArtifactV0,
   runCCFPlayerOutcomeEngineV0,
+  runCCFPlayerOutcomeEngineV0HistoricalReplay,
   validateCCFPlayerOutcomeModelArtifactV0,
   type CCFLinearHeadV0,
   type CCFPlayerOutcomeModelArtifactV0,
@@ -262,6 +263,121 @@ describe("CCF Player Outcome Engine v0 inference kernel", () => {
     ).toThrow(/frozen after the feature-set asOf cutoff/);
   });
 
+
+  it("supports certification-only historical replay without weakening live inference chronology", () => {
+    const historical = featureSet({
+      season: 2024,
+      week: 8,
+      asOf: "2024-10-27T16:00:00Z",
+    });
+    const replayArtifact = artifact({
+      trainingDatasetFingerprint: "rolling-fold-training-fingerprint",
+      validationProtocolFingerprint: "frozen-protocol-fingerprint",
+      trainingDatasetFrozenAt: "2026-09-17T12:00:00Z",
+      validationProtocolFrozenAt: "2026-09-17T13:00:00Z",
+      trainedAt: "2026-09-17T14:00:00Z",
+      frozenAt: "2026-09-17T15:00:00Z",
+    });
+
+    expect(() =>
+      runCCFPlayerOutcomeEngineV0({
+        featureSet: historical,
+        artifact: replayArtifact,
+        scoringFormat: "CUSTOM",
+        scoringFingerprint: SCORING_FINGERPRINT,
+      }),
+    ).toThrow(/frozen after the feature-set asOf cutoff/);
+
+    const replay = runCCFPlayerOutcomeEngineV0HistoricalReplay({
+      featureSet: historical,
+      artifact: replayArtifact,
+      scoringFormat: "CUSTOM",
+      scoringFingerprint: SCORING_FINGERPRINT,
+      replayAuthorization: {
+        contractVersion:
+          "ccf-player-outcome-historical-replay-authorization-v1",
+        targetDecisionAsOf: historical.asOf,
+        trainingEvidenceMaxKnownAt: "2024-10-20T23:59:59Z",
+        trainingDatasetFingerprint: "rolling-fold-training-fingerprint",
+        validationProtocolFingerprint: "frozen-protocol-fingerprint",
+        certificationOnly: true,
+        productionInferenceAuthorized: false,
+      },
+    });
+
+    expect(replay).toMatchObject({
+      playerId: "ccf-player-1",
+      season: 2024,
+      week: 8,
+      asOf: historical.asOf,
+      mode: "CCF_NATIVE",
+    });
+  });
+
+  it("fails closed when historical replay authorization can see the future or mismatches governed fingerprints", () => {
+    const historical = featureSet({
+      season: 2024,
+      week: 8,
+      asOf: "2024-10-27T16:00:00Z",
+    });
+    const replayArtifact = artifact({
+      trainingDatasetFingerprint: "rolling-fold-training-fingerprint",
+      validationProtocolFingerprint: "frozen-protocol-fingerprint",
+      trainingDatasetFrozenAt: "2026-09-17T12:00:00Z",
+      validationProtocolFrozenAt: "2026-09-17T13:00:00Z",
+      trainedAt: "2026-09-17T14:00:00Z",
+      frozenAt: "2026-09-17T15:00:00Z",
+    });
+    const baseAuthorization = {
+      contractVersion:
+        "ccf-player-outcome-historical-replay-authorization-v1" as const,
+      targetDecisionAsOf: historical.asOf,
+      trainingEvidenceMaxKnownAt: "2024-10-20T23:59:59Z",
+      trainingDatasetFingerprint: "rolling-fold-training-fingerprint",
+      validationProtocolFingerprint: "frozen-protocol-fingerprint",
+      certificationOnly: true as const,
+      productionInferenceAuthorized: false as const,
+    };
+
+    expect(() =>
+      runCCFPlayerOutcomeEngineV0HistoricalReplay({
+        featureSet: historical,
+        artifact: replayArtifact,
+        scoringFormat: "CUSTOM",
+        scoringFingerprint: SCORING_FINGERPRINT,
+        replayAuthorization: {
+          ...baseAuthorization,
+          trainingEvidenceMaxKnownAt: "2024-10-28T00:00:00Z",
+        },
+      }),
+    ).toThrow(/training evidence cannot be known after/);
+
+    expect(() =>
+      runCCFPlayerOutcomeEngineV0HistoricalReplay({
+        featureSet: historical,
+        artifact: replayArtifact,
+        scoringFormat: "CUSTOM",
+        scoringFingerprint: SCORING_FINGERPRINT,
+        replayAuthorization: {
+          ...baseAuthorization,
+          trainingDatasetFingerprint: "wrong-fold",
+        },
+      }),
+    ).toThrow(/training dataset fingerprint does not match/);
+
+    expect(() =>
+      runCCFPlayerOutcomeEngineV0HistoricalReplay({
+        featureSet: historical,
+        artifact: replayArtifact,
+        scoringFormat: "CUSTOM",
+        scoringFingerprint: SCORING_FINGERPRINT,
+        replayAuthorization: {
+          ...baseAuthorization,
+          targetDecisionAsOf: "2024-10-27T15:59:59Z",
+        },
+      }),
+    ).toThrow(/targetDecisionAsOf must exactly match/);
+  });
 
   it("enforces candidate-artifact chronology before predictive validation can exist", () => {
     expect(() =>
