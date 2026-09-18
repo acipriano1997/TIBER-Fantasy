@@ -94,6 +94,41 @@ These systems may need modernization or externalization, but a new analytics pro
 | Tracking speed/acceleration workload | DATA-BLOCKED | burst/decay/contextual athletic state; source access and injury confounding are substantial | research producer | P4 |
 | IDP-specific microanalytics | OUTSIDE CURRENT CORE | primary governed scope remains QB/RB/WR/TE; do not widen current certification scope | future lane | held |
 
+## Full-FFCC lifecycle check
+
+The Player Outcome path is only one part of FFCC. A second pass across draft, waiver, trade, dynasty and season-management decisions found these additional analytics seams:
+
+| Decision domain | Current state | Missing deep layer | Priority |
+| --- | --- | --- | --- |
+| **Live draft player-survival probability** | TRUE GAP / PARTIAL MARKET | probability a player survives to the user's next pick conditional on platform ADP, room picks, position runs, roster needs and pick distance | **P1 for future Draft-Day work** |
+| **Tier-cliff / opportunity-cost drafting** | PARTIAL | marginal value of taking position A now vs expected alternatives at the next pick, exact league scoring/roster geometry, replacement scarcity | **P1 for future Draft-Day work** |
+| Draft-room regime detection | TRUE GAP | detect positional runs, room-specific reaches/fades, changing availability distribution and when platform ADP stops being representative | P2 |
+| Draft roster correlation / stacking | PARTIAL/UNCLEAR | scoring-format-aware teammate/opponent correlation and roster-construction utility, especially best ball | P2 |
+| Draft bye/playoff concentration | PARTIAL/UNCLEAR | treat schedule concentration as portfolio risk/optionality rather than a generic penalty | P3 |
+| Auction draft price dynamics | OUTSIDE CURRENT FROZEN SCOPE | nomination order, budget elasticity, positional inflation, replacement price and room-specific price distributions | future |
+| **Season/playoff path simulation** | TRUE GAP / DECISION-LAYER | probability distribution over weekly wins, playoff qualification/byes and championship paths from roster + schedule + joint player outcomes | **P1/P2** |
+| Opponent-roster conditional strategy | TRUE GAP | lineup/waiver/trade utility conditional on specific league opponents, standings, remaining schedule and replacement pools | P2 |
+| Waiver opponent-demand model | PARTIAL | probability of competing claims/bids using roster need, churn, budget and league behavior rather than global roster percentage | P2 |
+| Trade partner fit / acceptance surface | PARTIAL | identify mutually useful counterparties and package feasibility without pretending to know another manager's preferences | P2/P3 |
+| Dynasty age/development curves | GOVERNED/PARTIAL | promoted age-curve/rookie evidence already exists; do not rebuild locally | foundation |
+| Dynasty contract/team-control context | PARTIAL/UNCLEAR | role continuity risk from contract status, depth-chart investment and future competition, with explicit source provenance | P3 |
+| Future-pick portfolio risk | PARTIAL | pick-value distributions, team-strength uncertainty and portfolio concentration rather than static pick values | P3 |
+| Return/special-teams player opportunity | PARTIAL/LOW BASE RATE | league-scoring-aware return role where return yards/TDs matter; do not expand when league scoring makes it irrelevant | P3 |
+| Garbage-time / leverage dependence | PARTIAL/LEGACY | CATALYST-style leverage evidence exists; any future use needs governed separation of stable role from non-repeatable game-state production | P2 |
+| TD / turnover conversion regression | PARTIAL | existing regression/expected-points pieces should be consolidated under outcome calibration rather than new standalone scores | P2 |
+
+### Draft-specific boundary
+
+The frozen Draft-Day Command Center scope must not be widened by this audit. The draft rows above are a future research map only. When that lane reopens, the most valuable mathematical object is not another static ranking; it is a conditional choice model:
+
+**value of player now vs distribution of legal/valuable alternatives likely to remain at the user's next decision point.**
+
+That model must be exact-league aware and must preserve uncertainty when the draft room behaves differently from platform ADP.
+
+### Season-management boundary
+
+Season and playoff simulations should consume certified weekly player/team distributions rather than becoming a second prediction engine. They are downstream decision utilities and should remain separable from Player Outcome model authority.
+
 ## Corrections to earlier assumptions
 
 ### xFPTS is not absent
