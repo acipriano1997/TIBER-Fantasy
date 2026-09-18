@@ -5,6 +5,10 @@ import {
 } from '../leagueContextV1';
 import { createContractWorkbookSnapshot } from '../contractWorkbookSnapshot';
 import { certifyScoringSettings } from '../scoringCertification';
+import {
+  clearContractLeagueRuleProfiles,
+  registerContractLeagueRuleProfile,
+} from '../../leagueRules/contractLeagueRegistry';
 
 const NOW = '2026-09-15T15:30:00.000Z';
 
@@ -27,7 +31,47 @@ const fourPointPassingScoring = {
   int: -2,
 };
 
+function registerSyntheticContractProfiles() {
+  registerContractLeagueRuleProfile({
+    id: 'synthetic-contract-alpha',
+    leagueName: 'Synthetic Contract Alpha',
+    sourceFiles: {
+      operationalWorkbook: { driveFileId: 'synthetic-workbook-alpha' },
+      rulesSource: { sourceId: 'synthetic-rules-alpha' },
+    },
+    verifiedCore: { salaryCap: 250_000_000, rookieDraftRounds: 3 },
+    knownConflicts: [{
+      rule: 'contract_re_sign_term_length',
+      sources: ['synthetic constitution', 'synthetic calculator'],
+    }],
+    unknownOrUnverified: [],
+    leagueSpecificPolicy: { restructures: { enabled: true } },
+  });
+
+  registerContractLeagueRuleProfile({
+    id: 'synthetic-contract-beta',
+    leagueName: 'Synthetic Contract Beta',
+    sourceFiles: {
+      operationalWorkbook: { driveFileId: 'synthetic-workbook-beta' },
+      rulesSource: null,
+    },
+    verifiedCore: { salaryCap: 250_000_000, rookieDraftRounds: 4 },
+    knownConflicts: [],
+    unknownOrUnverified: ['contract_re_sign_term_length is unavailable; do not inherit another league policy.'],
+    leagueSpecificPolicy: {},
+  });
+}
+
 describe('Unified League Context v1', () => {
+  beforeEach(() => {
+    clearContractLeagueRuleProfiles();
+    registerSyntheticContractProfiles();
+  });
+
+  afterEach(() => {
+    clearContractLeagueRuleProfiles();
+  });
+
   test('preserves custom six-point passing TD scoring without defaulting it to four', () => {
     const certification = certifyScoringSettings({
       platform: 'sleeper',
@@ -57,7 +101,7 @@ describe('Unified League Context v1', () => {
     expect(certification.issues.join(' ')).toMatch(/unavailable/i);
   });
 
-  test('resolves the Devy supplemental source without activating contract rules', async () => {
+  test('resolves a Devy supplemental source without activating contract rules', async () => {
     const context = await buildUnifiedLeagueContextV1({
       platform: 'sleeper',
       leagueId: '1383497639848341504',
@@ -71,16 +115,16 @@ describe('Unified League Context v1', () => {
     expect(context.capabilities).toContain('devy_rights');
     expect(context.capabilities).not.toContain('contracts');
     expect(context.contractProfile).toBeNull();
-    expect(context.devyRightsSource?.spreadsheetId).toBe('1xzg7FHcBTSJoXq6JiIApBsJ3upXLjG5a3KK77mml6qc');
+    expect(context.devyRightsSource).not.toBeNull();
     expect(context.invariants.collegeProspectsNeverBecomePlatformNflRosterPlayers).toBe(true);
     expect(assessLeagueDecisionReadiness(context, { decisionType: 'lineup' }).ready).toBe(true);
     expect(assessLeagueDecisionReadiness(context, { decisionType: 'devy_rights' }).ready).toBe(false);
   });
 
-  test('keeps 4th and Long contract context separate and blocks its unresolved re-sign term rule', async () => {
+  test('keeps one contract context separate and blocks a conflicted rule', async () => {
     const snapshot = createContractWorkbookSnapshot({
-      leagueName: '4th and Long',
-      workbookId: '1htufwr5A8L2TB8AFquI8tGnMNZpjyQma',
+      leagueName: 'Synthetic Contract Alpha',
+      workbookId: 'synthetic-workbook-alpha',
       season: 2026,
       salaryCap: 250_000_000,
       asOf: NOW,
@@ -89,8 +133,8 @@ describe('Unified League Context v1', () => {
     });
     const context = await buildUnifiedLeagueContextV1({
       platform: 'sleeper',
-      leagueId: 'fourth-long-test',
-      leagueName: '4th and Long',
+      leagueId: 'synthetic-contract-alpha-league',
+      leagueName: 'Synthetic Contract Alpha',
       season: 2026,
       rawScoringSettings: fourPointPassingScoring,
       scoringAsOf: NOW,
@@ -99,7 +143,7 @@ describe('Unified League Context v1', () => {
     });
 
     expect(context.contractProfile?.verifiedCore.rookieDraftRounds).toBe(3);
-    expect(context.contractWorkbookSnapshot?.profileId).toBe('4th-and-long');
+    expect(context.contractWorkbookSnapshot?.profileId).toBe('synthetic-contract-alpha');
     expect(assessLeagueDecisionReadiness(context, { decisionType: 'trade' }).ready).toBe(true);
 
     const conflicted = assessLeagueDecisionReadiness(context, {
@@ -110,10 +154,10 @@ describe('Unified League Context v1', () => {
     expect(conflicted.blockers.join(' ')).toMatch(/abstain until clarified/i);
   });
 
-  test('keeps Dynasty Nerds independent and exposes its four-round rookie draft', async () => {
+  test('keeps a second contract league independent and exposes its own rookie-draft rule', async () => {
     const snapshot = createContractWorkbookSnapshot({
-      leagueName: 'Dynasty Nerds',
-      workbookId: '1ooXfcjmikTjeZpHsHG216UvGUveFul9a',
+      leagueName: 'Synthetic Contract Beta',
+      workbookId: 'synthetic-workbook-beta',
       season: 2026,
       salaryCap: 250_000_000,
       asOf: NOW,
@@ -122,8 +166,8 @@ describe('Unified League Context v1', () => {
     });
     const context = await buildUnifiedLeagueContextV1({
       platform: 'sleeper',
-      leagueId: 'dynasty-nerds-test',
-      leagueName: 'Dynasty Nerds',
+      leagueId: 'synthetic-contract-beta-league',
+      leagueName: 'Synthetic Contract Beta',
       season: 2026,
       rawScoringSettings: fourPointPassingScoring,
       scoringAsOf: NOW,
@@ -131,16 +175,16 @@ describe('Unified League Context v1', () => {
       builtAt: NOW,
     });
 
-    expect(context.contractProfile?.id).toBe('dynasty-nerds');
+    expect(context.contractProfile?.id).toBe('synthetic-contract-beta');
     expect(context.contractProfile?.verifiedCore.rookieDraftRounds).toBe(4);
-    expect(context.contractProfile?.unknownOrUnverified.join(' ')).toMatch(/Do not inherit 4th and Long/i);
+    expect(context.contractProfile?.unknownOrUnverified.join(' ')).toMatch(/do not inherit another league/i);
     expect(context.contractProfile?.leagueSpecificPolicy).not.toHaveProperty('restructures');
   });
 
   test('rejects a workbook from the other contract league', () => {
     expect(() => createContractWorkbookSnapshot({
-      leagueName: 'Dynasty Nerds',
-      workbookId: '1htufwr5A8L2TB8AFquI8tGnMNZpjyQma',
+      leagueName: 'Synthetic Contract Beta',
+      workbookId: 'synthetic-workbook-alpha',
       season: 2026,
       salaryCap: 250_000_000,
       asOf: NOW,
@@ -151,8 +195,8 @@ describe('Unified League Context v1', () => {
   test('blocks live contract decisions when the workbook has not been refreshed', async () => {
     const context = await buildUnifiedLeagueContextV1({
       platform: 'sleeper',
-      leagueId: 'dynasty-nerds-test',
-      leagueName: 'Dynasty Nerds',
+      leagueId: 'synthetic-contract-beta-league',
+      leagueName: 'Synthetic Contract Beta',
       season: 2026,
       rawScoringSettings: fourPointPassingScoring,
       scoringAsOf: NOW,
@@ -167,8 +211,8 @@ describe('Unified League Context v1', () => {
 
   test('blocks stale contract snapshots', async () => {
     const snapshot = createContractWorkbookSnapshot({
-      leagueName: '4th and Long',
-      workbookId: '1htufwr5A8L2TB8AFquI8tGnMNZpjyQma',
+      leagueName: 'Synthetic Contract Alpha',
+      workbookId: 'synthetic-workbook-alpha',
       season: 2026,
       salaryCap: 250_000_000,
       asOf: '2026-09-10T15:30:00.000Z',
@@ -177,8 +221,8 @@ describe('Unified League Context v1', () => {
     });
     const context = await buildUnifiedLeagueContextV1({
       platform: 'sleeper',
-      leagueId: 'fourth-long-test',
-      leagueName: '4th and Long',
+      leagueId: 'synthetic-contract-alpha-league',
+      leagueName: 'Synthetic Contract Alpha',
       season: 2026,
       rawScoringSettings: fourPointPassingScoring,
       scoringAsOf: NOW,

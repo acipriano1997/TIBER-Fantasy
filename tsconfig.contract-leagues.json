@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "target": "ES2022",
+    "incremental": true,
+    "tsBuildInfoFile": "./node_modules/typescript/contract-leagues.tsbuildinfo"
+  },
+  "include": [
+    "server/modules/contractLeagues/**/*.ts",
+    "server/enrichment/fantasyBox.ts",
+    "shared/contractLeagueSchema.ts"
+  ],
+  "exclude": [
+    "server/modules/contractLeagues/**/__tests__/**"
+  ]
+}

@@ -80,6 +80,8 @@ jobs:
           else
             echo "Repository-wide typecheck is clean."
           fi
+      - name: Typecheck contract league production module
+        run: npx tsc -p tsconfig.contract-leagues.json
       - name: Run Gate 0 truth and freshness regressions
         run: >-
           npm test --
@@ -100,5 +102,8 @@ jobs:
           server/leagueContext/__tests__/formatIsolation.test.ts
           server/leagueContext/__tests__/weeklyDecisionBinding.test.ts
           server/leagueContext/__tests__/commandCenterLegacyQuarantine.test.ts
+          server/leagueContext/__tests__/contractWorkbookSnapshot.test.ts
+      - name: Run contract league regressions
+        run: npm test -- server/modules/contractLeagues/__tests__
       - name: Build application
         run: sh build.sh

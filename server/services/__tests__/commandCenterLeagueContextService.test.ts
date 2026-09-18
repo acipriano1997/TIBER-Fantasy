@@ -1,6 +1,10 @@
 import {
   resolveCommandCenterLeagueContext,
 } from '../commandCenterLeagueContextService';
+import {
+  clearContractLeagueRuleProfiles,
+  registerContractLeagueRuleProfile,
+} from '../../leagueRules/contractLeagueRegistry';
 
 const NOW = new Date('2026-09-15T19:30:00.000Z');
 const sixPointScoring = {
@@ -26,7 +30,35 @@ function sleeperLeague(overrides: Record<string, unknown> = {}) {
   } as any;
 }
 
+function registerSyntheticContractLeague() {
+  registerContractLeagueRuleProfile({
+    id: 'synthetic-contract-league',
+    leagueName: 'Synthetic Contract League',
+    aliases: [],
+    sourceFiles: {
+      operationalWorkbook: {
+        driveFileId: 'synthetic-private-workbook-ref',
+        displayName: 'Synthetic private workbook',
+      },
+      rulesSource: {
+        sourceId: 'synthetic-rules-source',
+        displayName: 'Synthetic rules source',
+      },
+    },
+    verifiedCore: {
+      salaryCap: 250,
+      rookieDraftRounds: 4,
+    },
+    knownConflicts: [],
+    unknownOrUnverified: [],
+    leagueSpecificPolicy: {},
+  });
+}
+
 describe('resolveCommandCenterLeagueContext', () => {
+  beforeEach(() => clearContractLeagueRuleProfiles());
+  afterAll(() => clearContractLeagueRuleProfiles());
+
   test('preserves live six-point passing TD scoring and certifies decision context', async () => {
     const resolved = await resolveCommandCenterLeagueContext(
       {
@@ -51,22 +83,23 @@ describe('resolveCommandCenterLeagueContext', () => {
     expect(resolved.health?.contractWorkbook).toBe('not_applicable');
   });
 
-  test('contract league trade stays blocked until a fresh workbook snapshot exists', async () => {
+  test('synthetic contract league trade stays blocked until a fresh workbook snapshot exists', async () => {
+    registerSyntheticContractLeague();
     const resolved = await resolveCommandCenterLeagueContext(
       {
         id: 'internal-contract',
-        leagueName: '4th and Long',
+        leagueName: 'Synthetic Contract League',
         platform: 'sleeper',
         season: 2026,
         leagueIdExternal: 'league-123',
       },
       {
-        getSleeperLeague: async () => sleeperLeague({ name: '4th and Long' }),
+        getSleeperLeague: async () => sleeperLeague({ name: 'Synthetic Contract League' }),
         now: () => NOW,
       },
     );
 
-    expect(resolved.context?.contractProfile?.id).toBe('4th-and-long');
+    expect(resolved.context?.contractProfile?.id).toBe('synthetic-contract-league');
     expect(resolved.health?.contractWorkbook).toBe('unavailable');
     expect(resolved.readiness.trade?.ready).toBe(false);
     expect(resolved.readiness.trade?.blockers.join(' ')).toMatch(/contract workbook snapshot/i);
