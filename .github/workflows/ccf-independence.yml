@@ -87,6 +87,7 @@ jobs:
           server/modules/ccf/certification/__tests__/rollingValidationBaselineEvidence.test.ts
           server/modules/ccf/certification/__tests__/rollingValidationPromotionEvidence.test.ts
           server/modules/ccf/certification/__tests__/rollingValidationPromotionEvaluation.test.ts
+          server/modules/ccf/certification/__tests__/rollingValidationTiberOffEvidence.test.ts
           server/modules/ccf/certification/__tests__/simpleBenchmarks.test.ts
           server/modules/ccf/certification/__tests__/modelComparison.test.ts
           server/modules/ccf/certification/__tests__/calibration.test.ts
