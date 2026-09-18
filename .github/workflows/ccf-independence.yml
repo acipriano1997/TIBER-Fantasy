@@ -66,6 +66,7 @@ jobs:
           server/modules/ccf/outcomes/__tests__/contract.test.ts
           server/modules/ccf/outcomes/__tests__/fixtureEngine.test.ts
           server/modules/ccf/outcomes/__tests__/roleBaselineCandidate.test.ts
+          server/modules/ccf/outcomes/__tests__/playerOutcomeEngineV0.test.ts
           server/modules/ccf/lineup/__tests__/lineupDecision.test.ts
           server/modules/ccf/lineup/__tests__/lineupDecisionAdmission.test.ts
           server/modules/ccf/lineup/__tests__/rosterStateSnapshot.test.ts
