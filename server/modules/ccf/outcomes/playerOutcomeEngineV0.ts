@@ -347,6 +347,15 @@ function resolveModelFeatures(
         `required model feature ${key} is ${feature.status}: ${feature.reason}`,
       );
     }
+    if (
+      feature.sourceRefs.length === 0 ||
+      feature.sourceRefs.some((reference) => !reference.trim()) ||
+      new Set(feature.sourceRefs).size !== feature.sourceRefs.length
+    ) {
+      throw new CCFPlayerOutcomeInferenceUnavailableError(
+        `required model feature ${key} must carry unique non-empty sourceRefs`,
+      );
+    }
     values.set(key, feature.value);
     features.set(key, feature);
   }
