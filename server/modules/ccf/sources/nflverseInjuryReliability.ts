@@ -34,6 +34,8 @@ export class CCFNflverseInjuryReliabilityError extends Error {
   }
 }
 
+const REQUIRED_PARSER_VERSION = "ccf-nflverse-injuries-candidate-v2";
+
 function hasText(value: string | null | undefined): value is string {
   return Boolean(value?.trim());
 }
@@ -41,6 +43,12 @@ function hasText(value: string | null | undefined): value is string {
 function requireText(label: string, value: string): string {
   if (!hasText(value)) throw new CCFNflverseInjuryReliabilityError(`${label} is required`);
   return value;
+}
+
+function checkpointWeek(checkpointId: string): number | null {
+  const normalized = checkpointId.trim().toLowerCase();
+  const match = /^(?:week-|w)(\d+)-/.exec(normalized);
+  return match ? Number(match[1]) : null;
 }
 
 function archiveRef(snapshot: CCFArchivedNflverseInjurySnapshot): string {
@@ -56,6 +64,11 @@ function validateSnapshot(snapshot: CCFArchivedNflverseInjurySnapshot): void {
   if (manifest.provider !== "nflverse" || manifest.dataset !== "injuries") {
     throw new CCFNflverseInjuryReliabilityError(
       "reliability observation requires an archived nflverse injuries snapshot",
+    );
+  }
+  if (manifest.parserVersion !== REQUIRED_PARSER_VERSION) {
+    throw new CCFNflverseInjuryReliabilityError(
+      `injury reliability requires parser ${REQUIRED_PARSER_VERSION}`,
     );
   }
   if (
@@ -150,6 +163,11 @@ function correctionStatus(
       "previous injury snapshot must match the current season/week",
     );
   }
+  if (Date.parse(previous.knownAt) > Date.parse(current.knownAt)) {
+    throw new CCFNflverseInjuryReliabilityError(
+      "previous injury snapshot cannot be captured after the current snapshot",
+    );
+  }
   return previous.archive.manifest.contentSha256 === current.archive.manifest.contentSha256
     ? "none"
     : "reconciled";
@@ -178,6 +196,13 @@ export function buildCCFNflverseInjuryReliabilityObservation(
   requireText("criticalFieldPolicyRef", input.criticalFieldPolicyRef);
   requireText("correctionPolicyRef", input.correctionPolicyRef);
   requireText("checkpointPolicyRef", input.checkpointPolicyRef);
+
+  const expectedWeek = checkpointWeek(input.checkpointId);
+  if (expectedWeek != null && input.snapshot.requestedWeek !== expectedWeek) {
+    throw new CCFNflverseInjuryReliabilityError(
+      `checkpoint ${input.checkpointId} requires week ${expectedWeek} evidence`,
+    );
+  }
 
   const requestedSourcePlayerIds = Array.from(
     new Set(input.snapshot.rows.map((row) => row.playerId)),
