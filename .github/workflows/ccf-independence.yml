@@ -101,6 +101,8 @@ jobs:
           server/modules/ccf/sources/__tests__/nflverseWeeklyPlayerStatsCertificationPolicy.test.ts
           server/modules/ccf/sources/__tests__/nflversePlayByPlay.test.ts
           server/modules/ccf/sources/__tests__/archivedNflversePlayByPlay.test.ts
+          server/modules/ccf/sources/__tests__/nflversePlayByPlayReliability.test.ts
+          server/modules/ccf/sources/__tests__/nflversePlayByPlayCertificationPolicy.test.ts
           server/modules/ccf/sources/__tests__/nflversePlayerIdCrosswalk.test.ts
           server/modules/ccf/sources/__tests__/archivedNflversePlayerIdCrosswalk.test.ts
           server/modules/ccf/sources/__tests__/pfrPlayerIdentityBridge.test.ts
