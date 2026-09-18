@@ -50,7 +50,7 @@ function protocol(): CCFPredictiveValidationProtocol {
       "identity_join_leakage_rejected",
       "missing_outcome_not_negative",
     ],
-    negativeControls: ["label_permutation"],
+    negativeControls: ["label_permutation", "future_feature_canary"],
     samplePolicy: {
       minimumOverallPairedRows: 1,
       minimumSubgroupRows: 1,
