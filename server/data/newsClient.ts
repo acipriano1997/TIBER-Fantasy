@@ -16,6 +16,11 @@ import {
   buildNflverseInjuryCheck,
   nflverseInjuryClient,
 } from './nflverseInjuryClient';
+import {
+  BuildTeamTrendOptions,
+  buildNflverseTeamTrendCheck,
+  nflverseTeamTrendClient,
+} from './nflverseTeamTrendClient';
 
 const parser = new Parser();
 
@@ -318,6 +323,23 @@ export class NewsAnalysisService {
       asOf: retrievedAt,
       week: targetWeek,
       identityResolution,
+    });
+  }
+
+  /**
+   * NEWS-001 measured league/team trend refresh. This consumes nflverse weekly
+   * team stats and intentionally emits NORMALIZED/M1 trend observations only;
+   * threshold calibration must be certified before direct CCF reevaluation.
+   */
+  async getNflverseTeamTrendCheck(
+    season: number,
+    options: BuildTeamTrendOptions = {},
+  ) {
+    const retrievedAt = options.asOf ?? new Date().toISOString();
+    const fetched = await nflverseTeamTrendClient.fetchSeason(season, retrievedAt);
+    return buildNflverseTeamTrendCheck(fetched, season, {
+      ...options,
+      asOf: retrievedAt,
     });
   }
 
