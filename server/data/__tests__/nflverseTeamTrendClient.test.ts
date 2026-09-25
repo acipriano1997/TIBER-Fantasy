@@ -173,6 +173,7 @@ test('team trend check emits measured offense and defense observations with samp
   expect(aaaOffense?.materiality).toBe('M1');
   expect(aaaOffense?.sampleGames).toBe(3);
   expect(aaaOffense?.trendRegime).toBe('ESTABLISHED');
+  expect(aaaOffense?.confidence).toBeUndefined();
   expect(shouldTriggerCcfReevaluation(aaaOffense!)).toBe(false);
 
   expect(aaaDefense).toBeDefined();
