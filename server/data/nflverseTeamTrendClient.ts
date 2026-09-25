@@ -96,6 +96,12 @@ function toWeek(value?: string): number | undefined {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
 }
 
+function parseTimestamp(value?: string | null): string | undefined {
+  if (!value) return undefined;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? new Date(parsed).toISOString() : undefined;
+}
+
 function safeDivide(numerator: number | null, denominator: number | null): number | null {
   if (numerator === null || denominator === null || denominator <= 0) return null;
   return numerator / denominator;
@@ -277,8 +283,19 @@ function buildTrendEvent(args: {
   currentState: TeamTrendMetrics | DefensiveTrendMetrics;
   deltas: TeamTrendDelta[];
   retrievedAt: string;
+  sourceUpdatedAt?: string;
 }): NewsEvidenceEvent {
-  const { family, team, season, week, sampleGames, currentState, deltas, retrievedAt } = args;
+  const {
+    family,
+    team,
+    season,
+    week,
+    sampleGames,
+    currentState,
+    deltas,
+    retrievedAt,
+    sourceUpdatedAt,
+  } = args;
   const label = family === 'OFF_TREND' ? 'offensive' : 'defensive';
 
   return {
@@ -312,6 +329,7 @@ function buildTrendEvent(args: {
       sourceRole: 'primary-measured-team-outcomes',
       sourceAncestryId: `nflverse-team-trend:${family}:${season}:${team}:${week}`,
     },
+    updatedAt: sourceUpdatedAt,
     retrievedAt,
     knownAt: retrievedAt,
     evidenceState: 'CURRENT',
@@ -416,6 +434,7 @@ export function buildNflverseTeamTrendCheck(
         currentState: currentOffense,
         deltas: offenseDeltas,
         retrievedAt: fetchResult.retrievedAt,
+        sourceUpdatedAt: fetchResult.sourceUpdatedAt,
       }),
     );
 
@@ -457,6 +476,7 @@ export function buildNflverseTeamTrendCheck(
         currentState: currentDefense,
         deltas: defenseDeltas,
         retrievedAt: fetchResult.retrievedAt,
+        sourceUpdatedAt: fetchResult.sourceUpdatedAt,
       }),
     );
   }
@@ -545,7 +565,7 @@ export class NflverseTeamTrendClient {
       return {
         state: 'CURRENT',
         retrievedAt,
-        sourceUpdatedAt: response.headers.get('last-modified') ?? undefined,
+        sourceUpdatedAt: parseTimestamp(response.headers.get('last-modified')),
         rows: parsed.data,
       };
     } catch (error) {
