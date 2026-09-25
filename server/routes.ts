@@ -4259,29 +4259,112 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Intelligence Feed API - ready for real season updates
+  // Intelligence Feed API - current legacy feed + NEWS-001 structured refresh
   app.get('/api/intel/current', async (req, res) => {
     try {
       const fs = await import('fs');
       const path = await import('path');
-      
+
       const intelFile = path.join(process.cwd(), 'data', 'current_intel.json');
-      
-      if (fs.existsSync(intelFile)) {
-        const intelligence = JSON.parse(fs.readFileSync(intelFile, 'utf-8'));
-        res.json({
-          success: true,
-          data: intelligence,
-          timestamp: new Date().toISOString()
-        });
-      } else {
-        res.json({
-          success: true,
-          data: [],
-          message: 'No current intelligence - ready for season updates',
-          timestamp: new Date().toISOString()
+      const legacyIntelligence = fs.existsSync(intelFile)
+        ? JSON.parse(fs.readFileSync(intelFile, 'utf-8'))
+        : [];
+
+      const rawSeason = req.query.season;
+      const rawWeek = req.query.week;
+      const requestedSeason =
+        rawSeason !== undefined ? Number(rawSeason) : undefined;
+      const requestedWeek =
+        rawWeek !== undefined ? Number(rawWeek) : undefined;
+
+      if (
+        (requestedSeason !== undefined && (!Number.isInteger(requestedSeason) || requestedSeason < 2000)) ||
+        (requestedWeek !== undefined && (!Number.isInteger(requestedWeek) || requestedWeek < 1 || requestedWeek > 25))
+      ) {
+        return res.status(400).json({
+          success: false,
+          error: 'season/week query parameters are invalid',
         });
       }
+
+      const cadenceValues = ['COLD', 'COOL', 'WARM', 'HOT', 'LIVE'] as const;
+      const requestedCadence =
+        typeof req.query.cadence === 'string'
+          ? req.query.cadence.toUpperCase()
+          : 'HOT';
+
+      if (!cadenceValues.includes(requestedCadence as (typeof cadenceValues)[number])) {
+        return res.status(400).json({
+          success: false,
+          error: 'cadence must be one of COLD, COOL, WARM, HOT, LIVE',
+        });
+      }
+
+      let season = requestedSeason;
+      let week = requestedWeek;
+      let seasonStateSource: string | null = null;
+
+      if (season === undefined || week === undefined) {
+        const { seasonService } = await import('./services/SeasonService');
+        const current = await seasonService.current();
+        if (season === undefined) season = current.season;
+        if (week === undefined && (requestedSeason === undefined || requestedSeason === current.season)) {
+          week = current.week;
+        }
+        seasonStateSource = current.source;
+      }
+
+      const forceRefresh = req.query.force_refresh === 'true';
+      const playerName =
+        typeof req.query.player === 'string' && req.query.player.trim()
+          ? req.query.player.trim()
+          : undefined;
+      const playerId =
+        typeof req.query.playerId === 'string' && req.query.playerId.trim()
+          ? req.query.playerId.trim()
+          : undefined;
+
+      let newsIntelligence: unknown = null;
+      let newsIntelligenceState: 'CURRENT' | 'ERROR' = 'CURRENT';
+      let newsIntelligenceError: string | null = null;
+
+      try {
+        const { newsClient } = await import('./data/newsClient');
+        newsIntelligence = await newsClient.analysis.getStructuredNewsRefresh({
+          season: season!,
+          week,
+          playerName,
+          playerId,
+          cadenceState: requestedCadence as 'COLD' | 'COOL' | 'WARM' | 'HOT' | 'LIVE',
+          forceRefresh,
+        });
+      } catch (error) {
+        newsIntelligenceState = 'ERROR';
+        newsIntelligenceError =
+          error instanceof Error ? error.message : String(error);
+        console.error('[NEWS-001] structured current-intel refresh failed:', error);
+      }
+
+      return res.json({
+        success: true,
+        data: legacyIntelligence,
+        ...(fs.existsSync(intelFile)
+          ? {}
+          : { message: 'No legacy current_intel.json data available' }),
+        news_intelligence_state: newsIntelligenceState,
+        news_intelligence: newsIntelligence,
+        ...(newsIntelligenceError
+          ? { news_intelligence_error: newsIntelligenceError }
+          : {}),
+        meta: {
+          season,
+          week: week ?? null,
+          season_state_source: seasonStateSource,
+          cadence: requestedCadence,
+          force_refresh: forceRefresh,
+        },
+        timestamp: new Date().toISOString(),
+      });
     } catch (error) {
       res.status(500).json({
         success: false,
