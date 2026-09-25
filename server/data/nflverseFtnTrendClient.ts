@@ -440,7 +440,7 @@ export function buildFtnTrendCheck(
         {
           sourceId: NFLVERSE_FTN_SOURCE_ID,
           state: 'ERROR',
-          checkedAt: asOf,
+          checkedAt: fetchResult.retrievedAt,
           itemCount: 0,
         },
       ],
@@ -464,7 +464,7 @@ export function buildFtnTrendCheck(
         {
           sourceId: NFLVERSE_FTN_SOURCE_ID,
           state: fetchResult.state,
-          checkedAt: asOf,
+          checkedAt: fetchResult.retrievedAt,
           itemCount: 0,
         },
       ],
@@ -492,7 +492,7 @@ export function buildFtnTrendCheck(
         {
           sourceId: NFLVERSE_FTN_SOURCE_ID,
           state: 'PARTIAL',
-          checkedAt: asOf,
+          checkedAt: fetchResult.retrievedAt,
           itemCount: 0,
         },
       ],
