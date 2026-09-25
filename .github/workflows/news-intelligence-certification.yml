@@ -10,6 +10,7 @@ on:
       - 'server/data/newsClient.ts'
       - 'server/routes.ts'
       - 'server/services/nextManUpService.ts'
+      - 'server/services/opportunityResegmentation.ts'
       - 'server/services/__tests__/nextManUpNewsResegmentation.test.ts'
       - 'server/data/__tests__/newsIntelligence.test.ts'
       - 'src/data/interfaces.ts'
@@ -49,5 +50,7 @@ jobs:
         run: npx esbuild server/data/nflverseInjuryClient.ts --platform=node --bundle --packages=external --format=esm --outfile=/tmp/nflverse-injury.mjs
       - name: Bundle nflverse team trend adapter
         run: npx esbuild server/data/nflverseTeamTrendClient.ts --platform=node --bundle --packages=external --format=esm --outfile=/tmp/nflverse-team-trend.mjs
+      - name: Bundle pure opportunity resegmentation contract
+        run: npx esbuild server/services/opportunityResegmentation.ts --platform=node --bundle --packages=external --format=esm --outfile=/tmp/opportunity-resegmentation.mjs
       - name: Bundle opportunity resegmentation owner
         run: npx esbuild server/services/nextManUpService.ts --platform=node --bundle --packages=external --format=esm --outfile=/tmp/next-man-up-news.mjs
