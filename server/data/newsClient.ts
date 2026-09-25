@@ -9,6 +9,7 @@ import {
   BuildNewsCheckOptions,
   NewsEvidenceEvent,
   buildNewsIntelligenceCheck,
+  newsTextObservationToEvent,
 } from './newsIntelligence';
 
 const parser = new Parser();
@@ -20,6 +21,7 @@ export interface NewsItem {
   pubDate: string;
   author?: string;
   playerMentioned?: string;
+  sourceId?: string;
 }
 
 export interface NewsWeight {
@@ -85,7 +87,8 @@ export class RotoworldNewsClient {
         link: item.link,
         pubDate: item.pubDate,
         author: item.creator,
-        playerMentioned: playerName
+        playerMentioned: playerName,
+        sourceId: 'rotoworld-rss'
       }));
   }
 
@@ -134,7 +137,8 @@ export class RotoBallerNewsClient {
         description: item.description,
         link: item.link,
         pubDate: item.pubDate,
-        playerMentioned: playerName
+        playerMentioned: playerName,
+        sourceId: 'rotoballer-rss'
       }));
   }
   
@@ -169,6 +173,55 @@ export class NewsAnalysisService {
     options: BuildNewsCheckOptions = {},
   ) {
     return buildNewsIntelligenceCheck(events, options);
+  }
+
+  /**
+   * Safe bridge from the existing RSS collectors into NEWS-001.
+   *
+   * Text-derived events are RAW/M1 observations only. They are useful for
+   * capture, digesting, and later corroboration, but cannot request CCF
+   * reevaluation until a certified promotion path upgrades record quality.
+   * Because these feeds do not prove complete league-wide trend coverage,
+   * all three required lanes remain explicitly PARTIAL.
+   */
+  async getStructuredPlayerNewsCheck(
+    playerName: string,
+    playerId?: string,
+    options: BuildNewsCheckOptions = {},
+  ) {
+    const retrievedAt = options.asOf ?? new Date().toISOString();
+    const [rotoworldNews, rotoballerNews] = await Promise.all([
+      this.rotoworldClient.getPlayerNews(playerName),
+      this.rotoballerClient.getPlayerNews(playerName),
+    ]);
+
+    const events = [...rotoworldNews, ...rotoballerNews].map(item =>
+      newsTextObservationToEvent(
+        {
+          sourceId: item.sourceId ?? 'legacy-rss',
+          sourceClass: 'fantasy-news-rss',
+          sourceRole: 'secondary',
+          title: item.title,
+          description: item.description,
+          link: item.link,
+          pubDate: item.pubDate,
+          author: item.author,
+          playerIds: playerId ? [playerId] : undefined,
+        },
+        retrievedAt,
+      ),
+    );
+
+    return buildNewsIntelligenceCheck(events, {
+      ...options,
+      asOf: retrievedAt,
+      laneStatuses: {
+        OFF_TREND: 'PARTIAL',
+        DEF_TREND: 'PARTIAL',
+        INJURY: 'PARTIAL',
+        ...options.laneStatuses,
+      },
+    });
   }
   
   async calculatePlayerNewsWeight(playerName: string): Promise<number> {
