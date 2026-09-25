@@ -372,7 +372,10 @@ async function main() {
     });
 
     console.log(`[NEWS-001 calibration] FTN charting + PBP join ${season}`);
-    const ftnClient = new NflverseFtnTrendClient({ cacheTtlMs: 1 });
+    const ftnClient = new NflverseFtnTrendClient({
+      cacheTtlMs: 1,
+      requestTimeoutMs: 120_000,
+    });
     const ftnResult = await ftnClient.fetchSeason(
       season,
       new Date().toISOString(),
