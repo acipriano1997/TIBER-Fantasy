@@ -380,8 +380,10 @@ export class NewsAnalysisService {
     };
 
     if (useCache) {
-      const ttlMinutes =
-        cadenceState === 'LIVE'
+      const hasSourceError = result.sources.some(source => source.state === 'ERROR');
+      const ttlMinutes = hasSourceError
+        ? 1
+        : cadenceState === 'LIVE'
           ? 1
           : DEFAULT_NEWS_CADENCE_MINUTES[cadenceState];
       setCache(key, result, ttlMinutes * 60_000);
