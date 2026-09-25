@@ -9,6 +9,7 @@ import {
   BuildNewsCheckOptions,
   NewsEvidenceEvent,
   buildNewsIntelligenceCheck,
+  composeNewsIntelligenceRefresh,
   newsTextObservationToEvent,
 } from './newsIntelligence';
 import {
@@ -323,6 +324,46 @@ export class NewsAnalysisService {
       asOf: retrievedAt,
       week: targetWeek,
       identityResolution,
+    });
+  }
+
+  /**
+   * Canonical NEWS-001 refresh surface for the required injury/offense/defense
+   * checks. Optional player RSS adds contextual events but does not own lane
+   * completeness or source authority.
+   */
+  async getStructuredNewsRefresh(args: {
+    season: number;
+    week?: number;
+    asOf?: string;
+    playerName?: string;
+    playerId?: string;
+  }) {
+    const asOf = args.asOf ?? new Date().toISOString();
+
+    const [injury, trends, supplementalPlayer] = await Promise.all([
+      this.getNflverseInjuryCheck(args.season, {
+        asOf,
+        week: args.week,
+      }),
+      this.getNflverseTeamTrendCheck(args.season, {
+        asOf,
+        targetWeek: args.week,
+      }),
+      args.playerName
+        ? this.getStructuredPlayerNewsCheck(
+            args.playerName,
+            args.playerId,
+            { asOf },
+          )
+        : Promise.resolve(null),
+    ]);
+
+    return composeNewsIntelligenceRefresh({
+      injury,
+      trends,
+      supplemental: supplementalPlayer ? [supplementalPlayer] : [],
+      asOf,
     });
   }
 
