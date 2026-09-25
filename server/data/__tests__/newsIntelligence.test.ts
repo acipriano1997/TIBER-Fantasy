@@ -26,6 +26,7 @@ function makeEvent(
     knownAt: '2026-09-25T16:00:00.000Z',
     evidenceState: 'CURRENT',
     confirmation: 'CONFIRMED_OFFICIAL',
+    recordQuality: 'DECISION_GRADE',
     materiality: 'M2',
     replayEligible: true,
     ...overrides,
@@ -142,6 +143,11 @@ test('material current evidence may request CCF reevaluation without becoming re
   expect(
     shouldTriggerCcfReevaluation(
       makeEvent({ materiality: 'M3', evidenceState: 'STALE' }),
+    ),
+  ).toBe(false);
+  expect(
+    shouldTriggerCcfReevaluation(
+      makeEvent({ materiality: 'M3', recordQuality: 'NORMALIZED' }),
     ),
   ).toBe(false);
 });
