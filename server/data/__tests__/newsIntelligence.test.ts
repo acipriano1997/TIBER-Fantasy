@@ -1,4 +1,9 @@
 import {
+  NewsAnalysisService,
+  RotoBallerNewsClient,
+  RotoworldNewsClient,
+} from '../newsClient';
+import {
   buildNewsIntelligenceCheck,
   classifyNewsTextFamily,
   dedupeNewsEventsByAncestry,
@@ -200,4 +205,60 @@ test('RSS text capture classifies injury and scheme news only as provisional raw
   expect(event.materiality).toBe('M1');
   expect(event.trendRegime).toBe('OBSERVATION');
   expect(shouldTriggerCcfReevaluation(event)).toBe(false);
+});
+
+
+test('structured RSS bridge distinguishes provider failure from a successful no-news result', async () => {
+  jest
+    .spyOn(RotoworldNewsClient.prototype, 'getPlayerNewsWithState')
+    .mockResolvedValue({ items: [], state: 'ERROR' });
+  jest
+    .spyOn(RotoBallerNewsClient.prototype, 'getPlayerNewsWithState')
+    .mockResolvedValue({ items: [], state: 'CURRENT' });
+
+  const check = await new NewsAnalysisService().getStructuredPlayerNewsCheck(
+    'Test Player',
+    'player-1',
+    { asOf: '2026-09-25T17:00:00.000Z' },
+  );
+
+  expect(check.sources).toEqual([
+    {
+      sourceId: 'rotoworld-rss',
+      state: 'ERROR',
+      checkedAt: '2026-09-25T17:00:00.000Z',
+      itemCount: 0,
+    },
+    {
+      sourceId: 'rotoballer-rss',
+      state: 'CURRENT',
+      checkedAt: '2026-09-25T17:00:00.000Z',
+      itemCount: 0,
+    },
+  ]);
+  expect(check.lanes.INJURY.status).toBe('PARTIAL');
+  expect(check.lanes.OFF_TREND.status).toBe('PARTIAL');
+
+  jest.restoreAllMocks();
+});
+
+test('structured RSS bridge reports lane ERROR when every configured legacy feed fails', async () => {
+  jest
+    .spyOn(RotoworldNewsClient.prototype, 'getPlayerNewsWithState')
+    .mockResolvedValue({ items: [], state: 'ERROR' });
+  jest
+    .spyOn(RotoBallerNewsClient.prototype, 'getPlayerNewsWithState')
+    .mockResolvedValue({ items: [], state: 'ERROR' });
+
+  const check = await new NewsAnalysisService().getStructuredPlayerNewsCheck(
+    'Test Player',
+    'player-1',
+    { asOf: '2026-09-25T17:00:00.000Z' },
+  );
+
+  expect(check.lanes.OFF_TREND.status).toBe('ERROR');
+  expect(check.lanes.DEF_TREND.status).toBe('ERROR');
+  expect(check.lanes.INJURY.status).toBe('ERROR');
+
+  jest.restoreAllMocks();
 });
