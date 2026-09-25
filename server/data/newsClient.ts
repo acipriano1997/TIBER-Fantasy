@@ -4,9 +4,12 @@
  */
 
 import Parser from 'rss-parser';
+import { cacheKey, getCache, setCache } from '../../src/data/cache';
 import { calculateNewsWeight } from '../services/waiverHeat';
 import {
   BuildNewsCheckOptions,
+  DEFAULT_NEWS_CADENCE_MINUTES,
+  NewsCadenceState,
   NewsEvidenceEvent,
   buildNewsIntelligenceCheck,
   composeNewsIntelligenceRefresh,
@@ -302,7 +305,25 @@ export class NewsAnalysisService {
     asOf?: string;
     playerName?: string;
     playerId?: string;
+    cadenceState?: NewsCadenceState;
+    forceRefresh?: boolean;
   }) {
+    const cadenceState = args.cadenceState ?? 'HOT';
+    const useCache = !args.forceRefresh && !args.asOf;
+    const key = cacheKey([
+      'news-intelligence-refresh-v0',
+      args.season,
+      args.week,
+      args.playerId,
+      args.playerName,
+      cadenceState,
+    ]);
+
+    if (useCache) {
+      const cached = getCache<Awaited<ReturnType<NewsAnalysisService['getStructuredNewsRefresh']>>>(key);
+      if (cached) return cached;
+    }
+
     const asOf = args.asOf ?? new Date().toISOString();
 
     const [injury, trends, supplementalPlayer] = await Promise.all([
@@ -334,10 +355,24 @@ export class NewsAnalysisService {
     const opportunityResegmentationRequests =
       await nextManUpService.planFromNewsInjuryEvents(check.events, asOf);
 
-    return {
+    const result = {
       ...check,
       opportunityResegmentationRequests,
+      refreshMeta: {
+        cadenceState,
+        forced: Boolean(args.forceRefresh),
+      },
     };
+
+    if (useCache) {
+      const ttlMinutes =
+        cadenceState === 'LIVE'
+          ? 1
+          : DEFAULT_NEWS_CADENCE_MINUTES[cadenceState];
+      setCache(key, result, ttlMinutes * 60_000);
+    }
+
+    return result;
   }
 
   /**
