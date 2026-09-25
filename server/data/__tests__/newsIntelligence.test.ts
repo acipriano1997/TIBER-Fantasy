@@ -690,6 +690,26 @@ test('structured refresh avoids loading opportunity DB path when no injury requi
   const trendSpy = jest
     .spyOn(service, 'getNflverseTeamTrendCheck')
     .mockResolvedValue(trends);
+  const ftnSpy = jest
+    .spyOn(service, 'getNflverseFtnTrendCheck')
+    .mockResolvedValue(
+      buildNewsIntelligenceCheck([], {
+        asOf: '2026-09-25T17:00:00.000Z',
+        sourceStates: [
+          {
+            sourceId: 'ftn-data-via-nflverse-charting',
+            state: 'CURRENT',
+            checkedAt: '2026-09-25T17:00:00.000Z',
+            itemCount: 0,
+          },
+        ],
+        laneStatuses: {
+          INJURY: 'MISSING',
+          OFF_TREND: 'MISSING',
+          DEF_TREND: 'MISSING',
+        },
+      }),
+    );
 
   const result = await service.getStructuredNewsRefresh({
     season: 2026,
@@ -702,4 +722,5 @@ test('structured refresh avoids loading opportunity DB path when no injury requi
 
   injurySpy.mockRestore();
   trendSpy.mockRestore();
+  ftnSpy.mockRestore();
 });
