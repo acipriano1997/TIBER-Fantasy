@@ -202,7 +202,9 @@ export function buildNewsIntelligenceCheck(
       result[lane] = {
         lane,
         checkedAt: asOf,
-        status: options.laneStatuses?.[lane] ?? 'COMPLETE',
+        // Fail closed: an empty event list does not prove the lane was checked.
+        // Refresh callers must explicitly report COMPLETE/PARTIAL/etc.
+        status: options.laneStatuses?.[lane] ?? 'MISSING',
         eventIds: laneEvents.map(event => event.eventId),
         eventCount: laneEvents.length,
         materialEventCount: laneEvents.filter(event => event.materiality === 'M2' || event.materiality === 'M3').length,
