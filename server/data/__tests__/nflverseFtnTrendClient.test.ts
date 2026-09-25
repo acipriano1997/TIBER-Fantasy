@@ -207,8 +207,8 @@ test('FTN scheme check captures offense motion/location/play-action and defense 
   expect(defense?.recordQuality).toBe('NORMALIZED');
   const defenseState = defense?.currentState as any;
   expect(defenseState.metrics.avgBoxCount).toBe(7);
-  expect(defenseState.metrics.blitz5PlusRate).toBeCloseTo(1 / 3, 4);
-  expect(defenseState.metrics.secondLevelBlitzRate).toBeCloseTo(1 / 3, 4);
+  expect(defenseState.metrics.fivePlusPassRusherRate).toBeCloseTo(1 / 3, 4);
+  expect(defenseState.metrics.blitzerPresentRate).toBeCloseTo(1 / 3, 4);
   expect(defenseState.metrics.fourOrFewerRushRate).toBeCloseTo(2 / 3, 4);
   expect(defenseState.metrics.avgPassRushers).toBeCloseTo(13 / 3, 4);
   expect(defenseState.coverage.passRusherDropbacks).toBe(3);
