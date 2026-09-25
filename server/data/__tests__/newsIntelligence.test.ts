@@ -635,3 +635,71 @@ test('News Intelligence delegates structured injury truth to the canonical injur
 
   spy.mockRestore();
 });
+
+
+test('structured refresh avoids loading opportunity DB path when no injury requires reevaluation', async () => {
+  const service = new NewsAnalysisService();
+
+  const injury = buildNewsIntelligenceCheck(
+    [
+      makeEvent({
+        eventId: 'questionable-only',
+        family: 'INJURY',
+        materiality: 'M1',
+        recordQuality: 'DECISION_GRADE',
+      }),
+    ],
+    {
+      asOf: '2026-09-25T17:00:00.000Z',
+      sourceStates: [
+        {
+          sourceId: 'injury-owner',
+          state: 'CURRENT',
+          checkedAt: '2026-09-25T17:00:00.000Z',
+          itemCount: 1,
+        },
+      ],
+      laneStatuses: {
+        INJURY: 'COMPLETE',
+        OFF_TREND: 'MISSING',
+        DEF_TREND: 'MISSING',
+      },
+    },
+  );
+
+  const trends = buildNewsIntelligenceCheck([], {
+    asOf: '2026-09-25T17:00:00.000Z',
+    sourceStates: [
+      {
+        sourceId: 'trend-owner',
+        state: 'CURRENT',
+        checkedAt: '2026-09-25T17:00:00.000Z',
+        itemCount: 0,
+      },
+    ],
+    laneStatuses: {
+      INJURY: 'MISSING',
+      OFF_TREND: 'PARTIAL',
+      DEF_TREND: 'PARTIAL',
+    },
+  });
+
+  const injurySpy = jest
+    .spyOn(service, 'getNflverseInjuryCheck')
+    .mockResolvedValue(injury);
+  const trendSpy = jest
+    .spyOn(service, 'getNflverseTeamTrendCheck')
+    .mockResolvedValue(trends);
+
+  const result = await service.getStructuredNewsRefresh({
+    season: 2026,
+    week: 3,
+    asOf: '2026-09-25T17:00:00.000Z',
+  });
+
+  expect(result.opportunityResegmentationState).toBe('COMPLETE');
+  expect(result.opportunityResegmentationRequests).toEqual([]);
+
+  injurySpy.mockRestore();
+  trendSpy.mockRestore();
+});
