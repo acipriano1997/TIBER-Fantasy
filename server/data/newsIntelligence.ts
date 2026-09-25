@@ -144,16 +144,25 @@ export interface NewsCheckLaneResult {
   highestMateriality: MaterialityTier;
 }
 
+export interface NewsSourceCheckState {
+  sourceId: string;
+  state: EvidenceState;
+  checkedAt: string;
+  itemCount?: number;
+}
+
 export interface NewsIntelligenceCheck {
   schemaVersion: 'news-check-v0';
   asOf: string;
   lanes: Record<NewsCheckLane, NewsCheckLaneResult>;
+  sources: NewsSourceCheckState[];
   events: NewsEvidenceEvent[];
 }
 
 export interface BuildNewsCheckOptions {
   asOf?: string;
   laneStatuses?: Partial<Record<NewsCheckLane, NewsCheckStatus>>;
+  sourceStates?: NewsSourceCheckState[];
 }
 
 export type NewsCadenceState = 'COLD' | 'COOL' | 'WARM' | 'HOT' | 'LIVE';
@@ -220,6 +229,7 @@ export function buildNewsIntelligenceCheck(
     schemaVersion: 'news-check-v0',
     asOf,
     lanes,
+    sources: options.sourceStates ?? [],
     events: dedupedEvents,
   };
 }
