@@ -4,7 +4,7 @@
  */
 
 import Parser from 'rss-parser';
-import type { OpportunityResegmentationRequest } from '../services/nextManUpService';
+import type { OpportunityResegmentationRequest } from '../services/opportunityResegmentation';
 import { cacheKey, getCache, setCache } from '../../src/data/cache';
 import { calculateNewsWeight } from '../services/waiverHeat';
 import {
