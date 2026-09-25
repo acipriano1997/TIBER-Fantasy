@@ -144,9 +144,17 @@ export interface NewsCheckLaneResult {
   highestMateriality: MaterialityTier;
 }
 
+export type NewsSourceState =
+  | 'CURRENT'
+  | 'PARTIAL'
+  | 'MISSING'
+  | 'STALE'
+  | 'ERROR'
+  | 'CONFLICTED';
+
 export interface NewsSourceCheckState {
   sourceId: string;
-  state: EvidenceState;
+  state: NewsSourceState;
   checkedAt: string;
   itemCount?: number;
 }
