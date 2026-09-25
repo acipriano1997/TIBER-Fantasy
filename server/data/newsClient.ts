@@ -11,6 +11,11 @@ import {
   buildNewsIntelligenceCheck,
   newsTextObservationToEvent,
 } from './newsIntelligence';
+import {
+  NflverseInjuryBuildOptions,
+  buildNflverseInjuryCheck,
+  nflverseInjuryClient,
+} from './nflverseInjuryClient';
 
 const parser = new Parser();
 
@@ -271,6 +276,51 @@ export class NewsAnalysisService {
     });
   }
   
+  /**
+   * NEWS-001 structured injury refresh backed by nflverse's current-season
+   * injury/practice report release. GSIS identity is resolved through FFCC's
+   * canonical identity registry before any row can become decision-grade.
+   */
+  async getNflverseInjuryCheck(
+    season: number,
+    options: NflverseInjuryBuildOptions = {},
+  ) {
+    const retrievedAt = options.asOf ?? new Date().toISOString();
+    const fetched = await nflverseInjuryClient.fetchSeason(season, retrievedAt);
+
+    if (fetched.state === 'ERROR') {
+      return buildNflverseInjuryCheck(fetched, options);
+    }
+
+    const targetWeek =
+      options.week ??
+      fetched.rows.reduce<number | undefined>((max, row) => {
+        const week = Number(row.week);
+        if (!Number.isInteger(week) || week <= 0) return max;
+        return max === undefined || week > max ? week : max;
+      }, undefined);
+
+    const gsisIds = Array.from(
+      new Set(
+        fetched.rows
+          .filter(row => !targetWeek || Number(row.week) === targetWeek)
+          .map(row => row.gsis_id?.trim())
+          .filter((id): id is string => Boolean(id)),
+      ),
+    );
+
+    const { playerIdentityService } = await import('../services/PlayerIdentityService');
+    const identityResolution =
+      await playerIdentityService.resolveCanonicalIdsByGsis(gsisIds);
+
+    return buildNflverseInjuryCheck(fetched, {
+      ...options,
+      asOf: retrievedAt,
+      week: targetWeek,
+      identityResolution,
+    });
+  }
+
   async calculatePlayerNewsWeight(playerName: string): Promise<number> {
     try {
       // Get news from both sources
