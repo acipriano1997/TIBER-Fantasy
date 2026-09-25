@@ -236,7 +236,6 @@ export function nflverseInjuryRowToEvent(
       sourceRole: 'primary-injury-state',
       sourceAncestryId: `nflverse-injury-${injuryRowKey(row)}`,
     },
-    observedAt: sourceUpdatedAt,
     updatedAt: sourceUpdatedAt,
     retrievedAt,
     // knownAt is when FFCC actually learned the row, not the upstream edit time.
@@ -244,7 +243,6 @@ export function nflverseInjuryRowToEvent(
     evidenceState,
     confirmation: 'CONFIRMED_OFFICIAL',
     recordQuality,
-    confidence: recordQuality === 'DECISION_GRADE' ? 0.98 : 0,
     conflictState:
       identityState === 'ambiguous'
         ? 'AMBIGUOUS_GSIS_IDENTITY'
