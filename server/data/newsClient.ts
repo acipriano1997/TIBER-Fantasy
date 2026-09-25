@@ -5,6 +5,11 @@
 
 import Parser from 'rss-parser';
 import { calculateNewsWeight } from '../services/waiverHeat';
+import {
+  BuildNewsCheckOptions,
+  NewsEvidenceEvent,
+  buildNewsIntelligenceCheck,
+} from './newsIntelligence';
 
 const parser = new Parser();
 
@@ -151,6 +156,20 @@ export class RotoBallerNewsClient {
 export class NewsAnalysisService {
   private rotoworldClient = new RotoworldNewsClient();
   private rotoballerClient = new RotoBallerNewsClient();
+
+  /**
+   * NEWS-001 structured check surface.
+   *
+   * Source adapters may continue to collect raw/RSS items, but decision-facing
+   * consumers should receive explicit OFF_TREND, DEF_TREND, and INJURY lane
+   * state rather than treating a coarse sentiment score as evidence authority.
+   */
+  buildStructuredCheck(
+    events: NewsEvidenceEvent[],
+    options: BuildNewsCheckOptions = {},
+  ) {
+    return buildNewsIntelligenceCheck(events, options);
+  }
   
   async calculatePlayerNewsWeight(playerName: string): Promise<number> {
     try {
