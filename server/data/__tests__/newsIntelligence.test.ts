@@ -352,6 +352,7 @@ test('resolved official-report-derived injury row can become decision-grade whil
   );
   expect(resolved.recordQuality).toBe('DECISION_GRADE');
   expect(resolved.confirmation).toBe('CONFIRMED_OFFICIAL');
+  expect(resolved.confidence).toBeUndefined();
   expect(resolved.playerIds).toEqual(['canonical-player-1']);
   expect(resolved.knownAt).toBe('2026-09-25T16:00:00.000Z');
   expect(resolved.updatedAt).toBe('2026-09-25T15:00:00.000Z');
