@@ -31,6 +31,11 @@ export interface NewsWeight {
   corroborationGames: number;
 }
 
+export interface NewsFetchResult {
+  items: NewsItem[];
+  state: 'CURRENT' | 'PARTIAL' | 'ERROR';
+}
+
 // ========================================
 // RSS NEWS SOURCES (Grok's Realistic Alternative)
 // ========================================
@@ -46,29 +51,37 @@ export class RotoworldNewsClient {
     waiver: 'https://www.rotoworld.com/rss/feed/football/waivers'
   };
 
-  async getPlayerNews(playerName: string, days: number = 7): Promise<NewsItem[]> {
-    try {
-      const allNews: NewsItem[] = [];
-      
-      // Fetch from multiple relevant feeds
-      for (const [feedType, feedUrl] of Object.entries(this.RSS_FEEDS)) {
-        try {
-          const feed = await parser.parseURL(feedUrl);
-          const recentNews = this.filterPlayerNews(feed.items, playerName, days);
-          allNews.push(...recentNews);
-        } catch (error) {
-          console.error(`Failed to fetch ${feedType} feed:`, error);
-        }
-      }
+  async getPlayerNewsWithState(
+    playerName: string,
+    days: number = 7,
+  ): Promise<NewsFetchResult> {
+    const allNews: NewsItem[] = [];
+    let successfulFeeds = 0;
+    let failedFeeds = 0;
 
-      return allNews.sort((a, b) => 
-        new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime()
-      );
-      
-    } catch (error) {
-      console.error('Rotoworld news fetch failed:', error);
-      return [];
+    for (const [feedType, feedUrl] of Object.entries(this.RSS_FEEDS)) {
+      try {
+        const feed = await parser.parseURL(feedUrl);
+        successfulFeeds++;
+        const recentNews = this.filterPlayerNews(feed.items, playerName, days);
+        allNews.push(...recentNews);
+      } catch (error) {
+        failedFeeds++;
+        console.error(`Failed to fetch ${feedType} feed:`, error);
+      }
     }
+
+    const items = allNews.sort(
+      (a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime(),
+    );
+
+    if (successfulFeeds === 0) return { items, state: 'ERROR' };
+    if (failedFeeds > 0) return { items, state: 'PARTIAL' };
+    return { items, state: 'CURRENT' };
+  }
+
+  async getPlayerNews(playerName: string, days: number = 7): Promise<NewsItem[]> {
+    return (await this.getPlayerNewsWithState(playerName, days)).items;
   }
 
   private filterPlayerNews(items: any[], playerName: string, days: number): NewsItem[] {
@@ -109,16 +122,22 @@ export class RotoworldNewsClient {
 export class RotoBallerNewsClient {
   private readonly API_BASE = 'https://www.rotoballer.com/rss';
   
-  async getPlayerNews(playerName: string): Promise<NewsItem[]> {
+  async getPlayerNewsWithState(playerName: string): Promise<NewsFetchResult> {
     try {
       const feedUrl = `${this.API_BASE}/nfl-news.xml`;
       const feed = await parser.parseURL(feedUrl);
-      
-      return this.filterPlayerNews(feed.items, playerName, 7);
+      return {
+        items: this.filterPlayerNews(feed.items, playerName, 7),
+        state: 'CURRENT',
+      };
     } catch (error) {
       console.error('RotoBaller news fetch failed:', error);
-      return [];
+      return { items: [], state: 'ERROR' };
     }
+  }
+
+  async getPlayerNews(playerName: string): Promise<NewsItem[]> {
+    return (await this.getPlayerNewsWithState(playerName)).items;
   }
   
   private filterPlayerNews(items: any[], playerName: string, days: number): NewsItem[] {
@@ -190,12 +209,12 @@ export class NewsAnalysisService {
     options: BuildNewsCheckOptions = {},
   ) {
     const retrievedAt = options.asOf ?? new Date().toISOString();
-    const [rotoworldNews, rotoballerNews] = await Promise.all([
-      this.rotoworldClient.getPlayerNews(playerName),
-      this.rotoballerClient.getPlayerNews(playerName),
+    const [rotoworldResult, rotoballerResult] = await Promise.all([
+      this.rotoworldClient.getPlayerNewsWithState(playerName),
+      this.rotoballerClient.getPlayerNewsWithState(playerName),
     ]);
 
-    const events = [...rotoworldNews, ...rotoballerNews].map(item =>
+    const events = [...rotoworldResult.items, ...rotoballerResult.items].map(item =>
       newsTextObservationToEvent(
         {
           sourceId: item.sourceId ?? 'legacy-rss',
@@ -212,13 +231,31 @@ export class NewsAnalysisService {
       ),
     );
 
+    const bothFailed =
+      rotoworldResult.state === 'ERROR' && rotoballerResult.state === 'ERROR';
+
     return buildNewsIntelligenceCheck(events, {
       ...options,
       asOf: retrievedAt,
+      sourceStates: [
+        {
+          sourceId: 'rotoworld-rss',
+          state: rotoworldResult.state === 'ERROR' ? 'ERROR' : 'CURRENT',
+          checkedAt: retrievedAt,
+          itemCount: rotoworldResult.items.length,
+        },
+        {
+          sourceId: 'rotoballer-rss',
+          state: rotoballerResult.state === 'ERROR' ? 'ERROR' : 'CURRENT',
+          checkedAt: retrievedAt,
+          itemCount: rotoballerResult.items.length,
+        },
+        ...(options.sourceStates ?? []),
+      ],
       laneStatuses: {
-        OFF_TREND: 'PARTIAL',
-        DEF_TREND: 'PARTIAL',
-        INJURY: 'PARTIAL',
+        OFF_TREND: bothFailed ? 'ERROR' : 'PARTIAL',
+        DEF_TREND: bothFailed ? 'ERROR' : 'PARTIAL',
+        INJURY: bothFailed ? 'ERROR' : 'PARTIAL',
         ...options.laneStatuses,
       },
     });
