@@ -76,8 +76,8 @@ export interface FtnOffenseMetrics {
 
 export interface FtnDefenseMetrics {
   avgBoxCount: number | null;
-  blitz5PlusRate: number | null;
-  secondLevelBlitzRate: number | null;
+  fivePlusPassRusherRate: number | null;
+  blitzerPresentRate: number | null;
   fourOrFewerRushRate: number | null;
   avgPassRushers: number | null;
 }
@@ -306,11 +306,11 @@ function defenseMetrics(rows: JoinedFtnPlay[]): {
 
   const metrics: FtnDefenseMetrics = {
     avgBoxCount: average(rows.map(row => toNumber(row.charting.n_defense_box))),
-    blitz5PlusRate:
+    fivePlusPassRusherRate:
       knownRushers.length === 0
         ? null
         : round(knownRushers.filter(value => value >= 5).length / knownRushers.length),
-    secondLevelBlitzRate:
+    blitzerPresentRate:
       knownBlitzers.length === 0
         ? null
         : round(knownBlitzers.filter(value => value >= 1).length / knownBlitzers.length),
