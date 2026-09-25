@@ -8,7 +8,7 @@
 
 import { db } from '../infra/db';
 import { depthCharts, playerIdentityMap, playerLiveStatus } from '@shared/schema';
-import { eq, and, inArray, sql, gt } from 'drizzle-orm';
+import { eq, and, inArray, sql, gt, desc, isNull } from 'drizzle-orm';
 import {
   type NewsEvidenceEvent,
   shouldTriggerCcfReevaluation,
@@ -196,6 +196,8 @@ export class NextManUpService {
             teamCode: depthCharts.teamCode,
             position: depthCharts.position,
             depthOrder: depthCharts.depthOrder,
+            season: depthCharts.season,
+            week: depthCharts.week,
             source: depthCharts.source,
             confidence: depthCharts.confidence,
             effectiveDate: depthCharts.effectiveDate,
@@ -207,14 +209,26 @@ export class NextManUpService {
             eq(depthCharts.position, position),
             eq(depthCharts.isActive, true),
           ))
-          .orderBy(sql`${depthCharts.week} DESC NULLS LAST, ${depthCharts.effectiveDate} DESC`)
+          .orderBy(
+            desc(depthCharts.season),
+            desc(depthCharts.week),
+            desc(depthCharts.effectiveDate),
+          )
           .limit(1)
       : [];
 
     const injuredDepthOrder = depth[0]?.depthOrder ?? null;
+    const depthSnapshotCondition = depth[0]
+      ? and(
+          eq(depthCharts.season, depth[0].season),
+          depth[0].week === null
+            ? isNull(depthCharts.week)
+            : eq(depthCharts.week, depth[0].week),
+        )
+      : undefined;
 
     const beneficiaryRows =
-      team && position && injuredDepthOrder !== null
+      team && position && injuredDepthOrder !== null && depthSnapshotCondition
         ? await db
             .select({
               canonicalId: depthCharts.canonicalPlayerId,
@@ -239,6 +253,7 @@ export class NextManUpService {
               eq(depthCharts.teamCode, team),
               eq(depthCharts.position, position),
               eq(depthCharts.isActive, true),
+              depthSnapshotCondition,
               gt(depthCharts.depthOrder, injuredDepthOrder),
               sql`(${playerLiveStatus.isEligibleForForge} = true OR ${playerLiveStatus.isEligibleForForge} IS NULL)`,
             ))
