@@ -15,6 +15,7 @@ import {
 import {
   buildNewsIntelligenceCheck,
   classifyNewsTextFamily,
+  composeNewsIntelligenceRefresh,
   dedupeNewsEventsByAncestry,
   deriveInjuryMateriality,
   deriveTrendRegime,
@@ -458,4 +459,140 @@ test('nflverse client fetches the documented season CSV and parses report rows',
   expect(result.state).toBe('CURRENT');
   expect(result.rows).toHaveLength(1);
   expect(result.rows[0].practice_status).toBe('Limited Participation in Practice');
+});
+
+
+test('missing requested injury week stays MISSING rather than certifying zero injuries', () => {
+  const check = buildNflverseInjuryCheck(
+    {
+      state: 'CURRENT',
+      retrievedAt: '2026-09-25T16:00:00.000Z',
+      rows: [
+        {
+          season: '2026',
+          week: '2',
+          team: 'DET',
+          gsis_id: '00-0000001',
+          full_name: 'Test Receiver',
+          report_primary_injury: 'Hamstring',
+          report_status: 'Questionable',
+          practice_status: 'LP',
+          date_modified: '2026-09-18T15:00:00Z',
+        },
+      ],
+    },
+    {
+      week: 3,
+      identityResolution: {
+        lookupStatus: 'available',
+        resolved: new Map([['00-0000001', 'canonical-player-1']]),
+        ambiguous: new Set(),
+      },
+    },
+  );
+
+  expect(check.lanes.INJURY.status).toBe('MISSING');
+  expect(check.events).toHaveLength(0);
+});
+
+test('composed NEWS-001 refresh keeps lane authority with owning checks while retaining supplemental evidence', () => {
+  const injury = buildNewsIntelligenceCheck(
+    [makeEvent({ eventId: 'injury-owner', family: 'INJURY' })],
+    {
+      asOf: '2026-09-25T16:00:00.000Z',
+      sourceStates: [
+        {
+          sourceId: 'injury-owner',
+          state: 'CURRENT',
+          checkedAt: '2026-09-25T16:00:00.000Z',
+          itemCount: 1,
+        },
+      ],
+      laneStatuses: {
+        INJURY: 'COMPLETE',
+        OFF_TREND: 'MISSING',
+        DEF_TREND: 'MISSING',
+      },
+    },
+  );
+
+  const trends = buildNewsIntelligenceCheck(
+    [
+      makeEvent({
+        eventId: 'off-trend-owner',
+        family: 'OFF_TREND',
+        source: {
+          sourceId: 'trend-owner',
+          sourceClass: 'measured',
+          sourceAncestryId: 'trend-off',
+        },
+        recordQuality: 'NORMALIZED',
+        materiality: 'M1',
+      }),
+    ],
+    {
+      asOf: '2026-09-25T16:00:00.000Z',
+      sourceStates: [
+        {
+          sourceId: 'trend-owner',
+          state: 'CURRENT',
+          checkedAt: '2026-09-25T16:00:00.000Z',
+          itemCount: 1,
+        },
+      ],
+      laneStatuses: {
+        INJURY: 'MISSING',
+        OFF_TREND: 'PARTIAL',
+        DEF_TREND: 'PARTIAL',
+      },
+    },
+  );
+
+  const supplemental = buildNewsIntelligenceCheck(
+    [
+      makeEvent({
+        eventId: 'rss-extra',
+        family: 'INJURY',
+        source: {
+          sourceId: 'rss-extra',
+          sourceClass: 'secondary',
+          sourceAncestryId: 'rss-extra-root',
+        },
+        recordQuality: 'RAW',
+        materiality: 'M1',
+      }),
+    ],
+    {
+      asOf: '2026-09-25T16:00:00.000Z',
+      sourceStates: [
+        {
+          sourceId: 'rss-extra',
+          state: 'PARTIAL',
+          checkedAt: '2026-09-25T16:00:00.000Z',
+          itemCount: 1,
+        },
+      ],
+      laneStatuses: {
+        INJURY: 'PARTIAL',
+        OFF_TREND: 'PARTIAL',
+        DEF_TREND: 'PARTIAL',
+      },
+    },
+  );
+
+  const combined = composeNewsIntelligenceRefresh({
+    injury,
+    trends,
+    supplemental: [supplemental],
+  });
+
+  expect(combined.lanes.INJURY.status).toBe('COMPLETE');
+  expect(combined.lanes.OFF_TREND.status).toBe('PARTIAL');
+  expect(combined.lanes.DEF_TREND.status).toBe('PARTIAL');
+  expect(combined.events.map(event => event.eventId).sort()).toEqual(
+    ['injury-owner', 'off-trend-owner', 'rss-extra'].sort(),
+  );
+  expect(combined.sources.map(source => source.sourceId).sort()).toEqual(
+    ['injury-owner', 'trend-owner', 'rss-extra'].sort(),
+  );
 });
