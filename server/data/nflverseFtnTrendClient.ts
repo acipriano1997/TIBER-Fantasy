@@ -166,6 +166,35 @@ function average(values: Array<number | null>): number | null {
   return round(known.reduce((sum, value) => sum + value, 0) / known.length);
 }
 
+function parsePbpJoinRows(csv: string): {
+  rows: FtnPbpJoinRow[];
+  errors: Papa.ParseError[];
+} {
+  const rows: FtnPbpJoinRow[] = [];
+  const errors: Papa.ParseError[] = [];
+
+  // nflverse PBP has hundreds of columns. NEWS-001 needs only five join
+  // fields; retaining every parsed column multiplies memory during historical
+  // replay and current-season refreshes without adding evidence.
+  Papa.parse<Record<string, string>>(csv, {
+    header: true,
+    skipEmptyLines: true,
+    step(result) {
+      if (result.errors.length > 0) errors.push(...result.errors);
+      const row = result.data;
+      rows.push({
+        game_id: row.game_id,
+        play_id: row.play_id,
+        posteam: row.posteam,
+        defteam: row.defteam,
+        qb_dropback: row.qb_dropback,
+      });
+    },
+  });
+
+  return { rows, errors };
+}
+
 function latestWeek(rows: FtnChartingRow[]): number | undefined {
   return rows.reduce<number | undefined>((latest, row) => {
     const week = toInteger(row.week);
@@ -681,14 +710,11 @@ export class NflverseFtnTrendClient {
         header: true,
         skipEmptyLines: true,
       });
-      const pbp = Papa.parse<FtnPbpJoinRow>(pbpCsv, {
-        header: true,
-        skipEmptyLines: true,
-      });
+      const pbp = parsePbpJoinRows(pbpCsv);
 
       if (
         (charting.errors.length > 0 && charting.data.length === 0) ||
-        (pbp.errors.length > 0 && pbp.data.length === 0)
+        (pbp.errors.length > 0 && pbp.rows.length === 0)
       ) {
         return {
           state: 'ERROR',
@@ -715,7 +741,7 @@ export class NflverseFtnTrendClient {
         retrievedAt,
         sourceUpdatedAt,
         chartingRows: charting.data,
-        pbpRows: pbp.data,
+        pbpRows: pbp.rows,
       };
 
       if (Number.isFinite(now)) {
