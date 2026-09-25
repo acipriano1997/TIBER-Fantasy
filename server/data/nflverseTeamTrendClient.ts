@@ -153,13 +153,15 @@ export function defenseMetricsFromOpponentRow(
   };
 }
 
-function averageMetric<T extends Record<string, number | null>>(
+function averageMetric<T extends object>(
   snapshots: T[],
   metric: keyof T,
 ): number | null {
   const values = snapshots
     .map(snapshot => snapshot[metric])
-    .filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
+    .filter((value): value is T[keyof T] & number =>
+      typeof value === 'number' && Number.isFinite(value),
+    ) as number[];
 
   if (values.length === 0) return null;
   return values.reduce((sum, value) => sum + value, 0) / values.length;
@@ -185,7 +187,7 @@ const DEFENSE_THRESHOLDS: Partial<Record<keyof DefensiveTrendMetrics, number>> =
   sackRateGenerated: 0.04,
 };
 
-function computeDeltas<T extends Record<string, number | null>>(
+function computeDeltas<T extends object>(
   current: T,
   baselineSnapshots: T[],
   thresholds: Partial<Record<keyof T, number>>,
