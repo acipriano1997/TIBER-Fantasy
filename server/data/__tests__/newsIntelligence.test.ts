@@ -1,3 +1,4 @@
+import { injuryClient } from '../injuryClient';
 import {
   NflverseInjuryClient,
   buildNflverseInjuryCheck,
@@ -595,4 +596,41 @@ test('composed NEWS-001 refresh keeps lane authority with owning checks while re
   expect(combined.sources.map(source => source.sourceId).sort()).toEqual(
     ['injury-owner', 'trend-owner', 'rss-extra'].sort(),
   );
+});
+
+
+test('News Intelligence delegates structured injury truth to the canonical injury service', async () => {
+  const expected = buildNewsIntelligenceCheck([], {
+    asOf: '2026-09-25T17:00:00.000Z',
+    sourceStates: [
+      {
+        sourceId: 'canonical-injury-owner',
+        state: 'CURRENT',
+        checkedAt: '2026-09-25T17:00:00.000Z',
+        itemCount: 0,
+      },
+    ],
+    laneStatuses: {
+      INJURY: 'COMPLETE',
+      OFF_TREND: 'MISSING',
+      DEF_TREND: 'MISSING',
+    },
+  });
+
+  const spy = jest
+    .spyOn(injuryClient.intelligence, 'getStructuredCheck')
+    .mockResolvedValue(expected);
+
+  const result = await new NewsAnalysisService().getNflverseInjuryCheck(2026, {
+    asOf: '2026-09-25T17:00:00.000Z',
+    week: 3,
+  });
+
+  expect(spy).toHaveBeenCalledWith(2026, {
+    asOf: '2026-09-25T17:00:00.000Z',
+    week: 3,
+  });
+  expect(result).toBe(expected);
+
+  spy.mockRestore();
 });
