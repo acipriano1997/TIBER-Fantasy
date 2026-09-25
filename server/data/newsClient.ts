@@ -240,13 +240,23 @@ export class NewsAnalysisService {
       sourceStates: [
         {
           sourceId: 'rotoworld-rss',
-          state: rotoworldResult.state === 'ERROR' ? 'ERROR' : 'CURRENT',
+          state:
+            rotoworldResult.state === 'ERROR'
+              ? 'ERROR'
+              : rotoworldResult.state === 'PARTIAL'
+                ? 'PARTIAL'
+                : 'CURRENT',
           checkedAt: retrievedAt,
           itemCount: rotoworldResult.items.length,
         },
         {
           sourceId: 'rotoballer-rss',
-          state: rotoballerResult.state === 'ERROR' ? 'ERROR' : 'CURRENT',
+          state:
+            rotoballerResult.state === 'ERROR'
+              ? 'ERROR'
+              : rotoballerResult.state === 'PARTIAL'
+                ? 'PARTIAL'
+                : 'CURRENT',
           checkedAt: retrievedAt,
           itemCount: rotoballerResult.items.length,
         },
