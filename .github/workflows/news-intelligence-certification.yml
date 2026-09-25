@@ -8,6 +8,7 @@ on:
       - 'server/data/nflverseInjuryClient.ts'
       - 'server/data/nflverseTeamTrendClient.ts'
       - 'server/data/newsClient.ts'
+      - 'server/routes.ts'
       - 'server/services/nextManUpService.ts'
       - 'server/services/__tests__/nextManUpNewsResegmentation.test.ts'
       - 'server/data/__tests__/newsIntelligence.test.ts'
