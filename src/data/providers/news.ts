@@ -4,9 +4,19 @@
 import { cacheKey, getCache, setCache } from "../cache";
 import { NewsSignal } from "../interfaces";
 
+export type LegacyNewsEvidenceState =
+  | "LEGACY_COMPAT"
+  | "MISSING"
+  | "STALE"
+  | "ERROR";
+
 export interface NewsSignalWithProvenance extends NewsSignal {
   __source: string;
   __mock: boolean;
+  // NEWS-001: this coarse sentiment/ECR signal is compatibility-only.
+  // It must never satisfy decision-grade News Intelligence requirements.
+  __decisionGrade: false;
+  __evidenceState: LegacyNewsEvidenceState;
 }
 
 export async function fetchNewsSignal(playerId: string): Promise<NewsSignalWithProvenance> {
@@ -55,6 +65,8 @@ export async function fetchNewsSignal(playerId: string): Promise<NewsSignalWithP
       ecrDelta,
       __source: "intel_ecr_apis",
       __mock: false,
+      __decisionGrade: false,
+      __evidenceState: "LEGACY_COMPAT",
     };
     setCache(key, signal, 10 * 60_000); // 10 minute cache for news
     return signal;
@@ -62,12 +74,15 @@ export async function fetchNewsSignal(playerId: string): Promise<NewsSignalWithP
   } catch (error) {
     console.error('[news-signal]', error);
     
-    // Neutral fallback
+    // Compatibility fallback only. NEWS-001 requires missing/error state to
+    // remain explicit; these neutral numeric values are never decision-grade.
     const fallback: NewsSignalWithProvenance = { 
       newsHeat: 50, 
       ecrDelta: 0,
       __source: "news_api_error",
       __mock: true,
+      __decisionGrade: false,
+      __evidenceState: "ERROR",
     };
     setCache(key, fallback, 5 * 60_000);
     return fallback;

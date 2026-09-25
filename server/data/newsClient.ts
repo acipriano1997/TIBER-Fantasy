@@ -4,7 +4,31 @@
  */
 
 import Parser from 'rss-parser';
+import type { OpportunityResegmentationRequest } from '../services/opportunityResegmentation';
+import { cacheKey, getCache, setCache } from '../../src/data/cache';
 import { calculateNewsWeight } from '../services/waiverHeat';
+import {
+  BuildNewsCheckOptions,
+  DEFAULT_NEWS_CADENCE_MINUTES,
+  NewsCadenceState,
+  NewsEvidenceEvent,
+  buildNewsIntelligenceCheck,
+  composeNewsIntelligenceRefresh,
+  newsTextObservationToEvent,
+  shouldTriggerCcfReevaluation,
+} from './newsIntelligence';
+import type { NflverseInjuryBuildOptions } from './nflverseInjuryClient';
+import { injuryClient } from './injuryClient';
+import {
+  BuildTeamTrendOptions,
+  buildNflverseTeamTrendCheck,
+  nflverseTeamTrendClient,
+} from './nflverseTeamTrendClient';
+import {
+  BuildFtnTrendOptions,
+  buildFtnTrendCheck,
+  nflverseFtnTrendClient,
+} from './nflverseFtnTrendClient';
 
 const parser = new Parser();
 
@@ -15,6 +39,7 @@ export interface NewsItem {
   pubDate: string;
   author?: string;
   playerMentioned?: string;
+  sourceId?: string;
 }
 
 export interface NewsWeight {
@@ -22,6 +47,27 @@ export interface NewsWeight {
   beatReports: number;
   roleClarity: number;
   corroborationGames: number;
+}
+
+export interface NewsFetchResult {
+  items: NewsItem[];
+  state: 'CURRENT' | 'PARTIAL' | 'ERROR';
+}
+
+
+export interface StructuredNewsRefreshResult {
+  schemaVersion: 'news-check-v0';
+  asOf: string;
+  lanes: ReturnType<typeof buildNewsIntelligenceCheck>['lanes'];
+  sources: ReturnType<typeof buildNewsIntelligenceCheck>['sources'];
+  events: NewsEvidenceEvent[];
+  opportunityResegmentationRequests: OpportunityResegmentationRequest[];
+  opportunityResegmentationState: 'COMPLETE' | 'ERROR';
+  opportunityResegmentationError?: string;
+  refreshMeta: {
+    cadenceState: NewsCadenceState;
+    forced: boolean;
+  };
 }
 
 // ========================================
@@ -39,29 +85,37 @@ export class RotoworldNewsClient {
     waiver: 'https://www.rotoworld.com/rss/feed/football/waivers'
   };
 
-  async getPlayerNews(playerName: string, days: number = 7): Promise<NewsItem[]> {
-    try {
-      const allNews: NewsItem[] = [];
-      
-      // Fetch from multiple relevant feeds
-      for (const [feedType, feedUrl] of Object.entries(this.RSS_FEEDS)) {
-        try {
-          const feed = await parser.parseURL(feedUrl);
-          const recentNews = this.filterPlayerNews(feed.items, playerName, days);
-          allNews.push(...recentNews);
-        } catch (error) {
-          console.error(`Failed to fetch ${feedType} feed:`, error);
-        }
-      }
+  async getPlayerNewsWithState(
+    playerName: string,
+    days: number = 7,
+  ): Promise<NewsFetchResult> {
+    const allNews: NewsItem[] = [];
+    let successfulFeeds = 0;
+    let failedFeeds = 0;
 
-      return allNews.sort((a, b) => 
-        new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime()
-      );
-      
-    } catch (error) {
-      console.error('Rotoworld news fetch failed:', error);
-      return [];
+    for (const [feedType, feedUrl] of Object.entries(this.RSS_FEEDS)) {
+      try {
+        const feed = await parser.parseURL(feedUrl);
+        successfulFeeds++;
+        const recentNews = this.filterPlayerNews(feed.items, playerName, days);
+        allNews.push(...recentNews);
+      } catch (error) {
+        failedFeeds++;
+        console.error(`Failed to fetch ${feedType} feed:`, error);
+      }
     }
+
+    const items = allNews.sort(
+      (a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime(),
+    );
+
+    if (successfulFeeds === 0) return { items, state: 'ERROR' };
+    if (failedFeeds > 0) return { items, state: 'PARTIAL' };
+    return { items, state: 'CURRENT' };
+  }
+
+  async getPlayerNews(playerName: string, days: number = 7): Promise<NewsItem[]> {
+    return (await this.getPlayerNewsWithState(playerName, days)).items;
   }
 
   private filterPlayerNews(items: any[], playerName: string, days: number): NewsItem[] {
@@ -80,7 +134,8 @@ export class RotoworldNewsClient {
         link: item.link,
         pubDate: item.pubDate,
         author: item.creator,
-        playerMentioned: playerName
+        playerMentioned: playerName,
+        sourceId: 'rotoworld-rss'
       }));
   }
 
@@ -101,16 +156,22 @@ export class RotoworldNewsClient {
 export class RotoBallerNewsClient {
   private readonly API_BASE = 'https://www.rotoballer.com/rss';
   
-  async getPlayerNews(playerName: string): Promise<NewsItem[]> {
+  async getPlayerNewsWithState(playerName: string): Promise<NewsFetchResult> {
     try {
       const feedUrl = `${this.API_BASE}/nfl-news.xml`;
       const feed = await parser.parseURL(feedUrl);
-      
-      return this.filterPlayerNews(feed.items, playerName, 7);
+      return {
+        items: this.filterPlayerNews(feed.items, playerName, 7),
+        state: 'CURRENT',
+      };
     } catch (error) {
       console.error('RotoBaller news fetch failed:', error);
-      return [];
+      return { items: [], state: 'ERROR' };
     }
+  }
+
+  async getPlayerNews(playerName: string): Promise<NewsItem[]> {
+    return (await this.getPlayerNewsWithState(playerName)).items;
   }
   
   private filterPlayerNews(items: any[], playerName: string, days: number): NewsItem[] {
@@ -129,7 +190,8 @@ export class RotoBallerNewsClient {
         description: item.description,
         link: item.link,
         pubDate: item.pubDate,
-        playerMentioned: playerName
+        playerMentioned: playerName,
+        sourceId: 'rotoballer-rss'
       }));
   }
   
@@ -151,7 +213,261 @@ export class RotoBallerNewsClient {
 export class NewsAnalysisService {
   private rotoworldClient = new RotoworldNewsClient();
   private rotoballerClient = new RotoBallerNewsClient();
+
+  /**
+   * NEWS-001 structured check surface.
+   *
+   * Source adapters may continue to collect raw/RSS items, but decision-facing
+   * consumers should receive explicit OFF_TREND, DEF_TREND, and INJURY lane
+   * state rather than treating a coarse sentiment score as evidence authority.
+   */
+  buildStructuredCheck(
+    events: NewsEvidenceEvent[],
+    options: BuildNewsCheckOptions = {},
+  ) {
+    return buildNewsIntelligenceCheck(events, options);
+  }
+
+  /**
+   * Safe bridge from the existing RSS collectors into NEWS-001.
+   *
+   * Text-derived events are RAW/M1 observations only. They are useful for
+   * capture, digesting, and later corroboration, but cannot request CCF
+   * reevaluation until a certified promotion path upgrades record quality.
+   * Because these feeds do not prove complete league-wide trend coverage,
+   * all three required lanes remain explicitly PARTIAL.
+   */
+  async getStructuredPlayerNewsCheck(
+    playerName: string,
+    playerId?: string,
+    options: BuildNewsCheckOptions = {},
+  ) {
+    const retrievedAt = options.asOf ?? new Date().toISOString();
+    const [rotoworldResult, rotoballerResult] = await Promise.all([
+      this.rotoworldClient.getPlayerNewsWithState(playerName),
+      this.rotoballerClient.getPlayerNewsWithState(playerName),
+    ]);
+
+    const events = [...rotoworldResult.items, ...rotoballerResult.items].map(item =>
+      newsTextObservationToEvent(
+        {
+          sourceId: item.sourceId ?? 'legacy-rss',
+          sourceClass: 'fantasy-news-rss',
+          sourceRole: 'secondary',
+          title: item.title,
+          description: item.description,
+          link: item.link,
+          pubDate: item.pubDate,
+          author: item.author,
+          playerIds: playerId ? [playerId] : undefined,
+        },
+        retrievedAt,
+      ),
+    );
+
+    const bothFailed =
+      rotoworldResult.state === 'ERROR' && rotoballerResult.state === 'ERROR';
+
+    return buildNewsIntelligenceCheck(events, {
+      ...options,
+      asOf: retrievedAt,
+      sourceStates: [
+        {
+          sourceId: 'rotoworld-rss',
+          state:
+            rotoworldResult.state === 'ERROR'
+              ? 'ERROR'
+              : rotoworldResult.state === 'PARTIAL'
+                ? 'PARTIAL'
+                : 'CURRENT',
+          checkedAt: retrievedAt,
+          itemCount: rotoworldResult.items.length,
+        },
+        {
+          sourceId: 'rotoballer-rss',
+          state:
+            rotoballerResult.state === 'ERROR'
+              ? 'ERROR'
+              : rotoballerResult.state === 'PARTIAL'
+                ? 'PARTIAL'
+                : 'CURRENT',
+          checkedAt: retrievedAt,
+          itemCount: rotoballerResult.items.length,
+        },
+        ...(options.sourceStates ?? []),
+      ],
+      laneStatuses: {
+        OFF_TREND: bothFailed ? 'ERROR' : 'PARTIAL',
+        DEF_TREND: bothFailed ? 'ERROR' : 'PARTIAL',
+        INJURY: bothFailed ? 'ERROR' : 'PARTIAL',
+        ...options.laneStatuses,
+      },
+    });
+  }
   
+  /**
+   * Compatibility wrapper. Injury truth remains owned by injuryClient.ts;
+   * News Intelligence consumes its structured surface rather than implementing
+   * a second provider/identity path.
+   */
+  async getNflverseInjuryCheck(
+    season: number,
+    options: NflverseInjuryBuildOptions = {},
+  ) {
+    return injuryClient.intelligence.getStructuredCheck(season, options);
+  }
+
+  /**
+   * Canonical NEWS-001 refresh surface for the required injury/offense/defense
+   * checks. Optional player RSS adds contextual events but does not own lane
+   * completeness or source authority.
+   */
+  async getStructuredNewsRefresh(args: {
+    season: number;
+    week?: number;
+    asOf?: string;
+    playerName?: string;
+    playerId?: string;
+    cadenceState?: NewsCadenceState;
+    forceRefresh?: boolean;
+  }): Promise<StructuredNewsRefreshResult> {
+    const cadenceState = args.cadenceState ?? 'HOT';
+    const useCache = !args.forceRefresh && !args.asOf;
+    const key = cacheKey([
+      'news-intelligence-refresh-v0',
+      args.season,
+      args.week,
+      args.playerId,
+      args.playerName,
+      cadenceState,
+    ]);
+
+    if (useCache) {
+      const cached = getCache<StructuredNewsRefreshResult>(key);
+      if (cached) return cached;
+    }
+
+    const asOf = args.asOf ?? new Date().toISOString();
+
+    const [injury, trends, ftnTrends, supplementalPlayer] = await Promise.all([
+      this.getNflverseInjuryCheck(args.season, {
+        asOf,
+        week: args.week,
+      }),
+      this.getNflverseTeamTrendCheck(args.season, {
+        asOf,
+        targetWeek: args.week,
+      }),
+      this.getNflverseFtnTrendCheck(args.season, {
+        asOf,
+        targetWeek: args.week,
+        forceRefresh: args.forceRefresh,
+      }),
+      args.playerName
+        ? this.getStructuredPlayerNewsCheck(
+            args.playerName,
+            args.playerId,
+            { asOf },
+          )
+        : Promise.resolve(null),
+    ]);
+
+    const check = composeNewsIntelligenceRefresh({
+      injury,
+      trends,
+      supplemental: supplementalPlayer
+        ? [ftnTrends, supplementalPlayer]
+        : [ftnTrends],
+      asOf,
+    });
+
+    let opportunityResegmentationRequests: OpportunityResegmentationRequest[] = [];
+    let opportunityResegmentationState: 'COMPLETE' | 'ERROR' = 'COMPLETE';
+    let opportunityResegmentationError: string | undefined;
+
+    const needsOpportunityResegmentation = check.events.some(
+      event => event.family === 'INJURY' && shouldTriggerCcfReevaluation(event),
+    );
+
+    if (needsOpportunityResegmentation) {
+      try {
+        const { nextManUpService } = await import('../services/nextManUpService');
+        opportunityResegmentationRequests =
+          await nextManUpService.planFromNewsInjuryEvents(check.events, asOf);
+      } catch (error) {
+        opportunityResegmentationState = 'ERROR';
+        opportunityResegmentationError =
+          error instanceof Error ? error.message : String(error);
+        console.error('[NEWS-001] opportunity resegmentation planning failed:', error);
+      }
+    }
+
+    const result: StructuredNewsRefreshResult = {
+      ...check,
+      opportunityResegmentationRequests,
+      opportunityResegmentationState,
+      ...(opportunityResegmentationError
+        ? { opportunityResegmentationError }
+        : {}),
+      refreshMeta: {
+        cadenceState,
+        forced: Boolean(args.forceRefresh),
+      },
+    };
+
+    if (useCache) {
+      const hasSourceError = result.sources.some(source => source.state === 'ERROR');
+      const hasDownstreamError = result.opportunityResegmentationState === 'ERROR';
+      const ttlMinutes = hasSourceError || hasDownstreamError
+        ? 1
+        : cadenceState === 'LIVE'
+          ? 1
+          : DEFAULT_NEWS_CADENCE_MINUTES[cadenceState];
+      setCache(key, result, ttlMinutes * 60_000);
+    }
+
+    return result;
+  }
+
+  /**
+   * NEWS-001 measured league/team trend refresh. This consumes nflverse weekly
+   * team stats and intentionally emits NORMALIZED/M1 trend observations only;
+   * threshold calibration must be certified before direct CCF reevaluation.
+   */
+  async getNflverseTeamTrendCheck(
+    season: number,
+    options: BuildTeamTrendOptions = {},
+  ) {
+    const retrievedAt = options.asOf ?? new Date().toISOString();
+    const fetched = await nflverseTeamTrendClient.fetchSeason(season, retrievedAt);
+    return buildNflverseTeamTrendCheck(fetched, season, {
+      ...options,
+      asOf: retrievedAt,
+    });
+  }
+
+  /**
+   * Supplemental FTN Data via nflverse charting. This adds measured QB
+   * location, motion, play-action, RPO/no-huddle, box and pass-rusher/blitzer
+   * evidence. It never owns lane completeness and remains NORMALIZED/M0 until
+   * historical calibration earns a stronger promotion.
+   */
+  async getNflverseFtnTrendCheck(
+    season: number,
+    options: BuildFtnTrendOptions & { forceRefresh?: boolean } = {},
+  ) {
+    const retrievedAt = options.asOf ?? new Date().toISOString();
+    const fetched = await nflverseFtnTrendClient.fetchSeason(
+      season,
+      retrievedAt,
+      Boolean(options.forceRefresh),
+    );
+    return buildFtnTrendCheck(fetched, season, {
+      ...options,
+      asOf: retrievedAt,
+    });
+  }
+
   async calculatePlayerNewsWeight(playerName: string): Promise<number> {
     try {
       // Get news from both sources

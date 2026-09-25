@@ -82,7 +82,12 @@ export interface SleeperProjectionWithProvenance extends ProviderSource {
 }
 export interface EnvironmentMatchupWithProvenance extends EnvironmentMatchup, ProviderSource {}
 export interface VegasTeamLineWithProvenance extends VegasTeamLine, ProviderSource {}
-export interface NewsSignalWithProvenance extends NewsSignal, ProviderSource {}
+export interface NewsSignalWithProvenance extends NewsSignal, ProviderSource {
+  // NEWS-001 compatibility metadata. Legacy newsHeat/ecrDelta values are not
+  // sufficient on their own to become decision-grade News Intelligence.
+  __decisionGrade?: boolean;
+  __evidenceState?: "LEGACY_COMPAT" | "MISSING" | "STALE" | "ERROR";
+}
 
 export interface ProviderPayloads {
   usage: SleeperUsageWithProvenance;
