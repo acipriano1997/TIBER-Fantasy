@@ -15,6 +15,7 @@ import {
   buildNewsIntelligenceCheck,
   composeNewsIntelligenceRefresh,
   newsTextObservationToEvent,
+  shouldTriggerCcfReevaluation,
 } from './newsIntelligence';
 import type { NflverseInjuryBuildOptions } from './nflverseInjuryClient';
 import { injuryClient } from './injuryClient';
@@ -372,15 +373,21 @@ export class NewsAnalysisService {
     let opportunityResegmentationState: 'COMPLETE' | 'ERROR' = 'COMPLETE';
     let opportunityResegmentationError: string | undefined;
 
-    try {
-      const { nextManUpService } = await import('../services/nextManUpService');
-      opportunityResegmentationRequests =
-        await nextManUpService.planFromNewsInjuryEvents(check.events, asOf);
-    } catch (error) {
-      opportunityResegmentationState = 'ERROR';
-      opportunityResegmentationError =
-        error instanceof Error ? error.message : String(error);
-      console.error('[NEWS-001] opportunity resegmentation planning failed:', error);
+    const needsOpportunityResegmentation = check.events.some(
+      event => event.family === 'INJURY' && shouldTriggerCcfReevaluation(event),
+    );
+
+    if (needsOpportunityResegmentation) {
+      try {
+        const { nextManUpService } = await import('../services/nextManUpService');
+        opportunityResegmentationRequests =
+          await nextManUpService.planFromNewsInjuryEvents(check.events, asOf);
+      } catch (error) {
+        opportunityResegmentationState = 'ERROR';
+        opportunityResegmentationError =
+          error instanceof Error ? error.message : String(error);
+        console.error('[NEWS-001] opportunity resegmentation planning failed:', error);
+      }
     }
 
     const result: StructuredNewsRefreshResult = {
