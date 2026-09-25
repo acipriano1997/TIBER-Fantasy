@@ -393,6 +393,7 @@ export class NflverseInjuryClient {
           accept: 'text/csv,text/plain;q=0.9,*/*;q=0.1',
           'user-agent': 'FFCC-News-Intelligence/NEWS-001',
         },
+        signal: AbortSignal.timeout(10_000),
       });
 
       if (!response.ok) {
