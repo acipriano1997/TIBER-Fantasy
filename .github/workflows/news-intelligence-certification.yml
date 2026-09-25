@@ -1,0 +1,39 @@
+name: NEWS-001 Intelligence Certification
+
+on:
+  pull_request:
+    paths:
+      - 'server/data/newsIntelligence.ts'
+      - 'server/data/newsClient.ts'
+      - 'server/data/__tests__/newsIntelligence.test.ts'
+      - 'src/data/interfaces.ts'
+      - 'src/data/providers/news.ts'
+      - '.github/workflows/news-intelligence-certification.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: news-001-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  news-001:
+    name: Structured news intelligence invariants
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Run NEWS-001 focused tests
+        run: npx jest --config jest.config.cjs --runInBand server/data/__tests__/newsIntelligence.test.ts --coverage=false
+      - name: Bundle NEWS-001 contract module
+        run: npx esbuild server/data/newsIntelligence.ts --platform=node --bundle --packages=external --format=esm --outfile=/tmp/news-intelligence.mjs
