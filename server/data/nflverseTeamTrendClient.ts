@@ -267,12 +267,6 @@ function latestWeek(rows: NflverseTeamStatRow[]): number | undefined {
   }, undefined);
 }
 
-function trendConfidence(sampleGames: number): number {
-  if (sampleGames <= 1) return 0.35;
-  if (sampleGames === 2) return 0.5;
-  if (sampleGames === 3) return 0.65;
-  return 0.75;
-}
 
 function buildTrendEvent(args: {
   family: 'OFF_TREND' | 'DEF_TREND';
@@ -318,7 +312,6 @@ function buildTrendEvent(args: {
       sourceRole: 'primary-measured-team-outcomes',
       sourceAncestryId: `nflverse-team-trend:${family}:${season}:${team}:${week}`,
     },
-    observedAt: retrievedAt,
     retrievedAt,
     knownAt: retrievedAt,
     evidenceState: 'CURRENT',
@@ -327,7 +320,6 @@ function buildTrendEvent(args: {
     // Raw measurements are strong; the thresholds/regime interpretation still
     // requires calibration/backtesting before it may trigger CCF directly.
     recordQuality: 'NORMALIZED',
-    confidence: trendConfidence(sampleGames),
     sampleGames,
     trendRegime: deriveTrendRegime(sampleGames),
     affectedEntities: [team],
