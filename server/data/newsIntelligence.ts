@@ -41,6 +41,14 @@ export type ConfirmationState =
 
 export type MaterialityTier = 'M0' | 'M1' | 'M2' | 'M3';
 
+export type RecordQuality =
+  | 'RAW'
+  | 'VALIDATED'
+  | 'NORMALIZED'
+  | 'DECISION_GRADE'
+  | 'QUARANTINED'
+  | 'REJECTED';
+
 export type TrendRegimeState =
   | 'OBSERVATION'
   | 'DEVELOPING'
@@ -94,6 +102,7 @@ export interface NewsEvidenceEvent {
 
   evidenceState: EvidenceState;
   confirmation: ConfirmationState;
+  recordQuality: RecordQuality;
   confidence?: number;
   conflictState?: string;
 
@@ -129,6 +138,7 @@ export interface NewsCheckLaneResult {
   eventIds: string[];
   eventCount: number;
   materialEventCount: number;
+  decisionGradeEventCount: number;
   highestMateriality: MaterialityTier;
 }
 
@@ -194,6 +204,7 @@ export function buildNewsIntelligenceCheck(
         eventIds: laneEvents.map(event => event.eventId),
         eventCount: laneEvents.length,
         materialEventCount: laneEvents.filter(event => event.materiality === 'M2' || event.materiality === 'M3').length,
+        decisionGradeEventCount: laneEvents.filter(event => event.recordQuality === 'DECISION_GRADE').length,
         highestMateriality: highestMateriality(laneEvents),
       };
       return result;
@@ -300,6 +311,7 @@ export function sortNewsEventsChronologically(
 export function shouldTriggerCcfReevaluation(event: NewsEvidenceEvent): boolean {
   return (
     event.evidenceState === 'CURRENT' &&
+    event.recordQuality === 'DECISION_GRADE' &&
     event.confirmation !== 'SPECULATIVE' &&
     event.confirmation !== 'CONFLICTED' &&
     (event.materiality === 'M2' || event.materiality === 'M3')
