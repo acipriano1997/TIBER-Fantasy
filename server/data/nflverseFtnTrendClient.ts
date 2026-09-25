@@ -110,6 +110,7 @@ export interface FtnTrendClientOptions {
   ftnBaseUrl?: string;
   pbpBaseUrl?: string;
   cacheTtlMs?: number;
+  requestTimeoutMs?: number;
 }
 
 export interface BuildFtnTrendOptions {
@@ -601,6 +602,7 @@ export class NflverseFtnTrendClient {
   private readonly ftnBaseUrl: string;
   private readonly pbpBaseUrl: string;
   private readonly cacheTtlMs: number;
+  private readonly requestTimeoutMs: number;
   private readonly cache = new Map<number, CachedFetch>();
 
   constructor(options: FtnTrendClientOptions = {}) {
@@ -608,6 +610,7 @@ export class NflverseFtnTrendClient {
     this.ftnBaseUrl = options.ftnBaseUrl ?? DEFAULT_FTN_BASE_URL;
     this.pbpBaseUrl = options.pbpBaseUrl ?? DEFAULT_PBP_BASE_URL;
     this.cacheTtlMs = options.cacheTtlMs ?? 6 * 60 * 60 * 1000;
+    this.requestTimeoutMs = options.requestTimeoutMs ?? 20_000;
   }
 
   getFtnSeasonUrl(season: number): string {
@@ -644,14 +647,14 @@ export class NflverseFtnTrendClient {
             accept: 'text/csv,text/plain;q=0.9,*/*;q=0.1',
             'user-agent': 'FFCC-News-Intelligence/NEWS-001',
           },
-          signal: AbortSignal.timeout(15_000),
+          signal: AbortSignal.timeout(this.requestTimeoutMs),
         }),
         this.fetchImpl(pbpUrl, {
           headers: {
             accept: 'text/csv,text/plain;q=0.9,*/*;q=0.1',
             'user-agent': 'FFCC-News-Intelligence/NEWS-001',
           },
-          signal: AbortSignal.timeout(20_000),
+          signal: AbortSignal.timeout(this.requestTimeoutMs),
         }),
       ]);
 
