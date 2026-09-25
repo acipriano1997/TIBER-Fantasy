@@ -4,6 +4,8 @@
 // This module is an evidence/normalization layer only. It does not own
 // projections, rankings, lineup decisions, or other CCF recommendation logic.
 
+import { createHash } from 'node:crypto';
+
 export type NewsEventFamily =
   | 'PLAYER_TEAM_NEWS'
   | 'OFF_TREND'
@@ -316,4 +318,164 @@ export function shouldTriggerCcfReevaluation(event: NewsEvidenceEvent): boolean 
     event.confirmation !== 'CONFLICTED' &&
     (event.materiality === 'M2' || event.materiality === 'M3')
   );
+}
+
+
+export interface NewsTextObservationInput {
+  sourceId: string;
+  sourceClass: string;
+  sourceRole?: string;
+  title: string;
+  description?: string;
+  link: string;
+  pubDate?: string;
+  author?: string;
+  playerIds?: string[];
+  teamIds?: string[];
+}
+
+const INJURY_TEXT_PATTERNS = [
+  'injury',
+  'injured',
+  'hamstring',
+  'ankle',
+  'knee',
+  'shoulder',
+  'concussion',
+  'did not practice',
+  'dnp',
+  'limited practice',
+  'ruled out',
+  'questionable',
+  'doubtful',
+  'injured reserve',
+  'surgery',
+  'mri',
+];
+
+const OFFENSIVE_TREND_PATTERNS = [
+  'under center',
+  'shotgun',
+  'play action',
+  'pre-snap motion',
+  'motion rate',
+  'neutral pass',
+  'pass rate over expectation',
+  'situation-neutral pass',
+  'offensive pace',
+  '12 personnel',
+  '13 personnel',
+  '21 personnel',
+  'route depth',
+  'pass protection',
+  'explosive-play',
+  'red-zone usage',
+  'goal-line usage',
+  'run concept',
+  'outside zone',
+  'inside zone',
+  'gap scheme',
+];
+
+const DEFENSIVE_TREND_PATTERNS = [
+  'blitz rate',
+  'blitzed',
+  'pressure rate',
+  'four-man rush',
+  'four man rush',
+  'simulated pressure',
+  'creeper pressure',
+  'single-high',
+  'two-high',
+  'split-safety',
+  'man coverage',
+  'zone coverage',
+  'coverage shell',
+  'defensive front',
+  'run defense',
+  'missed tackle',
+  'tackling rate',
+];
+
+function includesAny(text: string, patterns: string[]): boolean {
+  return patterns.some(pattern => text.includes(pattern));
+}
+
+export function classifyNewsTextFamily(text: string): NewsEventFamily {
+  const normalized = text.toLowerCase();
+
+  // Injury/availability takes precedence because it has the clearest direct
+  // state semantics and should not be hidden by scheme language in the same blurb.
+  if (includesAny(normalized, INJURY_TEXT_PATTERNS)) return 'INJURY';
+  if (includesAny(normalized, OFFENSIVE_TREND_PATTERNS)) return 'OFF_TREND';
+  if (includesAny(normalized, DEFENSIVE_TREND_PATTERNS)) return 'DEF_TREND';
+  return 'PLAYER_TEAM_NEWS';
+}
+
+function normalizePublishedAt(raw?: string): string | undefined {
+  if (!raw) return undefined;
+  const timestamp = Date.parse(raw);
+  return Number.isFinite(timestamp) ? new Date(timestamp).toISOString() : undefined;
+}
+
+function textObservationFingerprint(input: NewsTextObservationInput): string {
+  return createHash('sha256')
+    .update([input.sourceId, input.link, input.pubDate ?? '', input.title].join('|'))
+    .digest('hex');
+}
+
+export function newsTextObservationToEvent(
+  input: NewsTextObservationInput,
+  retrievedAt: string = new Date().toISOString(),
+): NewsEvidenceEvent {
+  const combinedText = `${input.title} ${input.description ?? ''}`;
+  const normalizedText = combinedText.toLowerCase();
+  const family = classifyNewsTextFamily(combinedText);
+  const fingerprint = textObservationFingerprint(input);
+  const trendFamily = family === 'OFF_TREND' || family === 'DEF_TREND';
+
+  const dependencyTags =
+    family === 'INJURY'
+      ? ['health/readiness', 'role/usage']
+      : trendFamily
+        ? ['scheme/matchup', 'role/usage']
+        : [];
+
+  return {
+    eventId: `rss-${fingerprint.slice(0, 24)}`,
+    schemaVersion: 'news-intel-v0',
+    family,
+    playerIds: input.playerIds,
+    teamIds: input.teamIds,
+    headline: input.title,
+    summary: input.description,
+    direction: 'UNKNOWN',
+    source: {
+      sourceId: input.sourceId,
+      sourceClass: input.sourceClass,
+      sourceRole: input.sourceRole,
+      sourceAncestryId: `rss-root-${createHash('sha256')
+        .update([input.sourceId, input.link].join('|'))
+        .digest('hex')
+        .slice(0, 24)}`,
+    },
+    publishedAt: normalizePublishedAt(input.pubDate),
+    retrievedAt,
+    knownAt: retrievedAt,
+    evidenceState: 'CURRENT',
+    confirmation:
+      normalizedText.includes('coach said') ||
+      normalizedText.includes('coach says') ||
+      normalizedText.includes('head coach')
+        ? 'COACH_STATEMENT'
+        : 'MEDIA_REPORT',
+    recordQuality: 'RAW',
+    sampleGames: trendFamily ? 1 : undefined,
+    trendRegime: trendFamily ? 'OBSERVATION' : undefined,
+    affectedEntities: [...(input.playerIds ?? []), ...(input.teamIds ?? [])],
+    dependencyTags,
+    materiality: 'M1',
+    rawTraceRef: input.link,
+    replayEligible: true,
+  };
 }
