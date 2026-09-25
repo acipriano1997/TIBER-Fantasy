@@ -499,3 +499,74 @@ export function newsTextObservationToEvent(
     replayEligible: true,
   };
 }
+
+
+export interface ComposeNewsRefreshInput {
+  injury: NewsIntelligenceCheck;
+  trends: NewsIntelligenceCheck;
+  supplemental?: NewsIntelligenceCheck[];
+  asOf?: string;
+}
+
+function dedupeSourceStates(
+  states: NewsSourceCheckState[],
+): NewsSourceCheckState[] {
+  const bySource = new Map<string, NewsSourceCheckState>();
+
+  for (const state of states) {
+    const existing = bySource.get(state.sourceId);
+    if (!existing) {
+      bySource.set(state.sourceId, state);
+      continue;
+    }
+
+    const existingTime = Date.parse(existing.checkedAt);
+    const nextTime = Date.parse(state.checkedAt);
+    const safeExisting = Number.isFinite(existingTime) ? existingTime : 0;
+    const safeNext = Number.isFinite(nextTime) ? nextTime : 0;
+
+    if (safeNext >= safeExisting) bySource.set(state.sourceId, state);
+  }
+
+  return [...bySource.values()];
+}
+
+/**
+ * Compose the required NEWS-001 refresh without allowing secondary sources to
+ * silently redefine coverage. Injury lane completeness comes from the injury
+ * owner; measured offense/defense lane completeness comes from the trend
+ * owner. Supplemental sources contribute evidence and provenance only.
+ */
+export function composeNewsIntelligenceRefresh(
+  input: ComposeNewsRefreshInput,
+): NewsIntelligenceCheck {
+  const supplemental = input.supplemental ?? [];
+  const asOf =
+    input.asOf ??
+    [input.injury.asOf, input.trends.asOf, ...supplemental.map(check => check.asOf)]
+      .sort()
+      .at(-1) ??
+    new Date().toISOString();
+
+  const events = [
+    ...input.injury.events,
+    ...input.trends.events,
+    ...supplemental.flatMap(check => check.events),
+  ];
+
+  const sources = dedupeSourceStates([
+    ...input.injury.sources,
+    ...input.trends.sources,
+    ...supplemental.flatMap(check => check.sources),
+  ]);
+
+  return buildNewsIntelligenceCheck(events, {
+    asOf,
+    sourceStates: sources,
+    laneStatuses: {
+      INJURY: input.injury.lanes.INJURY.status,
+      OFF_TREND: input.trends.lanes.OFF_TREND.status,
+      DEF_TREND: input.trends.lanes.DEF_TREND.status,
+    },
+  });
+}
