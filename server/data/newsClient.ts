@@ -4,6 +4,7 @@
  */
 
 import Parser from 'rss-parser';
+import type { OpportunityResegmentationRequest } from '../services/nextManUpService';
 import { cacheKey, getCache, setCache } from '../../src/data/cache';
 import { calculateNewsWeight } from '../services/waiverHeat';
 import {
@@ -45,6 +46,20 @@ export interface NewsWeight {
 export interface NewsFetchResult {
   items: NewsItem[];
   state: 'CURRENT' | 'PARTIAL' | 'ERROR';
+}
+
+
+export interface StructuredNewsRefreshResult {
+  schemaVersion: 'news-check-v0';
+  asOf: string;
+  lanes: ReturnType<typeof buildNewsIntelligenceCheck>['lanes'];
+  sources: ReturnType<typeof buildNewsIntelligenceCheck>['sources'];
+  events: NewsEvidenceEvent[];
+  opportunityResegmentationRequests: OpportunityResegmentationRequest[];
+  refreshMeta: {
+    cadenceState: NewsCadenceState;
+    forced: boolean;
+  };
 }
 
 // ========================================
@@ -307,7 +322,7 @@ export class NewsAnalysisService {
     playerId?: string;
     cadenceState?: NewsCadenceState;
     forceRefresh?: boolean;
-  }) {
+  }): Promise<StructuredNewsRefreshResult> {
     const cadenceState = args.cadenceState ?? 'HOT';
     const useCache = !args.forceRefresh && !args.asOf;
     const key = cacheKey([
@@ -320,7 +335,7 @@ export class NewsAnalysisService {
     ]);
 
     if (useCache) {
-      const cached = getCache<Awaited<ReturnType<NewsAnalysisService['getStructuredNewsRefresh']>>>(key);
+      const cached = getCache<StructuredNewsRefreshResult>(key);
       if (cached) return cached;
     }
 
