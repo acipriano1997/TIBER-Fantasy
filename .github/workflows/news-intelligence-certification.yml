@@ -5,6 +5,7 @@ on:
     paths:
       - 'server/data/newsIntelligence.ts'
       - 'server/data/nflverseInjuryClient.ts'
+      - 'server/data/nflverseTeamTrendClient.ts'
       - 'server/data/newsClient.ts'
       - 'server/data/__tests__/newsIntelligence.test.ts'
       - 'src/data/interfaces.ts'
@@ -35,8 +36,10 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
       - name: Run NEWS-001 focused tests
-        run: npx jest --config jest.config.cjs --runInBand server/data/__tests__/newsIntelligence.test.ts --coverage=false
+        run: npx jest --config jest.config.cjs --runInBand server/data/__tests__/newsIntelligence.test.ts server/data/__tests__/nflverseTeamTrendClient.test.ts --coverage=false
       - name: Bundle NEWS-001 contract module
         run: npx esbuild server/data/newsIntelligence.ts --platform=node --bundle --packages=external --format=esm --outfile=/tmp/news-intelligence.mjs
       - name: Bundle nflverse injury adapter
         run: npx esbuild server/data/nflverseInjuryClient.ts --platform=node --bundle --packages=external --format=esm --outfile=/tmp/nflverse-injury.mjs
+      - name: Bundle nflverse team trend adapter
+        run: npx esbuild server/data/nflverseTeamTrendClient.ts --platform=node --bundle --packages=external --format=esm --outfile=/tmp/nflverse-team-trend.mjs
