@@ -323,12 +323,21 @@ export class NewsAnalysisService {
         : Promise.resolve(null),
     ]);
 
-    return composeNewsIntelligenceRefresh({
+    const check = composeNewsIntelligenceRefresh({
       injury,
       trends,
       supplemental: supplementalPlayer ? [supplementalPlayer] : [],
       asOf,
     });
+
+    const { nextManUpService } = await import('../services/nextManUpService');
+    const opportunityResegmentationRequests =
+      await nextManUpService.planFromNewsInjuryEvents(check.events, asOf);
+
+    return {
+      ...check,
+      opportunityResegmentationRequests,
+    };
   }
 
   /**
