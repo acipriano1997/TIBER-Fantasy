@@ -9,12 +9,15 @@ on:
       - 'server/data/nflverseTeamTrendClient.ts'
       - 'server/data/nflverseFtnTrendClient.ts'
       - 'server/data/newsClient.ts'
+      - 'server/data/newsTrendCalibration.ts'
+      - 'server/scripts/runNewsTrendCalibration.ts'
       - 'server/routes.ts'
       - 'server/services/nextManUpService.ts'
       - 'server/services/opportunityResegmentation.ts'
       - 'server/services/__tests__/nextManUpNewsResegmentation.test.ts'
       - 'server/data/__tests__/newsIntelligence.test.ts'
       - 'server/data/__tests__/nflverseFtnTrendClient.test.ts'
+      - 'server/data/__tests__/newsTrendCalibration.test.ts'
       - 'src/data/interfaces.ts'
       - 'src/data/providers/news.ts'
       - '.github/workflows/news-intelligence-certification.yml'
@@ -43,7 +46,7 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
       - name: Run NEWS-001 focused tests
-        run: npx jest --config jest.config.cjs --runInBand server/data/__tests__/newsIntelligence.test.ts server/data/__tests__/nflverseTeamTrendClient.test.ts server/data/__tests__/nflverseFtnTrendClient.test.ts server/services/__tests__/nextManUpNewsResegmentation.test.ts --coverage=false
+        run: npx jest --config jest.config.cjs --runInBand server/data/__tests__/newsIntelligence.test.ts server/data/__tests__/nflverseTeamTrendClient.test.ts server/data/__tests__/nflverseFtnTrendClient.test.ts server/data/__tests__/newsTrendCalibration.test.ts server/services/__tests__/nextManUpNewsResegmentation.test.ts --coverage=false
       - name: Bundle NEWS-001 contract module
         run: npx esbuild server/data/newsIntelligence.ts --platform=node --bundle --packages=external --format=esm --outfile=/tmp/news-intelligence.mjs
       - name: Bundle canonical injury client
@@ -54,7 +57,38 @@ jobs:
         run: npx esbuild server/data/nflverseTeamTrendClient.ts --platform=node --bundle --packages=external --format=esm --outfile=/tmp/nflverse-team-trend.mjs
       - name: Bundle nflverse FTN charted trend adapter
         run: npx esbuild server/data/nflverseFtnTrendClient.ts --platform=node --bundle --packages=external --format=esm --outfile=/tmp/nflverse-ftn-trend.mjs
+      - name: Bundle trend calibration contract
+        run: npx esbuild server/data/newsTrendCalibration.ts --platform=node --bundle --packages=external --format=esm --outfile=/tmp/news-trend-calibration.mjs
+      - name: Bundle historical calibration runner
+        run: npx esbuild server/scripts/runNewsTrendCalibration.ts --platform=node --bundle --packages=external --format=esm --outfile=/tmp/run-news-trend-calibration.mjs
       - name: Bundle pure opportunity resegmentation contract
         run: npx esbuild server/services/opportunityResegmentation.ts --platform=node --bundle --packages=external --format=esm --outfile=/tmp/opportunity-resegmentation.mjs
       - name: Bundle opportunity resegmentation owner
         run: npx esbuild server/services/nextManUpService.ts --platform=node --bundle --packages=external --format=esm --outfile=/tmp/next-man-up-news.mjs
+
+
+  historical-calibration:
+    name: Historical trend persistence calibration
+    needs: news-001
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Run frozen 2022-2025 persistence replay
+        env:
+          NEWS_CALIBRATION_SEASONS: '2022,2023,2024,2025'
+        run: npx tsx server/scripts/runNewsTrendCalibration.ts
+      - name: Upload calibration evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: news-001-trend-calibration
+          path: artifacts/news-001-calibration/
+          if-no-files-found: error
