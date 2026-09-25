@@ -1,9 +1,11 @@
 import {
   buildNewsIntelligenceCheck,
+  classifyNewsTextFamily,
   dedupeNewsEventsByAncestry,
   deriveInjuryMateriality,
   deriveTrendRegime,
   filterReplayEligibleNews,
+  newsTextObservationToEvent,
   NewsEvidenceEvent,
   sortNewsEventsChronologically,
   shouldTriggerCcfReevaluation,
@@ -150,4 +152,37 @@ test('material current evidence may request CCF reevaluation without becoming re
       makeEvent({ materiality: 'M3', recordQuality: 'NORMALIZED' }),
     ),
   ).toBe(false);
+});
+
+
+test('RSS text capture classifies injury and scheme news only as provisional raw evidence', () => {
+  expect(
+    classifyNewsTextFamily('Team increased play action and snaps under center this week'),
+  ).toBe('OFF_TREND');
+  expect(
+    classifyNewsTextFamily('Defense blitzed more often and changed its coverage shell'),
+  ).toBe('DEF_TREND');
+  expect(
+    classifyNewsTextFamily('Receiver did not practice because of a hamstring injury'),
+  ).toBe('INJURY');
+
+  const event = newsTextObservationToEvent(
+    {
+      sourceId: 'rotoworld-rss',
+      sourceClass: 'fantasy-news-rss',
+      sourceRole: 'secondary',
+      title: 'Team using more 12 personnel and play action',
+      description: 'The offense has leaned into under-center play action.',
+      link: 'https://example.com/story',
+      pubDate: '2026-09-25T15:00:00Z',
+      playerIds: ['player-1'],
+    },
+    '2026-09-25T16:00:00.000Z',
+  );
+
+  expect(event.family).toBe('OFF_TREND');
+  expect(event.recordQuality).toBe('RAW');
+  expect(event.materiality).toBe('M1');
+  expect(event.trendRegime).toBe('OBSERVATION');
+  expect(shouldTriggerCcfReevaluation(event)).toBe(false);
 });
