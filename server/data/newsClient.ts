@@ -56,6 +56,8 @@ export interface StructuredNewsRefreshResult {
   sources: ReturnType<typeof buildNewsIntelligenceCheck>['sources'];
   events: NewsEvidenceEvent[];
   opportunityResegmentationRequests: OpportunityResegmentationRequest[];
+  opportunityResegmentationState: 'COMPLETE' | 'ERROR';
+  opportunityResegmentationError?: string;
   refreshMeta: {
     cadenceState: NewsCadenceState;
     forced: boolean;
@@ -366,13 +368,28 @@ export class NewsAnalysisService {
       asOf,
     });
 
-    const { nextManUpService } = await import('../services/nextManUpService');
-    const opportunityResegmentationRequests =
-      await nextManUpService.planFromNewsInjuryEvents(check.events, asOf);
+    let opportunityResegmentationRequests: OpportunityResegmentationRequest[] = [];
+    let opportunityResegmentationState: 'COMPLETE' | 'ERROR' = 'COMPLETE';
+    let opportunityResegmentationError: string | undefined;
 
-    const result = {
+    try {
+      const { nextManUpService } = await import('../services/nextManUpService');
+      opportunityResegmentationRequests =
+        await nextManUpService.planFromNewsInjuryEvents(check.events, asOf);
+    } catch (error) {
+      opportunityResegmentationState = 'ERROR';
+      opportunityResegmentationError =
+        error instanceof Error ? error.message : String(error);
+      console.error('[NEWS-001] opportunity resegmentation planning failed:', error);
+    }
+
+    const result: StructuredNewsRefreshResult = {
       ...check,
       opportunityResegmentationRequests,
+      opportunityResegmentationState,
+      ...(opportunityResegmentationError
+        ? { opportunityResegmentationError }
+        : {}),
       refreshMeta: {
         cadenceState,
         forced: Boolean(args.forceRefresh),
@@ -381,7 +398,8 @@ export class NewsAnalysisService {
 
     if (useCache) {
       const hasSourceError = result.sources.some(source => source.state === 'ERROR');
-      const ttlMinutes = hasSourceError
+      const hasDownstreamError = result.opportunityResegmentationState === 'ERROR';
+      const ttlMinutes = hasSourceError || hasDownstreamError
         ? 1
         : cadenceState === 'LIVE'
           ? 1
