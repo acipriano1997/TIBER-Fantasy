@@ -35,9 +35,14 @@ function makeEvent(
   };
 }
 
-test('manual structured check always exposes OFF_TREND, DEF_TREND, and INJURY lanes', () => {
+test('completed structured refresh always exposes OFF_TREND, DEF_TREND, and INJURY lanes', () => {
   const check = buildNewsIntelligenceCheck([], {
     asOf: '2026-09-25T17:00:00.000Z',
+    laneStatuses: {
+      OFF_TREND: 'COMPLETE',
+      DEF_TREND: 'COMPLETE',
+      INJURY: 'COMPLETE',
+    },
   });
 
   expect(Object.keys(check.lanes).sort()).toEqual(
@@ -46,6 +51,16 @@ test('manual structured check always exposes OFF_TREND, DEF_TREND, and INJURY la
   expect(check.lanes.OFF_TREND.status).toBe('COMPLETE');
   expect(check.lanes.DEF_TREND.eventCount).toBe(0);
   expect(check.lanes.INJURY.highestMateriality).toBe('M0');
+});
+
+test('unreported lane state fails closed to MISSING', () => {
+  const check = buildNewsIntelligenceCheck([], {
+    asOf: '2026-09-25T17:00:00.000Z',
+  });
+
+  expect(check.lanes.OFF_TREND.status).toBe('MISSING');
+  expect(check.lanes.DEF_TREND.status).toBe('MISSING');
+  expect(check.lanes.INJURY.status).toBe('MISSING');
 });
 
 test('provider failure remains explicit instead of becoming neutral decision-grade evidence', () => {
