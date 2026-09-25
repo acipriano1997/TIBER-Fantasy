@@ -24,6 +24,11 @@ import {
   buildNflverseTeamTrendCheck,
   nflverseTeamTrendClient,
 } from './nflverseTeamTrendClient';
+import {
+  BuildFtnTrendOptions,
+  buildFtnTrendCheck,
+  nflverseFtnTrendClient,
+} from './nflverseFtnTrendClient';
 
 const parser = new Parser();
 
@@ -344,7 +349,7 @@ export class NewsAnalysisService {
 
     const asOf = args.asOf ?? new Date().toISOString();
 
-    const [injury, trends, supplementalPlayer] = await Promise.all([
+    const [injury, trends, ftnTrends, supplementalPlayer] = await Promise.all([
       this.getNflverseInjuryCheck(args.season, {
         asOf,
         week: args.week,
@@ -352,6 +357,11 @@ export class NewsAnalysisService {
       this.getNflverseTeamTrendCheck(args.season, {
         asOf,
         targetWeek: args.week,
+      }),
+      this.getNflverseFtnTrendCheck(args.season, {
+        asOf,
+        targetWeek: args.week,
+        forceRefresh: args.forceRefresh,
       }),
       args.playerName
         ? this.getStructuredPlayerNewsCheck(
@@ -365,7 +375,9 @@ export class NewsAnalysisService {
     const check = composeNewsIntelligenceRefresh({
       injury,
       trends,
-      supplemental: supplementalPlayer ? [supplementalPlayer] : [],
+      supplemental: supplementalPlayer
+        ? [ftnTrends, supplementalPlayer]
+        : [ftnTrends],
       asOf,
     });
 
@@ -429,6 +441,28 @@ export class NewsAnalysisService {
     const retrievedAt = options.asOf ?? new Date().toISOString();
     const fetched = await nflverseTeamTrendClient.fetchSeason(season, retrievedAt);
     return buildNflverseTeamTrendCheck(fetched, season, {
+      ...options,
+      asOf: retrievedAt,
+    });
+  }
+
+  /**
+   * Supplemental FTN Data via nflverse charting. This adds measured QB
+   * location, motion, play-action, RPO/no-huddle, box and pass-rusher/blitzer
+   * evidence. It never owns lane completeness and remains NORMALIZED/M0 until
+   * historical calibration earns a stronger promotion.
+   */
+  async getNflverseFtnTrendCheck(
+    season: number,
+    options: BuildFtnTrendOptions & { forceRefresh?: boolean } = {},
+  ) {
+    const retrievedAt = options.asOf ?? new Date().toISOString();
+    const fetched = await nflverseFtnTrendClient.fetchSeason(
+      season,
+      retrievedAt,
+      Boolean(options.forceRefresh),
+    );
+    return buildFtnTrendCheck(fetched, season, {
       ...options,
       asOf: retrievedAt,
     });
