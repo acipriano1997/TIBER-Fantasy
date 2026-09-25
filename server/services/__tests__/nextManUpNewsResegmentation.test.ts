@@ -2,7 +2,7 @@ import {
   buildOpportunityResegmentationRequest,
   type OpportunityResegmentationCandidate,
   type OpportunityResegmentationContext,
-} from '../nextManUpService';
+} from '../opportunityResegmentation';
 import type { NewsEvidenceEvent } from '../../data/newsIntelligence';
 
 function makeInjuryEvent(
