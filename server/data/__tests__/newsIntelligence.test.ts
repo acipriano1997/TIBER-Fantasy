@@ -1,4 +1,13 @@
 import {
+  NflverseInjuryClient,
+  buildNflverseInjuryCheck,
+  injuryStateFromNflverseRow,
+  latestRowsByPlayerWeek,
+  nflverseInjuryRowToEvent,
+  normalizeGameDesignation,
+  normalizePracticeParticipation,
+} from '../nflverseInjuryClient';
+import {
   NewsAnalysisService,
   RotoBallerNewsClient,
   RotoworldNewsClient,
@@ -261,4 +270,192 @@ test('structured RSS bridge reports lane ERROR when every configured legacy feed
   expect(check.lanes.INJURY.status).toBe('ERROR');
 
   jest.restoreAllMocks();
+});
+
+
+test('nflverse injury normalization maps official practice and game-report states without inventing availability', () => {
+  expect(normalizePracticeParticipation('Did Not Participate In Practice')).toBe('DNP');
+  expect(normalizePracticeParticipation('Limited Participation')).toBe('LP');
+  expect(normalizePracticeParticipation('Full Participation')).toBe('FP');
+  expect(normalizeGameDesignation('Out')).toBe('OUT');
+  expect(normalizeGameDesignation('Questionable')).toBe('QUESTIONABLE');
+
+  const state = injuryStateFromNflverseRow({
+    report_primary_injury: 'Hamstring',
+    report_status: 'Questionable',
+    practice_status: 'Limited Participation in Practice',
+  });
+
+  expect(state).toEqual({
+    injuryEvent: 'Hamstring',
+    bodyArea: 'Hamstring',
+    practiceParticipation: 'LP',
+    gameDesignation: 'QUESTIONABLE',
+    availability: null,
+    procedureOrImaging: null,
+    expectedReturnWindow: null,
+    workloadRestriction: null,
+  });
+});
+
+test('nflverse injury rows retain the latest upstream row per GSIS/week', () => {
+  const rows = latestRowsByPlayerWeek([
+    {
+      season: '2026',
+      week: '3',
+      gsis_id: '00-0000001',
+      practice_status: 'DNP',
+      date_modified: '2026-09-23T16:00:00Z',
+    },
+    {
+      season: '2026',
+      week: '3',
+      gsis_id: '00-0000001',
+      practice_status: 'LP',
+      date_modified: '2026-09-24T16:00:00Z',
+    },
+    {
+      season: '2026',
+      week: '3',
+      gsis_id: '00-0000002',
+      practice_status: 'FP',
+      date_modified: '2026-09-24T16:00:00Z',
+    },
+  ]);
+
+  expect(rows).toHaveLength(2);
+  expect(
+    rows.find(row => row.gsis_id === '00-0000001')?.practice_status,
+  ).toBe('LP');
+});
+
+test('resolved official-report-derived injury row can become decision-grade while unresolved identity is quarantined', () => {
+  const row = {
+    season: '2026',
+    week: '3',
+    team: 'DET',
+    gsis_id: '00-0000001',
+    full_name: 'Test Receiver',
+    report_primary_injury: 'Hamstring',
+    report_status: 'Questionable',
+    practice_status: 'Limited Participation in Practice',
+    date_modified: '2026-09-25T15:00:00Z',
+  };
+
+  const resolved = nflverseInjuryRowToEvent(
+    row,
+    'canonical-player-1',
+    'resolved',
+    '2026-09-25T16:00:00.000Z',
+  );
+  expect(resolved.recordQuality).toBe('DECISION_GRADE');
+  expect(resolved.confirmation).toBe('CONFIRMED_OFFICIAL');
+  expect(resolved.playerIds).toEqual(['canonical-player-1']);
+  expect(resolved.knownAt).toBe('2026-09-25T16:00:00.000Z');
+  expect(resolved.updatedAt).toBe('2026-09-25T15:00:00.000Z');
+  expect(shouldTriggerCcfReevaluation(resolved)).toBe(false);
+
+  const unresolved = nflverseInjuryRowToEvent(
+    row,
+    undefined,
+    'not_found',
+    '2026-09-25T16:00:00.000Z',
+  );
+  expect(unresolved.recordQuality).toBe('QUARANTINED');
+  expect(unresolved.conflictState).toBe('GSIS_IDENTITY_NOT_FOUND');
+  expect(shouldTriggerCcfReevaluation(unresolved)).toBe(false);
+});
+
+test('nflverse injury check is complete only when current-week rows resolve cleanly', () => {
+  const fetched = {
+    state: 'CURRENT' as const,
+    retrievedAt: '2026-09-25T16:00:00.000Z',
+    rows: [
+      {
+        season: '2026',
+        week: '3',
+        team: 'DET',
+        gsis_id: '00-0000001',
+        full_name: 'Test Receiver',
+        report_primary_injury: 'Hamstring',
+        report_status: 'Out',
+        practice_status: 'DNP',
+        date_modified: '2026-09-25T15:00:00Z',
+      },
+    ],
+  };
+
+  const complete = buildNflverseInjuryCheck(fetched, {
+    week: 3,
+    identityResolution: {
+      lookupStatus: 'available',
+      resolved: new Map([['00-0000001', 'canonical-player-1']]),
+      ambiguous: new Set(),
+    },
+  });
+
+  expect(complete.lanes.INJURY.status).toBe('COMPLETE');
+  expect(complete.lanes.INJURY.decisionGradeEventCount).toBe(1);
+  expect(complete.lanes.INJURY.highestMateriality).toBe('M3');
+
+  const partial = buildNflverseInjuryCheck(fetched, {
+    week: 3,
+    identityResolution: {
+      lookupStatus: 'available',
+      resolved: new Map(),
+      ambiguous: new Set(),
+    },
+  });
+
+  expect(partial.lanes.INJURY.status).toBe('PARTIAL');
+  expect(partial.lanes.INJURY.decisionGradeEventCount).toBe(0);
+  expect(partial.events[0].recordQuality).toBe('QUARANTINED');
+});
+
+test('nflverse injury source failure stays an injury-lane ERROR', () => {
+  const check = buildNflverseInjuryCheck({
+    state: 'ERROR',
+    retrievedAt: '2026-09-25T16:00:00.000Z',
+    rows: [],
+    error: 'network failure',
+  });
+
+  expect(check.sources[0].state).toBe('ERROR');
+  expect(check.lanes.INJURY.status).toBe('ERROR');
+  expect(check.lanes.OFF_TREND.status).toBe('MISSING');
+  expect(check.lanes.DEF_TREND.status).toBe('MISSING');
+});
+
+test('nflverse client fetches the documented season CSV and parses report rows', async () => {
+  const csv = [
+    'season,season_type,team,week,gsis_id,position,full_name,report_primary_injury,report_status,practice_primary_injury,practice_status,date_modified',
+    '2026,REG,DET,3,00-0000001,WR,Test Receiver,Hamstring,Questionable,Hamstring,Limited Participation in Practice,2026-09-25T15:00:00Z',
+  ].join('\n');
+
+  const fetchImpl = jest.fn(async () =>
+    new Response(csv, {
+      status: 200,
+      headers: {
+        'content-type': 'text/csv',
+        'last-modified': 'Fri, 25 Sep 2026 15:30:00 GMT',
+      },
+    }),
+  ) as unknown as typeof fetch;
+
+  const client = new NflverseInjuryClient({
+    fetchImpl,
+    baseUrl: 'https://example.test/injuries',
+  });
+  const result = await client.fetchSeason(
+    2026,
+    '2026-09-25T16:00:00.000Z',
+  );
+
+  expect(fetchImpl).toHaveBeenCalledWith(
+    'https://example.test/injuries/injuries_2026.csv',
+    expect.any(Object),
+  );
+  expect(result.state).toBe('CURRENT');
+  expect(result.rows).toHaveLength(1);
+  expect(result.rows[0].practice_status).toBe('Limited Participation in Practice');
 });
