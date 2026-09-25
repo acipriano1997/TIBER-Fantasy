@@ -361,7 +361,7 @@ export function buildNflverseInjuryCheck(
       DEF_TREND: 'MISSING',
       INJURY:
         rows.length === 0
-          ? 'COMPLETE'
+          ? 'MISSING'
           : allIdentityResolved
             ? 'COMPLETE'
             : 'PARTIAL',
