@@ -152,6 +152,7 @@ test('team trend check emits measured offense and defense observations with samp
     {
       state: 'CURRENT',
       retrievedAt: '2026-09-25T16:00:00.000Z',
+      sourceUpdatedAt: '2026-09-25T14:37:55.000Z',
       rows,
     },
     2026,
@@ -173,6 +174,7 @@ test('team trend check emits measured offense and defense observations with samp
   expect(aaaOffense?.materiality).toBe('M1');
   expect(aaaOffense?.sampleGames).toBe(3);
   expect(aaaOffense?.trendRegime).toBe('ESTABLISHED');
+  expect(aaaOffense?.updatedAt).toBe('2026-09-25T14:37:55.000Z');
   expect(aaaOffense?.confidence).toBeUndefined();
   expect(shouldTriggerCcfReevaluation(aaaOffense!)).toBe(false);
 
